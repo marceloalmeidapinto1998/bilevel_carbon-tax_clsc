@@ -7,7 +7,7 @@ from typing import Any, Sequence
 
 from src.models.instance_loader import InstanceData
 
-from .. import io
+from tools.experiments.sensitivity import io
 from .specs import MUTATION_FUNCTIONS, SENSITIVITY_SPECS, SensitivitySpec
 
 DEFAULT_SCENARIO_NAME = "sensitivity"

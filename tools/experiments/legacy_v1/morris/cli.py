@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..factors import DEFAULT_MORRIS_FACTORS
+from tools.experiments.sensitivity.factors import DEFAULT_MORRIS_FACTORS
 from . import analyze as morris_analyze
 from . import design as morris_design
 

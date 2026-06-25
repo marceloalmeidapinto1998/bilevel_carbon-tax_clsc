@@ -12,8 +12,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .. import io
-from ..factors import DEFAULT_MORRIS_FACTORS, apply_levels, build_salib_problem
+from tools.experiments.sensitivity import io
+from tools.experiments.sensitivity.factors import DEFAULT_MORRIS_FACTORS, apply_levels, build_salib_problem
 
 SCENARIO_NAME = "sensitivity_morris"  # metadata label (results route by path, not this name)
 DEFAULT_OUTPUT_DIR = io.DATA_INSTANCES / "experiments" / "sensitivity" / "morris"

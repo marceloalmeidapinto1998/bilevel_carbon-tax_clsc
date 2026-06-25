@@ -10,8 +10,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .. import io
-from ..factors import FACTOR_REGISTRY
+from tools.experiments.sensitivity import io
+from tools.experiments.sensitivity.factors import FACTOR_REGISTRY
 
 DESIGN_ROOT = io.DATA_INSTANCES / "experiments" / "sensitivity" / "morris"
 OUTPUTS = {

@@ -18,7 +18,7 @@ import pandas as pd
 from tools.analysis.common.csv_io import read_network, read_run
 from tools.analysis.common.paths import REPORTS, RUNS, TABLES, ensure_analysis_dirs
 from tools.analysis.common.schemas import base_instance, imt
-from tools.experiments.sensitivity.oat.specs import canonical_code
+from tools.experiments.legacy_v1.oat.specs import canonical_code
 
 _LOG: list[str] = []
 

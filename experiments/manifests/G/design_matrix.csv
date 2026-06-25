@@ -1,0 +1,9 @@
+family_id,design_point_id,run_code,base_instance_id,execution_mode,per_subproblem_time_limit_seconds,per_run_wall_clock_cap_seconds,technology_menu,transport_menu,seed_offset,fixed_hat_tau,mip_gap,dbp_relative_gap,threads,mip_focus,notes
+G,G-01,threads1_focus0,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,1,0,
+G,G-02,threads1_focus1,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,1,1,
+G,G-03,threads1_focus2,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,1,2,
+G,G-04,threads6_focus1,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,6,1,
+G,G-05,threads6_focus2,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,6,2,
+G,G-06,threads12_focus0,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,12,0,
+G,G-07,threads12_focus1,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,12,1,
+G,G-08,threads12_focus2,STD_I25_M8_T6,bilevel,7200.0,25200.0,base,base,0,,,,12,2,

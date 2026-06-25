@@ -9,8 +9,8 @@ from __future__ import annotations
 import argparse
 
 from . import report as report_mod
-from .morris import cli as morris_cli
-from .oat import cli as oat_cli
+from ..legacy_v1.morris import cli as morris_cli
+from ..legacy_v1.oat import cli as oat_cli
 from .robustness import cli as robustness_cli
 
 
@@ -39,7 +39,7 @@ def _run_report(args: argparse.Namespace) -> int:
 
 def _run_analyze_all(args: argparse.Namespace) -> int:
     from tools.analysis.aggregate import main as aggregate_results
-    from .oat import analyze as oat_analyze
+    from ..legacy_v1.oat import analyze as oat_analyze
     from .robustness import aggregate, censoring
 
     aggregate_results()        # generic tidy tables (master_runs, tax_response_long, scenario_2x2)
