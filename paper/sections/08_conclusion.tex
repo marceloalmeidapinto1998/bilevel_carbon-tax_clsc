@@ -1,0 +1,130 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  sections/08_conclusion.tex
+% ============================================================
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper has addressed the design of sustainable closed-loop
+supply chains under a carbon-tax policy by modelling the interaction
+between the regulator and the supply-chain operator as a bilevel
+mixed-integer programme. The regulator lexicographically minimises
+emissions and then the tax rate, while the operator solves a
+multi-echelon, multi-period \CLSC design and operations problem with
+integer facility, technology, capacity, and transportation decisions.
+We developed a deterministic bounding procedure (\DBP) that combines
+a relaxation-based lower bound with exact follower evaluations and
+returns validated bilevel solutions on the generated instances.
+
+\subsection{Summary of findings}
+\label{sec:conc:summary}
+
+Three findings emerge from the computational study:
+\begin{enumerate}
+  \item \textbf{The emissions-minimising tax is instance-specific and
+        sits on a saturating frontier.} Optimal rates span
+        $0.02$--$0.20$ USD/kg\,CO\textsubscript{2}e, and beyond a
+        moderate level extra tax yields negligible abatement, so a
+        purely emissions-driven regulator is ill-posed unless paired
+        with a cost or meaningful-abatement criterion.
+  \item \textbf{Technology, not transport, is the binding abatement
+        lever.} Expanding the production and remanufacturing
+        technology menu cuts optimal emissions by $26$--$33\%$, while
+        expanding the transport-mode catalogue is essentially inert;
+        emissions are driven by demand and by production and upstream
+        (scope-3) emission intensities.
+  \item \textbf{The \DBP is reliable but horizon-bound.} All 95
+        committed runs are validated at relative gaps no larger than
+        $1.9\times10^{-5}$ in two to three iterations; T3--T6
+        instances solve within hours, whereas the T12 instances are
+        intractable within the compute budget, marking horizon length
+        as the main computational bottleneck.
+\end{enumerate}
+
+\subsection{Academic contributions}
+\label{sec:conc:contributions}
+
+The contributions of the paper are threefold. First, it formulates a
+bilevel \CLSC model that integrates a discrete, lexicographic
+regulatory tax decision with a detailed integer supply-chain design
+problem. Second, it develops a convergent \DBP with saved-solution
+validation and uses it to derive policy- and management-relevant
+insight --- the saturating emission--tax frontier and the primacy of
+the technology lever --- that single-level models cannot reveal.
+Third, it provides a tested generated benchmark, a sensitivity and
+scenario suite, and a documented result schema that ties every
+reported number to saved solver outputs.
+
+\subsection{Limitations and future research directions}
+\label{sec:conc:future}
+
+Several extensions deserve attention.
+
+\paragraph{Cost-aware leader objectives.}
+The saturating frontier makes a purely emissions-minimising leader
+ill-posed; a natural next step is a leader objective that trades
+emissions against tax burden explicitly, or that imposes a minimum
+meaningful-abatement threshold, so the optimal tax is well-identified
+without relying on the lexicographic tie-break.
+
+\paragraph{Scalability to longer horizons.}
+The T12 instances are out of reach within the present compute budget;
+decomposition, warm starts, and parallel \DBP implementations are the
+most promising routes to the longest horizons and larger networks.
+
+\paragraph{External benchmark implementations.}
+KKT reformulations, exhaustive bilevel grid search, or other
+benchmark methods should be implemented before any cross-method
+performance claims are made.
+
+\paragraph{Mechanism-level diagnostics.}
+The scenario design isolates the technology lever but not the
+individual mechanisms within it; decomposing abatement by facility,
+technology, remanufacturing, inventory, and transport decision would
+support finer mechanism-specific claims.
+
+\paragraph{Stochastic and robust extensions.}
+Embedding demand, return-rate, cost, and emission uncertainty into
+the follower problem would broaden the model's applicability to
+volatile markets.
+
+\paragraph{Pessimistic and risk-averse leader models.}
+Implementing pessimistic tie-breaking and risk-averse leader
+objectives would strengthen the regulatory interpretation when the regulator
+cannot assume favourable follower tie-breaking.
+
+\paragraph{Mixed regulatory instruments.}
+Caps, subsidies, cap-and-trade, and dynamic tax trajectories are
+natural extensions of the leader programme.
+
+\paragraph{Algorithmic enhancements.}
+Adaptive sampling, decomposition, warm starts, and parallel \DBP
+implementations are promising routes for larger instances.
+
+Pursuing these extensions would turn the current reproducible
+prototype into a broader decision-support framework for joint supply
+chain and climate-policy design.
+
+\section*{Acknowledgements}
+The authors thank the anonymous reviewers for their constructive
+comments. This work was supported by [Funding Agency, Grant Number].
+
+\section*{Author Contributions}
+\textbf{Marcelo Pinto}: Conceptualisation, Methodology, Software,
+Formal Analysis, Writing -- Original Draft.
+\textbf{Paulo Nascimento}: Methodology, Validation, Writing --
+Review \& Editing.
+\textbf{Crist\'ov\~ao Silva}: Supervision, Writing -- Review \&
+Editing.
+\textbf{Maria Jo\~ao Alves}: Methodology, Formal Analysis, Writing
+-- Review \& Editing.
+\textbf{Carlos Henggeler}: Supervision, Writing -- Review \&
+Editing.
+\textbf{Samuel Moniz}: Conceptualisation, Supervision, Project
+Administration, Funding Acquisition, Writing -- Review \& Editing.
+
+\section*{Declaration of Competing Interests}
+The authors declare that they have no known competing financial
+interests or personal relationships that could have appeared to
+influence the work reported in this paper.

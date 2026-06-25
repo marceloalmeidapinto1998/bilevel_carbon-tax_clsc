@@ -1,0 +1,71 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  sections/04b_leader.tex
+% ============================================================
+
+%-----------------------------------------------------------------
+\subsection{Bilevel Programme}
+\label{sec:model:bilevel}
+
+The \CLSC design problem with the carbon tax as a leader decision
+variable is modelled as
+the following bilevel programme. The leader announces a carbon-tax index
+$\taxhat$; the follower observes $\taxhat$ and selects the
+cost-minimising supply chain design and operations. Denoting the
+follower's optimal-response correspondence by $\Sol{\taxhat}$ and its
+feasible region by $\setX$ (defined in \Cref{sec:model:follower}), the
+complete programme is
+\begin{subequations}\label{eq:leader}
+\begin{alignat}{2}
+\textup{(BL)}\quad
+\lexmin_{\taxhat,\,\bz}\quad
+  & \bigl(\Emis(\bz),\ \taxhat\bigr) \label{eq:leader_obj}\\
+\text{s.t.}\quad
+  & \taxhat\in\mathcal{T}^{\tau}, \label{eq:leader_tax}\\
+  & \bz\in\Sol{\taxhat}, \label{eq:leader_react}
+\end{alignat}
+\end{subequations}
+where $\Sol{\taxhat}$ is defined in~\eqref{eq:reaction_set} once the
+follower's objective has been introduced in \Cref{sec:model:follower_obj}.
+\Cref{sec:model:leader,sec:model:follower} present the two levels in
+detail.
+
+Bilevel programmes with integer lower-level variables are NP-hard in
+general \citep{moore1990, jeroslow1985}; problem~\eqref{eq:leader}
+inherits this hardness, since the follower's problem~\eqref{eq:follower}
+is itself a \MILP for every fixed $\taxhat$.
+
+%-----------------------------------------------------------------
+\subsection{Regulator's Problem}
+\label{sec:model:leader}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Objective function}
+\label{sec:model:leader_obj}
+
+The regulator is a \emph{lexicographic minimiser}: it first minimises
+the total emissions $\Emis(\bz)$ induced by the follower's response and,
+among all tax indices that attain that minimum, selects the smallest one
+(see~\eqref{eq:leader_obj}).
+
+\begin{remark}[Lexicographic structure]\label{rem:lexicographic}
+The lexicographic objective~\eqref{eq:leader_obj} minimises emissions
+unconditionally, with the tax index acting solely as a tiebreaker. This
+secondary criterion encodes a \emph{least-intervention principle}: the
+regulator does not levy a tax heavier than the emissions target
+requires. \Cref{sec:exp:tradeoff} shows this matters when the
+emission--tax response saturates and the primary minimiser is attained
+across a wide band of tax indices.
+\end{remark}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Feasibility constraints}
+\label{sec:model:leader_constr}
+
+Two constraints define the leader's feasible set. Constraint~\eqref{eq:leader_tax}
+restricts the tax to the admissible grid $\mathcal{T}^{\tau}$
+(\Cref{sec:model:variables}). Constraint~\eqref{eq:leader_react}
+imposes bilevel feasibility: the supply chain operator's response must
+be optimal given the announced tax. Under the optimistic
+tie-break of \Cref{as:opt}, the leader selects, among all optimal
+follower responses, the one with the lowest emissions.

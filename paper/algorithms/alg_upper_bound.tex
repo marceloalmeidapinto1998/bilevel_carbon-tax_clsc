@@ -1,0 +1,24 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  algorithms/alg_upper_bound.tex  —  UB subroutine (inlined)
+% ============================================================
+
+% NOTE: this file is \input inside alg_bounding_procedure.tex;
+%       it does NOT open a new algorithm float.
+
+\tcp*[h]{Evaluate the follower exactly at the master's current candidate $\taxhat^{(k)}$}
+Solve~\eqref{eq:follower} at $\taxhat=\taxhat^{(k)}$ to optimality, and
+among its optimal responses select the one with least emissions
+(\Cref{as:opt}), giving $\bz^{(k)}\in\Sol{\taxhat^{(k)}}$,
+$c_{k}\defeq\Cost\!\bigl(\bz^{(k)}\bigr)$,
+$e_{k}\defeq\Emis\!\bigl(\bz^{(k)}\bigr)$\;
+\If{$e_{k}<\UB$}{%
+  $\UB\leftarrow e_{k}$;\quad
+  $\taxhat^{\dagger}\leftarrow\taxhat^{(k)}$;\quad
+  $\bz^{\dagger}\leftarrow\bz^{(k)}$\;
+}
+\tcp{Record the cut
+  $\Cost(\bz)+\tfrac{\taxhat}{100}\Emis(\bz)\le c_{k}+\tfrac{\taxhat}{100}e_{k}$,
+  valid for every $\taxhat\in\mathcal{T}^{\tau}$ since
+  $\bz^{(k)}\in\setX$ regardless of $\taxhat$ (\Cref{lem:lb_validity})}
+$\mathcal{C}\leftarrow\mathcal{C}\cup\bigl\{(\taxhat^{(k)},\,c_{k},\,e_{k})\bigr\}$\;

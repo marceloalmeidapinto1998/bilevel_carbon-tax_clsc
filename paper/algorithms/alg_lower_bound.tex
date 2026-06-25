@@ -1,0 +1,15 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  algorithms/alg_lower_bound.tex  —  LB subroutine (inlined)
+% ============================================================
+
+% NOTE: this file is \input inside alg_bounding_procedure.tex;
+%       it does NOT open a new algorithm float.
+
+\tcp*[h]{Re-solve the relaxation master with all cuts collected so far}
+$\bigl(\taxhat^{(k+1)},\,\bz\bigr)\leftarrow
+  \displaystyle\argmin_{\taxhat\in\mathcal{T}^{\tau},\,\bz\in\setX}
+  \Bigl\{\Emis(\bz)\ :\
+  \Cost(\bz)+\tfrac{\taxhat}{100}\Emis(\bz)\le c_{j}+\tfrac{\taxhat}{100}e_{j}
+  \ \ \forall(\taxhat^{(j)},c_{j},e_{j})\in\mathcal{C}\Bigr\}$\;
+$\LB\leftarrow\Emis(\bz)$\;

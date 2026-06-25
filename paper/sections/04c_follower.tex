@@ -1,0 +1,575 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  sections/04c_follower.tex
+% ============================================================
+
+%-----------------------------------------------------------------
+\subsection{Supply Chain Operator's Problem}
+\label{sec:model:follower}
+
+Given the tax index $\taxhat\in\mathcal{T}^{\tau}$ announced by the
+regulator, the supply chain operator solves a mixed-integer programme
+whose feasible region $\setX$ is defined by constraints (C1)--(C10) in
+\Cref{sec:model:c1,sec:model:c2,sec:model:c3,sec:model:c4,%
+sec:model:c5,sec:model:c6,sec:model:c7,sec:model:c8,sec:model:c9,%
+sec:model:c10}. The objective, detailed in \Cref{sec:model:follower_obj},
+combines total cost and carbon-tax payment.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Objective function}
+\label{sec:model:follower_obj}
+
+Given $\taxhat$, the operator minimises the sum of its total cost
+$\Cost(\bz)$ and carbon-tax payment:
+\begin{equation}
+\textup{(FL)}\quad
+\min_{\bz\in\setX}\;
+\Cost(\bz) + \tfrac{\taxhat}{100}\,\Emis(\bz),
+\label{eq:follower}
+\end{equation}
+with optimal-response correspondence
+\begin{equation}
+\Sol{\taxhat} \defeq
+\argmin_{\bz\in\setX}\;\Bigl\{\Cost(\bz) +
+\tfrac{\taxhat}{100}\,\Emis(\bz)\Bigr\}.
+\label{eq:reaction_set}
+\end{equation}
+
+The operator's total cost is given by
+\begin{align}
+\Cost(\bz)
+={}&
+  \sum_{i\in\setS} F_i\,y_i
+  +\sum_{i\in\setF\cup\setW} c^{\mathrm{area}}_i\,YC_i
+  +\sum_{f\in\setF}\Bigl(
+     \sum_{g\in\setG} C^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg}
+    +\sum_{\ell\in\setL} C^{\mathrm{r}}_{\ell}\,\lambda^{\mathrm{r}}_{f\ell}
+  \Bigr)
+\nonumber\\
+&+
+  \sum_{i\in\setN}\sum_{m\in\setMrd}
+     F^{\mathrm{m}}_m\,K_{im}
+   +\sum_{h\in\setH}\sum_{t\in\setT}
+     F_h\,y_h
+\nonumber\\
+&+
+  \sum_{(p,g)\in\Omega^{\mathrm{p}}}\sum_{f,t}
+     c^{\mathrm{p}}_g\,q^{\mathrm{p}}_{pfgt}
+   +\sum_{(p,\ell)\in\Omega^{\mathrm{r}}}\sum_{f,t}
+     c^{\mathrm{r}}_{\ell}\,q^{\mathrm{r}}_{pf\ell t}
+\nonumber\\
+&+
+  \sum_{p\in\setP}\sum_{i\in\setNv}\sum_{t}
+     c^{\mathrm{h}}_p\,s^{\mathrm{inv}}_{pit}
+\nonumber\\
+&+
+  \sum_{u\in\setU}\sum_{s\in\setS}\sum_{t}
+     c^{\mathrm{u}}_{su}\,X^{\mathrm{out}}_{ust}
+   +\sum_{k\in\setK}\sum_{r\in\setR}\sum_{t}
+     c^{\mathrm{k}}_k\,X^{\mathrm{out}}_{krt}
+\nonumber\\
+&+
+  \sum_{(i,j)\in\setA}\sum_{m\in\setM_{ij}\cap\setMrd}\sum_{t}
+     c^{\mathrm{veh}}_m\,r_m\,\delta_{ij}\,Q_{ijmt}
+   +\sum_{(q,i,j)\in\Phi}\sum_{m\in\setM_{ij}\setminus\setMrd}\sum_{t}
+     c^{\mathrm{tr}}_m\,\delta_{ij}\,\omega_q\,x_{qijmt}
+\nonumber\\
+&+
+  \sum_{(q,i,j)\in\Phi}\sum_{m\in\setM_{ij}}\sum_{t}
+     c^{\mathrm{hub}}_m
+     \bigl(\xi^{\mathrm{o}}_{ij}+\xi^{\mathrm{d}}_{ij}\bigr)
+     \omega_q\,x_{qijmt},
+\label{eq:cost}
+\end{align}
+
+The first term is the fixed cost of selecting a supplier, plus the
+area-proportional installation cost $c^{\mathrm{area}}_i$ charged on the
+floor area $YC_i$ installed at an opened factory or warehouse -- there
+is no separate fixed cost for opening a factory or warehouse, since
+$YC_i\ge\underline{A}_i\,y_i$ already forces a nonzero installation cost
+whenever $y_i=1$ (\Cref{eq:area_bounds}) -- plus the cost of installing
+a production or remanufacturing technology at each factory. The second term is the road
+fleet investment cost and the hub access fee, the latter charged every
+period a hub is selected. The
+third term is the variable cost of production and remanufacturing, and
+the fourth is the inventory-holding cost on finished-product stock at
+warehouses -- factories and recovered items are never held in
+inventory (\Cref{sec:model:c1}), so neither carries a holding-cost
+term. The fifth term is the acquisition cost of
+raw materials and recovered items. The sixth term is transport: road
+transport is charged per trip, scaled by the return factor $r_m$ for the
+empty return leg, while outsourced transport is charged per
+kilogram-kilometre shipped. The seventh and final term is the
+hub-handling charge, applied once for each hub endpoint of an arc.
+
+Total emissions are given by
+\begin{align}
+\Emis(\bz)
+={}&
+  \sum_{i\in\setF\cup\setW} e^{\mathrm{o,f}}_i\,YC_i
+\nonumber\\
+&+
+  \sum_{(p,g)\in\Omega^{\mathrm{p}}}\sum_{f,t}
+     e^{\mathrm{p}}_g\,\omega_p\,q^{\mathrm{p}}_{pfgt}
+   +\sum_{(p,\ell)\in\Omega^{\mathrm{r}}}\sum_{f,t}
+     e^{\mathrm{r}}_{\ell}\,\omega_p\,q^{\mathrm{r}}_{pf\ell t}
+\nonumber\\
+&+
+  \sum_{u\in\setU}\sum_{s\in\setS}\sum_{t}
+     e^{\mathrm{u}}_{su}\,\omega_u\,X^{\mathrm{out}}_{ust}
+\nonumber\\
+&+
+  \sum_{(q,i,j)\in\Phi}\sum_{m\in\setM_{ij}}\sum_{t}
+     e^{\mathrm{tr}}_m\,r_m\,\omega_q\,\delta_{ij}\,x_{qijmt}.
+\label{eq:emissions}
+\end{align}
+
+The first term is the opening emission: an amount proportional to the
+installed area $YC_i$ for an opened factory or warehouse -- suppliers
+and hubs carry no opening emission of their own; a supplier's emission
+footprint is captured entirely by the raw-material acquisition term
+below. The second term is the production and
+remanufacturing emission, per kilogram of output.
+The third term is the raw-material acquisition
+emission, per kilogram shipped. The fourth and final term is transport,
+scaled by the same return factor $r_m$ used in the transport cost
+(\Cref{eq:cost}): the empty return leg of a road delivery still burns
+fuel and emits CO$_2$, even though it carries no cargo; $r_m=1$ for
+outsourced modes, which have no return leg attributable to the
+follower.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C1)~~Flow conservation and inventory balance}
+\label{sec:model:c1}
+
+These constraints enforce material balance at every node type in every
+period. Finished-product inventory follows a standard stock-balance
+recurrence at warehouses -- factories carry no inventory of their own
+and operate as pure flow-through nodes for finished products, mirroring
+the hub cross-docking pattern below; recovered items are likewise never
+buffered, at warehouses or anywhere else, and pass through warehouses
+as pure flow-through too; markets satisfy demand exactly with no
+on-site inventory; and hub terminals operate as pure cross-docking
+nodes:
+\begin{subequations}\label{eq:c1_balance}
+\begin{alignat}{2}
+X^{\mathrm{in}}_{pft}
+    + \sum_{g:(p,g)\in\Omega^{\mathrm{p}}} q^{\mathrm{p}}_{pfgt}
+    + \sum_{\ell:(p,\ell)\in\Omega^{\mathrm{r}}} q^{\mathrm{r}}_{pf\ell t}
+  &= X^{\mathrm{out}}_{pft},
+&& \forall p\in\setP,\,f\in\setF,\,t\in\setT,
+\label{eq:bal_factory}\\
+s^{\mathrm{inv}}_{pwt}
+  &= s^{\mathrm{inv}}_{pw,t-1}
+    + X^{\mathrm{in}}_{pwt} - X^{\mathrm{out}}_{pwt},
+&& \forall p\in\setP,\,w\in\setW,\,t\in\setT,
+\label{eq:bal_warehouse}\\
+X^{\mathrm{in}}_{kwt}
+  &= X^{\mathrm{out}}_{kwt},
+&& \forall k\in\setK,\,w\in\setW,\,t\in\setT,
+\label{eq:bal_warehouse_rp}\\
+X^{\mathrm{in}}_{prt}
+  &= d_{rpt},
+&& \forall p\in\setP,\,r\in\setR,\,t\in\setT,
+\label{eq:bal_market}\\
+X^{\mathrm{in}}_{qht}
+  &= X^{\mathrm{out}}_{qht},
+&& \forall q\in\setQ,\,h\in\setH,\,t\in\setT,
+\label{eq:bal_hub}
+\end{alignat}
+\end{subequations}
+with boundary condition $s^{\mathrm{inv}}_{pi,0}=I^0_{pi}$ for all
+$p\in\setP$, $i\in\setNv$.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C2)~~Reverse logistics and returns}
+\label{sec:model:c2}
+
+Return flows are governed by product-specific collection rates and lag
+parameters. The volume of recoverable item $k$ collected at market $r$
+in period $t$ is bounded above and below by fractions of lagged
+demand (with $d_{rp,t-\theta_p}\defeq 0$ when $t-\theta_p<1$). Every
+recovered unit entering a factory is consumed entirely by remanufacturing,
+closing the material loop:
+\begin{subequations}\label{eq:c2_reverse}
+\begin{alignat}{2}
+\sum_{p\in\setP}\gamma_{kp}\,\underline{\eta}_{rpt}\,d_{rp,t-\theta_p}
+  \le X^{\mathrm{out}}_{krt}
+  &\le \sum_{p\in\setP}\gamma_{kp}\,\overline{\eta}_{rpt}\,d_{rp,t-\theta_p},
+&& \forall k\in\setK,\,r\in\setR,\,t\in\setT,
+\label{eq:return_bounds}\\
+X^{\mathrm{in}}_{kft}
+  &= \sum_{(p,\ell)\in\Omega^{\mathrm{r}}}
+       \beta_{kp}\,q^{\mathrm{r}}_{pf\ell t},
+&& \forall k\in\setK,\,f\in\setF,\,t\in\setT.
+\label{eq:return_factory}
+\end{alignat}
+\end{subequations}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C3)~~Raw material supply}
+\label{sec:model:c3}
+
+A supplier can ship raw material $u$ in period $t$ only if it is both
+open and activated via the binary $\sigma_{sut}$. The shipped quantity
+is then bounded within the supplier's per-period capacity, and the
+total raw-material inflow at each factory in period $t$ must exactly
+satisfy production stoichiometry:
+\begin{subequations}\label{eq:c3_supply}
+\begin{alignat}{2}
+\underline{S}_{su}\,\sigma_{sut}
+  \le X^{\mathrm{out}}_{ust}
+  &\le \overline{S}_{su}\,\sigma_{sut},
+&& \forall s\in\setS,\,u\in\setU,\,t\in\setT,
+\label{eq:supply_bounds}\\
+\sigma_{sut}
+  &\le y_s,
+&& \forall s\in\setS,\,u\in\setU,\,t\in\setT,
+\label{eq:supplier_link}\\
+X^{\mathrm{in}}_{uft}
+  &= \sum_{(p,g)\in\Omega^{\mathrm{p}}}
+       \alpha_{upg}\,q^{\mathrm{p}}_{pfgt},
+&& \forall u\in\setU,\,f\in\setF,\,t\in\setT.
+\label{eq:raw_consumption}
+\end{alignat}
+\end{subequations}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C4)~~Facility opening and area capacity}
+\label{sec:model:c4}
+
+The floor area installed at each factory and warehouse is a continuous
+decision that is active only when the facility is open. The installed
+area is bounded by facility-specific limits conditional on opening, and
+the used floor area $YCT_{it}$ (\Cref{eq:YCT}) -- combining handling
+space for period throughput and, at warehouses, storage space for
+end-of-period inventory -- must not exceed the installed area:
+\begin{subequations}\label{eq:c4_capacity}
+\begin{alignat}{2}
+\underline{A}_i\,y_i
+  \le YC_i
+  &\le \overline{A}_i\,y_i,
+&& \forall i\in\setF\cup\setW,
+\label{eq:area_bounds}\\
+YCT_{it}
+  &\le YC_i,
+&& \forall i\in\setF\cup\setW,\,t\in\setT.
+\label{eq:capacity_use}
+\end{alignat}
+\end{subequations}
+
+\begin{remark}[Flow-direction adaptation of the floor-area expression]
+\label{rem:floor_area_flow_direction}
+\citet{mota2018}'s general facility-area expression (their Eq.~16)
+combines a flow-based handling term and a stock-based storage term,
+$\sum_{m,a,j} apur_m X_{majit} + \sum_m apu_m S_{mit}$, where $X$
+denotes flow \emph{into} node $i$ in their generic indexing
+convention. This project adapts the flow-based term to its own
+flow-direction convention rather than copying $X_{majit}$ verbatim.
+At a factory, $X^{\mathrm{in}}_{pft}\equiv 0$ structurally under the
+greenfield network-design convention of \Cref{rem:valid_ineq} --- no
+arc routes finished product \emph{into} a factory --- so a literal
+inbound-flow term would always vanish and defeat the purpose of
+modelling factory handling space at all. Equation~\eqref{eq:YCT}
+therefore uses the economically meaningful throughput quantity at a
+factory, the outbound flow $X^{\mathrm{out}}_{pft}$, which by
+\Cref{rem:valid_ineq} equals $q^{\mathrm{p}}_{pfgt}+q^{\mathrm{r}}_{pf\ell t}$
+under that convention but remains well defined as a direct flow
+quantity even if it did not. At a warehouse, both
+$X^{\mathrm{in}}_{pwt}$ and $X^{\mathrm{out}}_{pwt}$ are generally
+nonzero and differ only by the stock change~\eqref{eq:bal_warehouse},
+so either is a defensible throughput proxy; \eqref{eq:YCT} retains the
+inbound flow $X^{\mathrm{in}}_{pwt}$ as the more literal mirror of
+Mota's own indexing convention, representing the receiving/staging
+space needed for incoming goods, kept distinct from the
+already-present stock term.
+\end{remark}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C5)~~Inventory bounds}
+\label{sec:model:c5}
+
+Physical capacity and handling requirements impose per-product bounds
+on end-of-period inventory. These bounds are active only when the
+facility is open, linking the location and inventory decisions:
+\begin{subequations}\label{eq:c5_inventory}
+\begin{alignat}{2}
+\underline{I}_{pi}\,y_i \le s^{\mathrm{inv}}_{pit}
+  &\le \overline{I}_{pi}\,y_i,
+&& \forall p\in\setP,\,i\in\setNv,\,t\in\setT.
+\label{eq:inv_bounds}
+\end{alignat}
+\end{subequations}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C6)~~Technology selection and operation}
+\label{sec:model:c6}
+
+Production and remanufacturing technologies are selected at the factory
+level and shared across all compatible products in set $\Omega^{\mathrm{p}}$
+or $\Omega^{\mathrm{r}}$. Aggregate throughput per installed technology is
+bounded in each period; remanufacturing operation in any period requires
+prior installation; all technology installations require the factory to
+be open; and at most one technology per product may be installed at each
+factory:
+\begin{subequations}\label{eq:c6_techcap}
+\begin{alignat}{2}
+\underline{Q}^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg}
+  \le \sum_{p:(p,g)\in\Omega^{\mathrm{p}}} q^{\mathrm{p}}_{pfgt}
+  &\le \overline{Q}^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg},
+&& \forall f\in\setF,\,g\in\setG,\,t\in\setT,
+\label{eq:prod_cap}\\
+\underline{Q}^{\mathrm{r}}_{\ell}\,a_{f\ell t}
+  \le \sum_{p:(p,\ell)\in\Omega^{\mathrm{r}}} q^{\mathrm{r}}_{pf\ell t}
+  &\le \overline{Q}^{\mathrm{r}}_{\ell}\,a_{f\ell t},
+&& \forall f\in\setF,\,\ell\in\setL,\,t\in\setT,
+\label{eq:rem_cap}\\
+a_{f\ell t}
+  &\le \lambda^{\mathrm{r}}_{f\ell},
+&& \forall f\in\setF,\,\ell\in\setL,\,t\in\setT,
+\label{eq:rem_operation_link}\\
+\lambda^{\mathrm{p}}_{fg},\;\lambda^{\mathrm{r}}_{f\ell}
+  &\le y_f,
+&& \forall f\in\setF,\,g\in\setG,\,\ell\in\setL,
+\label{eq:tech_link}\\
+\sum_{g:(p,g)\in\Omega^{\mathrm{p}}}\lambda^{\mathrm{p}}_{fg}
+  &\le 1,
+&& \forall p\in\setP,\,f\in\setF,
+\label{eq:tech_exclusivity_prod}\\
+\sum_{\ell:(p,\ell)\in\Omega^{\mathrm{r}}}\lambda^{\mathrm{r}}_{f\ell}
+  &\le 1,
+&& \forall p\in\setP,\,f\in\setF.
+\label{eq:tech_exclusivity_rem}
+\end{alignat}
+\end{subequations}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C7)~~Transportation mode selection and shipments}
+\label{sec:model:c7}
+
+Transport services are contracted on each arc per period through the
+binary mode-activation variable $\zeta_{ijmt}$. For owned road modes,
+the total shipment weight must be consistent with the integer number
+of trips $Q_{ijmt}$. Outsourced non-road modes are activated directly
+by transported weight up to a contracted capacity, and at most one mode
+may operate on any arc in any period:
+\begin{subequations}\label{eq:c7_transport}
+\begin{alignat}{2}
+\underline{W}_m\,Q_{ijmt}
+  \le \sum_{q:(q,i,j)\in\Phi}\omega_q\,x_{qijmt}
+  &\le \overline{W}_m\,Q_{ijmt},
+&& \forall (i,j)\in\setA,\,m\in\setM_{ij}\cap\setMrd,\,t\in\setT,
+\label{eq:weight_trip}\\
+\zeta_{ijmt} \le Q_{ijmt}
+  &\le M^{\mathrm{trip}}_m\,\zeta_{ijmt},
+&& \forall (i,j)\in\setA,\,m\in\setM_{ij}\cap\setMrd,\,t\in\setT,
+\label{eq:trip_link}\\
+\sum_{q:(q,i,j)\in\Phi}\omega_q\,x_{qijmt}
+  &\le \overline{B}_m\,\zeta_{ijmt},
+&& \forall (i,j)\in\setA,\,m\in\setM_{ij}\cap\setMout,\,t\in\setT,
+\label{eq:contracted_active_cap}\\
+\sum_{m\in\setM_{ij}}\zeta_{ijmt}
+  &\le 1,
+&& \forall (i,j)\in\setA,\,t\in\setT.
+\label{eq:single_mode}
+\end{alignat}
+\end{subequations}
+
+\begin{remark}[Big-$M$ implementation]\label{rem:trip_big_m}
+$M^{\mathrm{trip}}_m$ in~\eqref{eq:trip_link} is presented above as a
+single constant per mode for notational economy. The implementation
+instead derives a tightened, arc- and node-specific bound from each
+arc's transport-capacity and node-throughput parameters (any value at
+least as large as the true bound preserves correctness, so a tighter,
+context-specific value is always admissible). An optional
+per-(node, mode) override, absent from the notation above, may be
+supplied through instance data to further tighten this bound when
+known a priori; see \Cref{sec:method:implementation}.
+\end{remark}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C8)~~Fleet management and node activation}
+\label{sec:model:c8}
+
+Owned road vehicles must be physically stationed at their dispatching
+node. A transport mode is usable only if both arc endpoints are active.
+Outsourced modes require a period-level contract. The fleet at each
+node is limited by driving-hour availability and by a total capital
+budget. Finally, every open facility must carry positive flow to
+prevent degenerate open-but-unused nodes:
+\begin{subequations}\label{eq:c8_fleet}
+\begin{alignat}{2}
+\zeta_{ijmt} \le \bar{y}_{i},\quad
+\zeta_{ijmt} &\le \bar{y}_{j},
+&& \forall (i,j)\in\setA,\,m\in\setM_{ij},\,t\in\setT,
+\label{eq:endpoint_act}\\
+\zeta_{ijmt}
+  &\le \kappa_{mt},
+&& \forall (i,j)\in\setA,\,m\in\setM_{ij}\cap\setMout,\,t\in\setT,
+\label{eq:contracted_cap}\\
+\sum_{\substack{j:(i,j)\in\setA\\m\in\setM_{ij}}}
+  \frac{r_m\,\delta_{ij}}{v_m}\,Q_{ijmt}
+  &\le H_m\,K_{im},
+&& \forall i\in\setN,\,m\in\setMrd,\,t\in\setT,
+\label{eq:vehicle_hours}\\
+K_{im} &\le M^{\mathrm{trip}}_m\,\bar{y}_i,
+&& \forall i\in\setN,\,m\in\setMrd,
+\label{eq:vehicle_act}\\
+K_{im} &\le M^{\mathrm{trip}}_m
+  \sum_{\substack{j:(i,j)\in\setA\\m\in\setM_{ij}}}
+  \sum_{t\in\setT} Q_{ijmt},
+&& \forall i\in\setN,\,m\in\setMrd,
+\label{eq:vehicle_flow_link}\\
+\sum_{i\in\setN}\sum_{m\in\setMrd}
+  F^{\mathrm{m}}_m\,K_{im} &\le \overline{V},
+\label{eq:fleet_budget}\\
+\sum_{q\in\setQ}\sum_{m\in\setM}\sum_{t\in\setT}
+  \sum_{\substack{(i,j)\in\setA\\m\in\setM_{ij}}}
+    x_{qijmt}
+  &\ge y_i,
+&& \forall i\in\setNo.
+\label{eq:min_flow}
+\end{alignat}
+\end{subequations}
+
+\begin{remark}[Degenerate transport-mode data]\label{rem:vehicle_hours_fallback}
+Equation~\eqref{eq:vehicle_hours} presumes a positive mode speed $v_m$
+and a positive driving-hour allowance $H_m$. The implementation
+substitutes a trip-count bound (via the big-$M$ of
+\Cref{rem:trip_big_m}) whenever a mode's speed or driving-hour
+parameter is non-positive, which cannot occur for any mode populated
+by the data generator of \Cref{sec:method:implementation} but guards
+against division-by-zero on hand-edited or future instance data.
+\end{remark}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C9)~~Intermodal hub routing}
+\label{sec:model:c9}
+
+Intermodal terminals act as mode-switching cross-docking points. At
+each hub of type $\nu\in\{\mathrm{a},\mathrm{s}\}$, the volume arriving
+by non-$\nu$ modes from non-$\nu$ sources must equal the volume
+departing to same-type hubs by $\nu$-modes, and vice versa. Let
+$\overline{\setM}^{\nu}_{ij}\defeq\setM_{ij}\cap\setM^{\nu}$ and
+$\setM^{-\nu}_{ij}\defeq\setM_{ij}\setminus\setM^{\nu}$:
+\begin{subequations}\label{eq:c9_hub}
+\begin{alignat}{2}
+\sum_{\substack{i:(i,h)\in\setA_q\\i\notin\setH^{\nu}}}
+  \sum_{m\in\setM^{-\nu}_{ih}} x_{qihmt}
+  &=
+\sum_{\substack{j:(h,j)\in\setA_q\\j\in\setH^{\nu}}}
+  \sum_{m\in\overline{\setM}^{\nu}_{hj}} x_{qhjmt},
+&& \forall q\in\setQ,\,h\in\setH^{\nu},\,\nu,\,t\in\setT,
+\label{eq:hub_ingress}\\
+\sum_{\substack{i:(i,h)\in\setA_q\\i\in\setH^{\nu}}}
+  \sum_{m\in\overline{\setM}^{\nu}_{ih}} x_{qihmt}
+  &=
+\sum_{\substack{j:(h,j)\in\setA_q\\j\notin\setH^{\nu}}}
+  \sum_{m\in\setM^{-\nu}_{hj}} x_{qhjmt},
+&& \forall q\in\setQ,\,h\in\setH^{\nu},\,\nu,\,t\in\setT.
+\label{eq:hub_egress}
+\end{alignat}
+\end{subequations}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C10)~~Valid inequalities}
+\label{sec:model:c10}
+
+Every open factory must install at least one production or
+remanufacturing technology,
+\begin{equation}
+y_f \le \sum_{g\in\setG}\lambda^{\mathrm{p}}_{fg}
+       + \sum_{\ell\in\setL}\lambda^{\mathrm{r}}_{f\ell},
+\qquad \forall f\in\setF,
+\label{eq:vi_tech_demand}
+\end{equation}
+A further candidate inequality would require aggregate installed
+capacity to cover aggregate demand in every period,
+\begin{equation}
+\sum_{f\in\setF}\Biggl(
+   \sum_{g:(p,g)\in\Omega^{\mathrm{p}}}
+      \overline{Q}^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg}
+ + \sum_{\ell:(p,\ell)\in\Omega^{\mathrm{r}}}
+      \overline{Q}^{\mathrm{r}}_{\ell}\,\lambda^{\mathrm{r}}_{f\ell}
+\Biggr)
+\ge \sum_{r\in\setR} d_{rpt},
+\qquad \forall p\in\setP,\,t\in\setT,
+\label{eq:vi_capacity_demand}
+\end{equation}
+but, unlike~\eqref{eq:vi_tech_demand}, this is \emph{not} a valid
+inequality and is not part of the implemented formulation; see
+\Cref{rem:valid_ineq}.
+
+\begin{remark}[Valid inequalities]\label{rem:valid_ineq}
+Constraint~\eqref{eq:vi_tech_demand} is implied whenever the flow
+topology never routes finished product \emph{into} a factory --- only
+the outbound arcs $\setA_{fw}$ exist for $p\in\setP$ (the standard
+convention for a greenfield network-design instance, and the one used
+throughout \Cref{sec:experiments}). Under that convention,
+$X^{\mathrm{in}}_{pft}=0$ structurally, so the flow-balance
+equation~\eqref{eq:bal_factory} collapses to
+$q^{\mathrm{p}}_{pfgt}+q^{\mathrm{r}}_{pf\ell t}=X^{\mathrm{out}}_{pft}$.
+A factory installing neither technology therefore has
+$X^{\mathrm{out}}_{pft}=0$ directly, and the raw-material and
+recovered-item inflows that feed production and remanufacturing are
+likewise pinned to zero by the equalities~\eqref{eq:raw_consumption}
+and~\eqref{eq:return_factory}. Such a factory carries zero flow of
+every item type, contradicting \eqref{eq:min_flow} if it is open. Note
+that a single production technology alone --- the original, narrower
+form of this inequality --- is \emph{not} implied: a factory engaged
+purely in remanufacturing satisfies \eqref{eq:min_flow} via
+$q^{\mathrm{r}}$ alone, without ever installing $\lambda^{\mathrm{p}}$.
+Constraint~\eqref{eq:vi_tech_demand} is included in the implementation
+because it is not redundant in the \LP relaxation; it tightens the
+linear-programming bound and reduces the enumeration effort when the
+\DBP solves the fixed-tax follower subproblems in
+\Cref{sec:methodology}.
+
+Constraint~\eqref{eq:vi_capacity_demand}, by contrast, is \emph{not}
+logically implied by (C1)--(C9) in general, because it ignores
+inventory banking: $\lambda^{\mathrm{p}}_{fg}$ and $\lambda^{\mathrm{r}}_{f\ell}$
+are time-invariant, but a network can install less capacity than a
+single period's peak demand and still satisfy that peak by
+overproducing in earlier, low-demand periods and drawing down
+$s^{\mathrm{inv}}_{pwt}$ at warehouses (\Cref{eq:bal_warehouse}) when
+demand spikes, as long as the inventory bounds~\eqref{eq:inv_bounds}
+permit it. Any instance with a non-flat demand profile $d_{rpt}$ and
+sufficient inventory headroom can have an optimal solution that
+violates~\eqref{eq:vi_capacity_demand} at the peak period while
+remaining feasible and cost/emissions-optimal under (C1)--(C9). Adding
+it as a hard constraint would therefore risk excluding genuinely
+optimal solutions rather than merely tightening the relaxation, so it
+is deliberately \emph{not} included in the implemented formulation.
+\end{remark}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Domain constraints}
+\label{sec:model:domains}
+
+\begin{subequations}\label{eq:domains}
+\begin{alignat}{1}
+& y_i,\;\lambda^{\mathrm{p}}_{fg},\;\lambda^{\mathrm{r}}_{f\ell},\;
+  a_{f\ell t},\;\sigma_{sut},\;\zeta_{ijmt},\;\kappa_{mt}
+  \in \bin,
+\label{eq:dom_bin}\\
+& Q_{ijmt},\;K_{im} \in \Zplus,
+\label{eq:dom_int}\\
+& YC_i,\;q^{\mathrm{p}}_{pfgt},\;q^{\mathrm{r}}_{pf\ell t},\;
+  s^{\mathrm{inv}}_{pit},\;x_{qijmt}
+  \in \Rplus.
+\label{eq:dom_cont}
+\end{alignat}
+\end{subequations}
+
+Constraints~\eqref{eq:c1_balance}--\eqref{eq:domains} define the
+follower's feasible region $\setX$. Together with the auxiliary
+expressions~\eqref{eq:flows}--\eqref{eq:YCT}, the objectives
+\eqref{eq:cost}--\eqref{eq:emissions}, the follower
+programme~\eqref{eq:follower}, and the bilevel
+programme~\eqref{eq:leader}, they constitute the \BLMIP solved in
+\Cref{sec:methodology}.
+
+%-----------------------------------------------------------------
+% Backward-compatibility label for any cross-references to the old
+% Follower's constraints subsection heading.
+\label{sec:model:follower_constr}

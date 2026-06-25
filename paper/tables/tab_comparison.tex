@@ -1,0 +1,25 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  tables/tab_comparison.tex
+%  Source: results/analysis/tables/master_runs.csv (category=base)
+% ============================================================
+
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lrrrr@{}}
+  \toprule
+  \textbf{Planning horizon}
+    & \textbf{Solved runs}
+    & \textbf{Min (s)}
+    & \textbf{Median (s)}
+    & \textbf{Max (s)} \\
+  \midrule
+  $T=3$ & 4 & 36.7 &   82.3 &   152.6 \\
+  $T=6$ & 4 & 51.8 & 1{,}037.0 & 2{,}367.0 \\
+  \bottomrule
+  \multicolumn{5}{@{}p{0.82\linewidth}@{}}{\footnotesize
+    Notes: wall-clock time of the eight validated base runs in
+    \Cref{tab:results_main}, grouped by planning horizon. The four $T=12$
+    base instances are intractable within the compute budget and are not
+    solved. Runtime rises steeply with the horizon and with the
+    larger I25--M8 network.}\\
+\end{tabular}

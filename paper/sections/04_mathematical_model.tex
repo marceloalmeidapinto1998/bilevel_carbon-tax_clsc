@@ -1,0 +1,21 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  sections/04_mathematical_model.tex   —   Section 4 orchestrator
+% ============================================================
+
+\section{Mathematical Model}
+\label{sec:model}
+
+We formulate the \CLSC design problem with the carbon tax as a leader
+decision variable, as a bilevel mixed-integer programme (\BLMIP). A regulator (leader) selects a
+carbon-tax index; a supply chain operator (follower) then optimises
+network design and operations in response. \Cref{sec:model:assumptions}
+states the modelling assumptions. \Cref{sec:model:notation} establishes
+notation and auxiliary expressions. \Cref{sec:model:bilevel} presents the
+compact bilevel programme and a complexity result.
+\Cref{sec:model:leader,sec:model:follower} develop the regulator's and
+operator's problems in detail.
+
+\input{sections/04a_notation}
+\input{sections/04b_leader}
+\input{sections/04c_follower}

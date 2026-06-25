@@ -1,0 +1,282 @@
+﻿\documentclass[conference]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{booktabs}
+\usepackage[capitalize,noabbrev]{cleveref}
+
+\setlength{\textfloatsep}{4pt plus 1pt minus 1pt}
+\setlength{\floatsep}{4pt plus 1pt minus 1pt}
+\setlength{\intextsep}{4pt plus 1pt minus 1pt}
+\setlength{\abovedisplayskip}{4pt plus 1pt minus 1pt}
+\setlength{\belowdisplayskip}{4pt plus 1pt minus 1pt}
+\setlength{\abovedisplayshortskip}{2pt plus 1pt minus 1pt}
+\setlength{\belowdisplayshortskip}{2pt plus 1pt minus 1pt}
+
+\IEEEoverridecommandlockouts
+
+\begin{document}
+
+\title{Optimal Carbon Pricing of Closed-Loop Supply Chains: A
+Global-Optimisation of a Bi-Level Mixed-Integer Problem
+\thanks{Corresponding author: M. Pinto (marcelo.pinto@dem.uc.pt).}}
+
+% IEEEtran's \and glues independent, content-width boxes with stretchable
+% space rather than laying out a real grid, so uneven affiliation lengths
+% make the rows drift out of alignment. A nested tabular cannot fix this
+% either: \@author is expanded directly inside IEEEtran's own internal
+% \halign, and a second \halign/tabular nested there corrupts that
+% alignment outright. The robust fix is to avoid any nested alignment and
+% build each cell as a fixed-width \parbox, paired left/right with
+% \makebox, so column edges are pinned by box width rather than content.
+\newcommand{\authorcell}[2]{\makebox[0.47\textwidth]{\parbox[t]{0.44\textwidth}{\centering{\sublargesize #1}\\{\normalsize #2}}}}
+
+\author{
+\authorcell{Marcelo Pinto}{CEMMPRE, ARISE, Dept.\ Mech.\ Eng., Univ.\ Coimbra\\Coimbra, Portugal}\hfill
+\authorcell{Paulo Nascimento}{CEMMPRE, ARISE, Dept.\ Mech.\ Eng., Univ.\ Coimbra\\Coimbra, Portugal}\\[10pt]
+\authorcell{Crist\'ov\~ao Silva}{CEMMPRE, ARISE, Dept.\ Mech.\ Eng., Univ.\ Coimbra\\Coimbra, Portugal}\hfill
+\authorcell{Samuel Moniz}{CEMMPRE, ARISE, Dept.\ Mech.\ Eng., Univ.\ Coimbra\\Coimbra, Portugal}
+}
+
+\maketitle
+
+\begin{abstract}
+We study the design of closed-loop supply chains under a
+regulator-imposed carbon tax, formulated as a bilevel mixed-integer
+program~(BL-MIP). The regulator~(leader) selects a discrete
+carbon-tax rate that minimises supply-chain emissions; the
+operator~(follower) responds by optimising facility location,
+capacity, technology, transportation, and forward and reverse product
+flows to minimise cost inclusive of tax. We solve the resulting
+BL-MIP with a deterministic bounding procedure~(DBP) that computes
+the regulator's optimum between two bounds: a linear-programming~(LP)
+relaxation of the follower's problem provides a lower bound, and the 
+follower's exact integer response provides an upper bound. The DBP
+iteratively tightens these two bounds until their gap is below a 
+given tolerance. Three results emerge. First, emission abatement 
+saturates at a network-specific threshold, beyond which higher taxes 
+yield no further reduction. Second, abatement is governed by the
+technology menu --- cleaner production and remanufacturing options
+--- and expanding that menu can reduce both cost and emissions. 
+Finally, expanding recovery capacity achieves the same abatement 
+at a lower carbon price --- each unit of recovery substitutes 
+directly for a unit of taxation.
+\end{abstract}
+
+\begin{IEEEkeywords}
+bilevel optimization, carbon pricing, closed-loop supply chain network
+design, mixed-integer programming, environmental regulation
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:intro}
+
+Carbon taxation prices each unit of CO\textsubscript{2}-equivalent
+emitted, producing emission cuts when well calibrated \cite{pigou1920}, 
+and closed-loop architectures that integrate recovery and remanufacturing 
+enlarge the available abatement levers \cite{govindan2015}. Crucially, 
+the regulator-operator interaction is hierarchical: the regulator 
+commits to a tax before the operator responds, so a single-level model
+that treats the tax as fixed cannot represent the regulator's problem of
+choosing a rate that induces a desirable response.
+
+We model this as a bilevel program \cite{colson2007}: the leader sets
+the carbon tax to minimize total emissions and, among rates achieving
+that minimum, levies the lowest one; the follower solves a
+multi-echelon, multi-period design problem with integer facility,
+technology, and transport decisions, minimizing cost inclusive of tax.
+The resulting bilevel mixed-integer program~(BL-MIP) is NP-hard 
+\cite{jeroslow1985}.
+
+This paper makes three contributions: (i) a BL-MIP with a discrete 
+carbon tax decision with a closed-loop supply-chain design problem;
+(ii) a deterministic bounding procedure (DBP) converging to a 
+$\epsilon$-optimal solution; and (iii) computational results show 
+that emission abatement saturates at a network-specific tax threshold,
+that technology is the binding lever below that threshold, and that 
+expanding recovery capacity can substitute directly for taxation. 
+\Cref{sec:model} states the model, \Cref{sec:method} the DBP, and 
+\Cref{sec:results} the results.
+
+\section{Bilevel Model}
+\label{sec:model}
+
+The closed-loop network includes suppliers, factories, warehouses,
+air/sea hub terminals, and markets, linked by forward flows of raw
+materials and finished products and by reverse flows of end-of-life
+items recovered for remanufacturing. Over a multi-period planning
+horizon, the follower decides the network structure --- facility, 
+technology, transport, and fleet choices --- and production,
+remanufacturing, inventory, and flow quantities. 
+
+Let $\mathbf{z}\in\mathcal{X}$ denote the follower's decision 
+vector, where $\mathcal{X}$ is the follower's feasible region 
+induced by (i) flow and inventory balance, (ii) reverse-logistics 
+and returns, (iii) raw-material supply, facility-opening, (iv) 
+area-, inventory and fleet-capacity, (v) technology-, and 
+transport-selection, and (vi) intermodal hub routing. The 
+regulator's decision variable is the carbon-tax rate 
+$\tau$ (USD/tCO\textsubscript{2}e), subject to integer values in
+$\mathcal{T}=\{\tau_{\min},\tau_{\min}+1,\ldots,\tau_{\max}\}$. 
+Denoting the follower's cost and emissions by $\mathrm{Cost}(\mathbf{z})$
+and $\mathrm{Emis}(\mathbf{z})$, its optimal response to a given rate
+$\tau$ is the correspondence
+\begin{equation}
+\mathcal{S}(\tau) \;\triangleq\;
+\operatorname*{arg\,min}_{\mathbf{z}\in\mathcal{X}}\;
+\bigl\{\mathrm{Cost}(\mathbf{z}) + \tau\,\mathrm{Emis}(\mathbf{z})\bigr\}.
+\label{eq:follower}
+\end{equation}
+
+Anticipating this response, the leader minimizes resulting emissions and, 
+among rates attaining that minimum, the tax itself (avoiding unnecessary 
+taxation). This defines the bilevel program
+\begin{subequations}
+\label{eq:leader}
+\begin{alignat}{2}
+\textup{(BL)}\quad
+&\operatorname*{lexmin}_{\tau,\,\mathbf{z}}\quad
+  \bigl(\mathrm{Emis}(\mathbf{z}),\ \tau\bigr) \\
+&\text{s.t.}\quad \tau\in\mathcal{T}, \qquad
+  \mathbf{z}\in\mathcal{S}(\tau).
+\end{alignat}
+\end{subequations}
+Since the follower's problem~\eqref{eq:follower} is itself a
+mixed-integer program for every fixed $\tau$, problem~\eqref{eq:leader}
+is at least as hard, establishing the NP-hardness of the BL-MIP noted
+in \Cref{sec:intro} \cite{jeroslow1985}.
+
+\section{Solution Method}
+\label{sec:method}
+
+We solve~\eqref{eq:leader} with a DBP, adapted from \cite{soares2021}, 
+which generates avsequence of converging lower and upper bounds on the 
+leader's optimalvemissions, in the following steps.
+
+\textbf{Step 1} (initialization). Set $\mathrm{LB}\leftarrow-\infty$.
+Solve the \emph{relaxation} of~\eqref{eq:leader} obtained by dropping
+the coupling constraint $\mathbf{z}\in\mathcal{S}(\tau)$, i.e.,
+$\min\{\mathrm{Emis}(\mathbf{z}):\mathbf{z}\in\mathcal{X},\,\tau\in\mathcal{T}\}$,
+to obtain a first candidate rate $\tau$.
+
+\textbf{Step 2} (follower response). Solve the follower's exact
+problem~\eqref{eq:follower} at $\tau$ to obtain its true optimum
+$\nu(\tau)$.
+
+\textbf{Step 3} (optimistic tie-break). Since $\mathcal{S}(\tau)$
+may contain several optimal solutions, solve
+$\min\{\mathrm{Emis}(\mathbf{z}):\mathbf{z}\in\mathcal{X},\,
+\mathrm{Cost}(\mathbf{z})+\tau\,\mathrm{Emis}(\mathbf{z})\le\nu(\tau)\}$
+to recover its lowest-emissions member $\mathbf{z}^{*}$.
+
+\textbf{Step 4} (upper bound). The pair $(\tau,\mathbf{z}^{*})$ is
+feasible for~\eqref{eq:leader}. If $\mathrm{Emis}(\mathbf{z}^{*})$
+improves on the incumbent, update $\mathrm{UB}\leftarrow
+\mathrm{Emis}(\mathbf{z}^{*})$ and $\tau^{\dagger}\leftarrow\tau$.
+
+\textbf{Step 5} (tightening). Add to the relaxation of Step~1 the cut
+$\mathrm{Cost}(\mathbf{z})+\tau\,\mathrm{Emis}(\mathbf{z})\le
+\mathrm{Cost}(\mathbf{z}^{*})+\tau\,\mathrm{Emis}(\mathbf{z}^{*})$
+and the bound $\mathrm{Emis}(\mathbf{z})\le\mathrm{UB}$, ruling out
+$\tau$ from being proposed again; re-solve it for a new candidate
+$\tau$ and update $\mathrm{LB}$.
+
+\textbf{Step 6} (stopping test). Stop and return $\tau^{\dagger}$ if
+$(\mathrm{UB}-\mathrm{LB})/\mathrm{UB}\le\epsilon$, or if neither bound
+has improved over $10$ consecutive iterations; otherwise return to
+Step~2.
+
+
+\section{Preliminary Results}
+\label{sec:results}
+
+We generated eight instances, following the instance-generation
+guidelines of \cite{tautenhain2021}: network (17/25 nodes), product 
+(4/8 types), and horizon (3/6 periods). All 8 instances converge with
+a relative gap no greater than $\le1.36\times10^{-5}$ in 2--4 DBP
+iterations (\Cref{tab:results}). We also run two further experiments. 
+A \emph{scenario analysis} re-solves each base instance under two menu expansions 
+-- technology  (3$\to$6 production and  3$\to$6 remanufacturing technologies) and 
+transport (6$\to$12 modes, two additional road/air/sea options each) -- for 16 runs. A 
+\emph{sensitivity analysis} then perturbs each base instance one factor at 
+a time (OAT) across 11 model factors, grouped as: demand; production and 
+transportation capacity; warehouse and air/sea hub cost; return availability; 
+return cost; remanufacturing bill-of-materials; production and upstream supply 
+emissions; and carbon-tax bounds -- for 152 runs.
+
+\begin{table}[t]
+\centering
+\caption{DBP solution per base instance.}
+\label{tab:results}
+\renewcommand{\arraystretch}{1.0}
+\footnotesize
+\begin{tabular}{@{}l@{\hspace{10pt}}r@{\hspace{12pt}}r@{\hspace{6pt}}r@{}}
+\toprule
+\textbf{Instance} & $\tau^{\star}$ & $\Delta E$ (\%) & $\Delta C$ (\%) \\
+\midrule
+I17 M4 T3 & 200 & $-28.4$ & $+14.2$ \\
+I17 M4 T6 & 190 & $-9.3$  & $+3.4$  \\
+I17 M8 T3 & 140 & $-23.9$ & $+75.6$ \\
+I17 M8 T6 & 200 & $-8.7$  & $+5.0$  \\
+I25 M4 T3 & 180 & $-35.4$ & $+75.9$ \\
+I25 M4 T6 & 20  & $-57.6$ & $+20.6$ \\
+I25 M8 T3 & 140 & $-48.4$ & $+14.9$ \\
+I25 M8 T6 & 100 & $-8.6$  & $+5.2$  \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+\noindent\footnotesize $\tau^{\star}$ in USD/tCO\textsubscript{2}e;
+$\Delta E$ and $\Delta C$ are the percentage changes in emissions
+and cost, respectively, relative to each instance's $\tau=0$
+baseline.
+\end{table}
+
+Four findings emerge from our runs.
+
+\emph{First}, carbon pricing reduces emissions by $8.6$--$57.6\%$ at
+a cost increase of $3.4$--$75.9\%$, and the two are not consistently
+related: I25\,M4\,T6 achieves the largest cut ($-57.6\%$) at the
+lowest abatement cost (\$3.62/t), whereas I17\,M8\,T3 and
+I25\,M4\,T3 incur a cost increase above $75\%$ for a comparatively
+modest $24$--$35\%$ reduction.
+
+\emph{Second}, because the operator chooses among finitely many
+configurations, its emission response saturates beyond a threshold:
+widening the ceiling from \$200/t to \$800/t moves I25\,M8\,T3's
+optimum eighteen-fold (\$20$\to$\$360/t) for a further $0.04\%$ cut,
+while I17\,M8\,T3 stays flat across \$140--\$310/t -- risking
+arbitrarily high taxes for no added abatement.
+
+\emph{Third}, technology, is the binding lever:
+widening the technology menu (3$\to$6/family) cuts emissions in all
+8 instances ($-18.9\%$ to $-37.8\%$) and, on I25\,M4\,T3, cost by
+$41.8\%$ -- a Pareto gain regardless of $\tau^{\star}$. Widening
+transport modes (6$\to$12) instead leaves emissions near-unchanged
+($0.24\%$).
+
+\emph{Fourth}, recovery capacity substitutes for carbon pricing:
+greater return availability lowers the tax rate needed to reach a
+given emissions level (elasticity $-0.744$) without changing that
+level itself (elasticity $-0.001$). More recoverable material lets
+the cheaper remanufacturing pathway absorb output with less tax
+pressure -- recovery substitutes for, rather than competes with,
+taxation.
+
+\section{Conclusion and Ongoing Work}
+\label{sec:conclusion}
+
+We are also solving a multi-objective formulation in which 
+the carbon tax is fixed and cost is traded off against emissions, 
+to quantify the gain from the bilevel program.
+
+{\footnotesize
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+}
+
+\end{document}

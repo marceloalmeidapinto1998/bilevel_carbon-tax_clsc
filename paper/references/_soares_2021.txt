@@ -1,0 +1,1196 @@
+                                                          European Journal of Operational Research 291 (2021) 52–66
+
+
+
+                                                                Contents lists available at ScienceDirect
+
+
+                                           European Journal of Operational Research
+                                                          journal homepage: www.elsevier.com/locate/ejor
+
+
+Discrete Optimization
+
+A deterministic bounding procedure for the global optimization of a
+bi-level mixed-integer problem
+Inês Soares a,∗, Maria João Alves a,b, Carlos Henggeler Antunes a,c
+a
+  INESC Coimbra, DEEC, Rua Sílvio Lima, Pólo II, Coimbra 3030-290, Portugal
+b
+  CeBER and Faculty of Economics, University of Coimbra, Av. Dias da Silva, 165, Coimbra 3004-512, Portugal
+c
+  Department of Electrical and Computer Engineering, University of Coimbra, Rua Sílvio Lima, Pólo II, Coimbra 3030-290, Portugal
+
+
+
+
+a r t i c l e         i n f o                           a b s t r a c t
+
+Article history:                                        In this paper, a deterministic bounding procedure for the global optimization of a mixed-integer bi-level
+Received 12 February 2020                               programming problem is proposed. The aim has been to develop an eﬃcient algorithm to deal with a
+Accepted 10 September 2020
+                                                        case study in the electricity retail market. In this problem, an electricity retailer wants to deﬁne a time-
+Available online 18 September 2020
+                                                        of-use tariff structure to maximize proﬁts, but he has to take into account the consumers’ reaction by
+Keywords:                                               means of re-scheduling appliance operation to minimize costs. The problem has been formulated as a
+Global optimization                                     bi-level mixed-integer programming model.
+Bi-level optimization                                       The algorithm we propose uses optimal-value-function reformulations based on similar principles as
+Mixed-integer linear programming model                  the ones that have been used by other authors, which are adapted to the characteristics of this type of
+Pricing problem                                         (pricing optimization) problems where no upper (lower) level variables appear in the lower (upper) level
+Dynamic tariffs                                         constraints. The overall strategy consists of generating a series of convergent upper bounds and lower
+Electricity retail market
+                                                        bounds for the upper-level objective function until the difference between these bounds is below a given
+Demand response
+                                                        threshold. Computational results are presented as well as a comparison with a hybrid approach combin-
+                                                        ing a particle swarm optimization algorithm to deal with the upper-level problem and an exact solver
+                                                        to tackle the lower-level problem, which we have previously developed to address a similar case study.
+                                                        When the lower-level model is diﬃcult, a signiﬁcant relative MIP gap is unavoidable when solving the al-
+                                                        gorithm’s subproblems. Novel reformulations of those subproblems using “elastic” variables are proposed
+                                                        trying to obtain meaningful lower/upper bounds within an acceptable computational time.
+                                                                                                                           © 2020 Elsevier B.V. All rights reserved.
+
+
+
+
+1. Introduction                                                                             to smart grids, enabling to make a better use of supply availability,
+                                                                                            network assets and demand ﬂexibility.
+    This work presents a deterministic bounding procedure for the                               Bi-level (BL) programming models have been recently used to
+global optimization of a certain class of mixed-integer bi-level pro-                       design ToU tariffs in the electricity retail market modelling the in-
+gramming problems. The algorithm generates a series of conver-                              teraction between the electricity retailer and residential consumers
+gent upper bounds and lower bounds for the upper-level objec-                               (Alves, Antunes & Carrasqueira, 2016; Meng & Zeng, 2013; Sekizaki,
+tive function until the difference between these bounds is below a                          Nishizaki & Hayashida, 2016; Soares, Alves & Antunes, 2020;
+given threshold.                                                                            Zugno, Morales, Pinson & Madsen, 2013). A trilevel energy market
+    This algorithmic approach has been motivated by a case study                            model for load shifting induced by ToU pricing has been reported
+dealing with the setting of time-of-use (ToU) prices in the electric-                       by Aussel, Brotcorne, Lepaul and von Niederhäusern (2020) involv-
+ity retail market. In these pricing schemes, the retailer establishes                       ing suppliers, local agents, aggregators and consumers.
+time-differentiated prices, usually with higher rates during peak                               A BL optimization model has a leader-follower hierarchical
+demand periods. This type of tariff structure is already offered in                         structure, in which the upper-level (UL) problem is associated with
+electricity retail markets with the price structure valid for long pe-                      the leader’s interests and the lower-level (LL) problem arises as a
+riods (e.g., one-year contract), but it is expected to become more                          constraint of the UL problem addressing the follower’s perspective.
+dynamic (e.g., announced 24 or 48-hour ahead) with the evolution                            Therefore, the leader should integrate the reaction of the follower
+                                                                                            in his decision process. In the context of deﬁning ToU electricity
+    ∗
+                                                                                            tariffs, the leader is the retailer, who deﬁnes the prices aiming to
+    Corresponding author.
+                                                                                            maximize the proﬁt, and the follower is the consumer (or a cluster
+    E-mail addresses: inesgsoares@deec.uc.pt (I. Soares), mjalves@fe.uc.pt (M.J.
+Alves), ch@deec.uc.pt (C. Henggeler Antunes).                                               of consumers with similar consumption patterns), who reacts to
+
+
+https://doi.org/10.1016/j.ejor.2020.09.015
+0377-2217/© 2020 Elsevier B.V. All rights reserved.
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                       European Journal of Operational Research 291 (2021) 52–66
+
+
+the time-differentiated prices set by the retailer by redeﬁning the            LL constraints. The algorithm branches on these functions, generat-
+operation of appliances taking into account his comfort require-               ing multiple branches at each node. Another branch-and-cut algo-
+ments to minimize costs.                                                       rithm for MILBL problems has been proposed by Caramia and Mari
+    BL problems are, in general, very diﬃcult to solve to optimal-             (2015), which works with integer UL and LL variables. Fischetti,
+ity. To circumvent the inherent complexities of these problems, it             Ljubić, Monaci and Sinnl (2017) also proposed a branch-and-cut
+is crucial to develop methodological approaches that consider the              for MILBL problems, which extends the valid intersection cuts for
+structure and features of the BL model. In the BL approaches pre-              MILBL proposed in Fischetti, Ljubić, Monaci and Sinnl (2016). In
+viously developed by the authors to deal with the problem of op-               Fischetti et al. (2017), new BL-speciﬁc preprocessing procedures
+timizing electricity tariffs (Alves et al., 2016; Soares et al., 2020),        and a general branch-and-cut exact method are developed, whose
+metaheuristics (particle swarm optimization – PSO – and genetic                ﬁnite convergence relies on the assumption that continuous UL
+algorithms – GA) have been used to perform the UL search for                   variables do not appear in the LL problem.
+prices, calling a mixed-integer linear programming (MILP) solver                   A different approach has been proposed by Zeng and An
+to address the LL problem for each price setting. In Alves et al.              (2014) for MILBL problems, allowing continuous and integer vari-
+(2016), only shiftable appliances (loads for which the operation cy-           ables in both levels. The computation scheme is based on single-
+cle cannot be interrupted once initiated) were considered in the               level reformulations and decomposition strategies (there is a mas-
+consumer’s energy management problem. The BL problem was ex-                   ter problem and subproblems). The reformulation involves the use
+tended in Soares et al. (2020) to also incorporate in the LL problem           of Karush-Kuhn-Tucker conditions, being the master problem a
+interruptible appliances (loads whose operation can be interrupted             MILP problem with complementarity constraints.
+as long as a given amount of energy is supplied during a spec-                     Concerning methods for MINLBL problems, Gümüş and Floudas
+iﬁed time slot) and a thermostatic load (air conditioning system).             (2005) proposed a deterministic global optimization method in
+However, the modeling of the thermostat behavior imposes a much                which the LL program involves functions that are convex with re-
+higher computational effort, which may turn it diﬃcult to ﬁnd ex-              spect to the continuous LL variables and multilinear with respect
+act optimal LL solutions within an acceptable computational time.              to the integer LL variables. Kleniati and Adjiman (2015) presented
+    The BL models in Alves et al. (2016) and Soares et al. (2020) in-          a generalization for MINLBL of the branch-and-sandwich algorithm
+corporate the physical-based features related with the control and             previously proposed by the same authors for BL problems with
+operation of the appliances, which are essential to develop a real-            continuous variables. The algorithm is demanding from the imple-
+istic representation of the consumer’s problem. However, the phys-             mentation standpoint as it requires two branch-and-bound trees.
+ical modelling of the appliance operation cycles (e.g. a dishwasher                The works of Mitsos (2010) and Lozano and Smith (2017) are
+or a laundry machine) or the thermostat hysteresis in the temper-              representative of optimal-value-function reformulation approaches.
+ature control of an air conditioning system gives rise to a highly             Mitsos (2010) proposed a deterministic algorithm for general
+combinatorial model with many binary variables and constraints.                MINLBL problems to obtain a sequence of increasingly tighter up-
+    The models we have developed are mixed-integer nonlinear BL                per and lower bounds. The algorithm ﬁnishes when the difference
+(MINLBL) models. The nonlinearities result from the product of UL              between these bounds is below a given tolerance ε , ensuring ε -
+variables by LL variables, which means that all functions in the LL            convergence of the algorithm. Lozano and Smith (2017) proposed
+problem become linear when the UL variables are instantiated and,              an exact ﬁnite algorithm based on a sample scheme for the fol-
+therefore, the LL can be solved by a general MILP solver. Hybrid               lower’s solutions. Both methods solve a relaxation of the BL prob-
+approaches integrating a metaheuristic to search for UL solutions              lem with disjunctive constraints generated from optimal follower’s
+and an exact solver to solve the corresponding LL problems are in-             responses (already known) to obtain upper bounds for the maxi-
+teresting because they enable to obtain optimal solutions to the               mizing UL objective function. BL feasible solutions are used to ob-
+LL for a given (feasible) instantiation of the UL variables. However,          tain lower bounds. Lozano and Smith (2017) address the partic-
+they may present diﬃculties to obtain the global optimal solution              ular case in which all UL variables are integer and the functions
+due to the vastness of the UL search space.                                    of these variables in the LL constraints are also integer valued,
+    The current work aims at developing a novel approach that                  proﬁting from this assumption to strengthen the formulation and
+can ﬁnd exact global solutions within a given optimality tolerance,            prove convergence to an optimal global solution. Mitsos (2010) and
+displaying a computational eﬃciency higher than the hybrid ap-                 Lozano and Smith (2017) do not prescribe tailored techniques for
+proaches. This new approach is based on distinct methodological                solving the subproblems that arise in their procedures, assuming
+principles generally called optimal-value-function reformulations.             that these subproblems are solved by appropriate algorithms avail-
+Since our MINLBL model can be equivalently written as a mixed-                 able in the literature. Therefore, for the nonlinear cases, an implicit
+integer linear BL (MILBL) problem, both MINLBL and MILBL                       assumption is that the functions involved in the formulations of
+approaches may be of interest for the problem of designing ToU                 the UL and the LL problems satisfy the requirements to be solved
+tariffs and, in general, for other BL pricing problems that involve            by the mixed-integer nonlinear programming (MINLP) solvers.
+continuous and integer variables.                                                  The mixed-integer BL model we have to deal with has the
+    BL problems with discrete variables pose major algorithmic                 following particular characteristics: LL constraints do not include
+challenges in the development of eﬃcient solution strategies. Con-             UL variables and UL constraints do not include LL variables.
+cerning mixed-integer BL problems, a few exact procedures have                 These features enabled the development of an algorithm based on
+been developed that allow for integer variables controlled by the              optimal-value-function reformulations, which is a modiﬁcation of
+follower (LL variables). Algorithms for nonlinear problems have re-            the algorithms proposed by Mitsos (2010) and Lozano and Smith
+ceived even less attention in literature, for which almost no exten-           (2017) adapted to this type of problems, displaying a very eﬃ-
+sive study has been performed so far.                                          cient computational performance. Moreover, the MINLBL problem
+    DeNegre and Ralphs (2009) built up on the ideas of the                     we deal with has the additional particularity: the nonlinearities
+ﬁrst branch-and-bound method developed by Moore and Bard                       only arise in the objective functions and result from products of
+(1990) for MILBL and developed a branch-and-cut algorithm for the              continuous variables by binary variables. This characteristic allows
+linear BL case in which all variables are integer and the UL con-              both (UL and LL) objective functions to be rewritten equivalently
+straints do not include LL variables. Xu and Wang (2014) presented             as linear functions, at the expense of additional variables and con-
+a branch-and-bound algorithm for MILBL problems where all UL                   straints. Although the size of the problem is signiﬁcantly increased
+variables are integer, as well as the values of their functions in the         with this transformation, it allows the sub-problems solved within
+
+                                                                          53
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                        European Journal of Operational Research 291 (2021) 52–66
+
+
+the algorithm to be tackled by a state-of-the-art MILP solver. Our             the BL problem, which is generally called induced (or inducible)
+algorithmic proposal has a special concern with the application in             region, is IR = {(x, y ) : (x, y ) ∈ S, y ∈ (x )}.
+challenging real-word problems regarding convergence, implemen-                   Finding a global optimal solution to a BL optimization problem
+tation simplicity and computational eﬃciency. Being eﬃcient and                remains a great challenge due to its inherent non-convexity, since
+easy to implement, our algorithm can be very useful to other au-               even the linear BL problem is NP-hard.
+thors dealing with problems with the same features as ours.                       Even in the linear case with all variables being continuous
+    The main contribution of this paper is the development of a                and assuming non-emptiness and compactness of S, BL problems
+deterministic bounding procedure (DBP) belonging to the family of              with UL constraints involving both UL and the LL variables (gen-
+optimal-value-function approaches for the global optimization of a             erally called connecting constraints) may have no optimal solution
+BL dynamic pricing model in the electricity retail market (which               (Mersha & Dempe, 2006). In addition, if there are no connecting
+can be applied to other problems with the characteristics men-                 constraints but the BL (linear) problem has UL continuous variables
+tioned above). The performance of this new approach is compared                and LL discrete variables, it also may have no optimal solution be-
+with hybrid approaches previously developed by the authors, re-                cause the induced region may be not closed (thus being noncom-
+garding solution quality and computational effort. Moreover, fur-              pact) (Vicente, Savard & Judice, 1996).
+ther techniques are proposed for cases in which the subproblems                   The quotation marks in the UL objective function of the gen-
+to compute lower/upper bounds cannot be solved to optimality in                eral formulation of the BL problem express the ambiguity of the
+a reasonable computational time, as arises frequently in practice.             value F(x, y) from the leader’s point-of-view (who has control over
+    The manuscript is organized as follows. Section 2 introduces               x only) in case of multiple optimal solutions to the LL problem. To
+the formulation and the main concepts of bilevel optimiza-                     overcome this ambiguity, the optimistic or the pessimist approach
+tion. Section 3 presents the DBP foundations and its algorithm.                can be adopted. The optimistic approach assumes that the follower
+Section 4 presents a BL model of the interaction between an elec-              selects a solution y ∈ (x ) that maximizes F among all alternative
+tricity retailer and a cluster of residential consumers, similar to the        optimal solutions to his problem, thus beneﬁting the leader. The
+one in Alves et al. (2016), reformulated as a linear mixed-integer             pessimistic approach assumes that the follower selects the worst
+BL problem. The results of the DBP applied to this model are dis-              solution for the leader among the LL optimal solutions. The opti-
+cussed in Section 5. Section 6 describes the reformulation as a                mistic approach has been the most often used, and we also con-
+MILBL problem of the extended BL model including a thermostatic                sider it in this work. The optimistic approach of the BL problem is
+load in the consumer’s problem in Soares et al. (2020). The im-                equivalent to maximize the UL objective function with respect to
+provements in the algorithm so that it can deal with this more                 both x and y, i.e., maxx∈X,y∈Y F (x, y ).
+challenging model are described in Section 7, whose results are
+presented in Section 8. The conclusions are drawn in Section 9.                3. A deterministic bounding procedure for the global
+                                                                               optimization of a class of mixed-integer BL problems
+2. Bilevel optimization
+                                                                                   In this section, a deterministic bounding procedure (DBP) is de-
+    A BL programming model comprises two optimization prob-                    veloped, which uses optimal-value-function reformulations to ob-
+lems hierarchically related. These problems involve distinct deci-             tain increasingly tighter bounds following a structure of steps sim-
+sion makers, each one controlling a different set of decision vari-            ilar to (Mitsos, 2010). The algorithm we propose is devoted to
+ables. The UL decision maker is the leader, being the ﬁrst to set the          mixed-integer BL problems with the following characteristics: nei-
+values of his decision variables to optimize his objective function            ther UL constraints include LL variables, nor LL constraints include
+anticipating the response of the follower. The LL decision maker is            UL decision variables. These characteristics are present in our mod-
+the follower, who reacts to the leader’s decision by optimizing his            els to optimize ToU electricity tariffs as well as in other pricing
+objective function in the feasible region constrained by the instan-           problems. The exploitation of these features has a strong impact
+tiation of the UL variables. A general formulation of BL problems              on the computational effort required.
+can be stated as follows. Without loss of generality we consider
+that the UL objective is to be maximized and the LL objective func-            3.1. Foundations
+tion is to be minimized, as this is the direction of optimization in
+our case study:                                                                   The optimistic formulation for the class of BL models to be ad-
+                                                                               dressed is
+‘‘ max ’’x ∈ X F (x, y )
+                                                                               maxx∈X,y∈Y F (x, y )
+s.t. G(x, y ) ≤ 0
+                                                                               s.t. G(x ) ≤ 0                                                      (P1)
+                                                
+     y ∈ arg miny ∈ Y f x, y : g x, y ≤ 0                                         y ∈ arg miny ∈ Y f x, y : g y ≤ 0
+
+where X ⊂ Rn and Y ⊂ Rm are compact sets with n being the num-                    The vectors of decision variables x ∈ X and/or y ∈ Y may include
+ber of UL decision variables controlled by the leader and m the                continuous and integer variables.
+number of LL decision variables controlled by the follower. In a                  Problem (P2), in which the UL objective function is optimized
+mixed-integer BL problem, X and Y may also include integrality                 over the constraint set (S) of the BL problem, is designated as the
+constraints for all or some of the x and y variables, respectively.            high point relaxation (HPR) of the BL problem (P1):
+F (x, y ) and f (x, y ) are the leader’s and the follower’s objective
+                                                                               maxx∈X,y∈Y F (x, y )
+functions, respectively; G(x, y ) and g(x, y ) are the corresponding
+                                                                                s.t. G(x ) ≤ 0                                                           (P2)
+constraint functions.
+                                                                                   g( y ) ≤ 0
+    In face of the decision variables x ∈ X set by the
+leader, the feasible and the rational reaction sets of                             In our models (which will be detailed in Sections 4 and 6),
+the follower are Y (x ) = {y ∈ Y : g(x, y ) ≤ 0} and (x ) =                   the HPR was originally a MINLP problem because F (x, y ) was a
+{y ∈ Y : y ∈ arg miny ∈ Y (x) f (x, y )}, respectively.                      nonlinear function. However, since the nonlinearity resulted from
+    The     constraint     set     of     the    BL    problem is S=           products of continuous variables x by binary variables y, the ob-
+{(x, y ) ∈ X × Y : G(x, y ) ≤ 0, g(x, y ) ≤ 0}. The feasible set of            jective function could be linearized using additional variables and
+
+                                                                          54
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                European Journal of Operational Research 291 (2021) 52–66
+
+
+constraints, which allows the HPR to be tackled by a general MILP                     Otherwise, the LL problem is solved for xu2 , yielding a new LL op-
+solver.                                                                               timistic solution y2 (obtained by solving P4). This solution deﬁnes
+   The optimal solution to the HPR gives an upper bound (U BF ) for                   another constraint valid for all (x, y ), f (x, y ) ≤ f (x, y2 ), which is in-
+the optimal value of F in (P1).                                                       cluded in (P5), and the process continues.
+   Let xu be a leader’s solution such that xu ∈ X, G(xu ) ≤ 0. The LL
+                                                                                      Lemma 3. Let xuK be the UL solution obtained by solving (P5) with
+problem (P3) gives the follower’s reaction set for xu :
+                                                                                      K − 1 additional constraints (k = 1, ..., K − 1) and let yK be the so-
+miny∈Y f (xu , y )                                                                    lution obtained by (P4) for xuK . The constraint f (x, y ) ≤ f (x, yK ) is
+                                                                        (P3)          added to (P5). Let xu(K+1) be the UL solution obtained by (P5) with K
+s.t. g( y ) ≤ 0
+                                                                                      additional constraints (k = 1, ..., K ). If xu(K+1) = xuK then an optimal
+    If y is the unique optimal solution to (P3) for xu then F (xu , y )             optimistic solution to (P1) has been found.
+is a lower bound (LBF ) for the optimal value of F in (P1). Since the
+                                                                                      Proof. By Lemma 1, LBF = F (xuK , yK ) is a lower bound for the
+UL constraints do not include LL decision variables y, then (xu , y )
+                                                                                      optimal optimistic F of (P1). Let (xu(K+1) , yu(K+1) ) be the so-
+is surely a feasible solution to the BL problem (P1).
+                                                                                      lution obtained by solving (P5) with k = 1, ..., K. Then, U BF =
+    If the LL problem (P3) has alternative optimal solutions for a
+                                                                                      F (xu(K+1) , yu(K+1) ) by Lemma 2. Since (P5) includes f (x, y ) ≤
+given xu , then our algorithm searches for the alternative y that
+                                                                                       f (x, yK ) and xu(K+1) = xuK , then f (xuK , yu(K+1) ) ≤ f (xuK , yK ), which
+provides the best value for F, following an optimistic approach.
+                                                                                      means that yu(K+1) also optimizes (P3) and (P4) for xuK . So, LBF =
+Lemma 1. Let f u∗ be the optimal value of f in (P3) for a given xu ∈                  F (xuK , yK ) = F (xuK , yu(K+1) ) = U BF ; (xuK , yK ) and (xuK , yu(K+1) ),
+X, G(xu ) ≤ 0. If (P3) has alternative optimal solutions, then problem                which may be equal or different, are optimal solutions to (P1).
+(P4) gives a LBF for the optimistic optimal F ∗ to (P1):
+                                                                                           In order to improve U BF and narrow the difference between
+maxy∈Y F (xu , y )                                                                    U BF and LBF , the HPR is solved iteratively by including in the prob-
+                                                                                      lem (P5) all generated constraints f (x, y ) ≤ f (x, yk ), ∀ k (where
+s.t. g(y ) ≤ 0                                                          (P4)          k denotes the iteration index). The LBF is updated whenever
+   f (x , y ) ≤ f
+        u           u∗                                                                F (xuk , yk ) ≥ LBF . In the algorithm presented below, the process
+                                                                                      stops when U BF − LBF ≤ ε , with ε being a predeﬁned optimality
+Proof. Let (xu , y ) be an optimal solution to (P4). Since f (xu , y ) ≤            tolerance, as suggested by Mitsos (2010). If the algorithm stops
+f u∗ , then (xu , y ) is also optimal to (P3) and provides the best F                with xu(K+1) = xuK , then the ﬁnal solution is the one that provided
+among the alternative optimal solutions of (P3) due to the objec-                     the LBF , since the solution that gives the U BF may be infeasible to
+tive function of (P4). Thus, it provides a lower bound for F in the                   (P1).
+optimistic optimal solution to (P1).                                                       In addition, a very small ε ’ tolerance is added to the right-
+                                                                                      hand side of the additional constraints of (P5) to overcome numer-
+     In order to avoid numerical diﬃculties arising from the fact that
+                                                                                      ical diﬃculties arising from ﬂoating point numbers, i.e., f (x, y ) ≤
+ f u∗ are ﬂoating point numbers, a small positive tolerance ε  is al-
+                                                                                       f (x, yk ) + ε  , ∀ k.
+lowed on f u∗ (i.e., f u∗ + ε  ) in problem (P4) solved in Step 3 of
+the algorithm presented below, thus ensuring feasibility of (P4).
+                                                                                      3.2. The DBP algorithm
+Consequently, an ε  -optimal solution at the LL is accepted (as in
+Mitsos 2010; Mitsos, Lemonidis and Barton 2008).
+                                                                                      Parameters
+     Let xu1 , xu2 , ..., xuK be a series of leader’s solutions, xuk ∈ X,
+                                                                                          ◦ Optimality tolerance: ε
+G(xuk ) ≤ 0, k = 1, ..., K, and y1 , y2 , ..., yK the corresponding fol-
+                                                                                          ◦ Tolerance for constraints on the LL objective function values:
+lower’s solutions obtained by solving (P3)+(P4) for each xuk , k =
+                                                                                              ε
+1, ..., K.
+     Consider the HPR problem with additional constraints (P5):                       Step 1 - Initialization – Set initial lower and upper bounds for the
+                                                                                      UL objective function
+ max F (x, y )
+x∈X,y∈Y
+                                                                                            ◦ Lower bound of the UL objective function: LBF = −∞
+s.t.      G (x ) ≤ 0
+                                                                                            ◦ Solve the HPR (problem P2). Let (xu0 , yu0 ) be the solution
+                                                                        (P5)
+       g( y ) ≤ 0                                                                             obtained.
+                                                                                       Upper bound of the UL objective function: U BF = F (xu0 , yu0 )
+       f (x, y ) ≤ f x, yk , k = 1, ..., K
+                                                                                            ◦ Iteration counter: k = 0.
+Lemma 2. An optimal solution to (P5) gives an upper bound (U BF )
+for the optimal value of F in (P1).                                                   Step 2 - Solve the LL problem for xuk
+                                                                                         Solve (P3) for the leader’s solution xuk to obtain an optimal fol-
+Proof. Solutions y1 , y2 , ..., yK , k = 1, ..., K are feasible to the LL             lower’s reaction.
+problem of (P1) for any x because the LL constraints do not depend                       Let y be the optimal solution to this problem. The minimum
+on x. Therefore, for any x , the value f  ∗ = min { f (x , y ) : g(y ) ≤ 0}        objective function value is f u∗ = f (xuk , y ).
+                                                  y∈Y
+satisﬁes f  ∗ ≤ f (x , yk ), k = 1, ..., K, which means that the con-               Step 3 - Calculate the lower bound to the UL objective function corre-
+straints f (x, y ) ≤ f (x, yk ), k = 1, ..., K do not eliminate any optimal           sponding to xuk – The following problem (P4-), corresponding to
+solution to the LL problem, i.e., no feasible solution of (P1) is elim-               the problem (P4) above but allowing an ε  -tolerance for the opti-
+inated by (P5). Thus, (P5) is a relaxation of (P1) which ensures that                 mal f u∗ , is solved for xuk :
+an U BF to (P1) is obtained.                                                                          
+                                                                                      max F xuk , y
+                                                                                      y∈Y
+     After obtaining a ﬁrst pair of bounds for the optimal value of
+F , [LBF , U BF ], the HPR including the constraint f (x, y ) ≤ f (x, y1 ) for        s.t. g(y ) ≤ 0                                                          (P4-)
+the ﬁrst LL solution y1 is solved (i.e., P5 is solved for k = 1) leading                     uk 
+                                                                                         f x , y ≤ f u∗ + ε 
+to a new UL solution xu2 . Lemma 3 below proves that an optimal
+solution to the BL problem (P1) is found if the same xu is obtained.                     Let (xuk , yk ) be the solution obtained.
+
+                                                                                 55
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                              European Journal of Operational Research 291 (2021) 52–66
+
+
+   The lower bound for the UL objective function corresponding to                 but xuK = xu(K+1) ; so, the algorithm does not ﬁnish yet (ac-
+xuk is LB = F (xuk , yk ).                                                        cording to Lemma 3). Due to the additional constraints
+                                                                                  f (x, y )≤ f (x, yk ), k=1, ..., K, then f (xu(K +1) , yu(K +1) ) ≤ f (xu(K +1) , yk ),
+Step 4 - Lower bounding evaluation
+                                                                                  k = 1, ..., K. Therefore, when (P3)+(P4) are solved w.r.t. to xu(K+1) ,
+   If LB ≥ LBF then
+                                                                                  the following situations may occur:
+       ◦ Update LBF = LB
+                                                                                     (1) neither yu(K+1) nor yk , k = 1, ..., K, are yielded from
+       ◦ Set the incumbent solution: (x∗ , y∗ ) = (xuk , yk ), F ∗ = LBF
+                                                                                         (P3)+(P4) and a different solution yK+1 is obtained;
+Step 5 – Update the upper bound to the UL objective function                         (2) yu(K+1 ) is obtained from (P3)+(P4);
+                                                                                            
+   Update the HPR problem with additional constraints by including                   (3) yk for some k ∈ {1, ..., K } is obtained from (P3)+(P4), thus
+                                                                                                                                                 
+the kth follower’s constraint corresponding to solution yk . This is                     meaning that f (xu(K+1) , yu(K+1) ) = f (xu(K+1) , yk ) due to the
+                                                                                                                                                     
+problem (P5-), which corresponds to problem (P5) above, but al-                         additional constraints in (P5). So, yu(K+1 ) and yk are alter-
+lowing an ε  -tolerance for the follower’s objective function value:                    native optimal solutions to the LL problem for x (K+1) . They
+                                                                                                                                                   u
+
+                                                                                         also provide the same objective function value for the leader,
+                                                                                                                                                      
+ max F (x, y )                                                                           i.e. F (xu(K+1) , yu(K+1) ) = F (xu(K+1) , yk ), otherwise yk would
+x∈X, y∈Y
+                                                                                         have been the solution yielded by (P5).
+s.t.    G (x ) ≤ 0
+                                                                   (P5-)             In situations (2) and (3), the algorithm ﬁnishes at this iteration
+       g( y ) ≤ 0
+                                                                                  because U BF = LBF . In situation (1), if U BF − LBF > ε then the new
+                          
+       f (x, y ) ≤ f x, yk + ε  , ∀k                                             solution yK+1 is included in the constraints of (P5) for the next
+                                                                                  iteration. Since all LL variables are integer, the set of all feasible y
+    Solve (P5-). Let (xu(k+1) , yu(k+1) ) be the optimal solution ob-            is discrete and ﬁnite, which ensures the ﬁniteness of the algorithm.
+tained.                                                                               In our computational implementation we have set ε  positive
+                                                                                  very small just to ensure feasibility of the subproblems solved.
+U BF = F (xu(k+1) , yu(k+1) ).
+Step 6 – Stopping condition – If the amplitude deﬁned by the cur-                 4. A BL optimization model for electricity retail pricing
+rent upper-lower bounds is higher than ε then the search should                   problems considering shiftable and interruptible consumer
+proceed; otherwise an ε –optimal solution has been obtained.                      appliances – model SI
+   If U BF − LBF > ε then
+                                                                                      In this section, a BL problem for the interaction between an
+       ◦ k=k+1                                                                    electricity retailer and a cluster of residential consumers with
+       ◦ Go to Step 2                                                             similar consumption patterns is presented. The retailer ﬁrst sets
+    Else If xu(k+1) = xuk then the algorithm terminates with the op-              the time-differentiated electricity prices aiming to maximize proﬁt
+timal solution(s) (xuk , yk ) and (xuk , yu(k+1) )                                (revenue minus acquisition cost); the consumer responds to the
+    Else                                                                          prices communicated by the retailer by scheduling the appli-
+    Terminate with the ε –optimal solution (x∗ , y∗ ), F ∗ = LBF .                ance operation to minimize the electricity bill according to his
+    In our models, f (x, y ) was originally nonlinear for the same rea-           preferences and comfort requirements. The consumer’s problem
+son as F (x, y ). So, it has been also linearized to be included in the           considers two different types of controllable appliances: shiftable
+HPR with additional constraints (problem P5- – Step 5 of the algo-               appliances, whose operation cycle cannot be interrupted, and inter-
+rithm). Therefore, all problems solved are MILP problems.                         ruptible loads, whose operation cycle can be interrupted provided
+    The algorithm implementation coded in R is available at https:                that the required amount of energy is supplied in a predeﬁned
+//www.uc.pt/en/feuc/mjalves/DBP.                                                  time slot (depending on the characteristics of the energy service,
+                                                                                  e.g. hot water). A base load not deemed for control is also consid-
+                                                                                  ered, which has an impact on the load diagram and consequently
+3.3. A discussion on convergence
+                                                                                  on the consumer’s decisions. In the following, this BL model –
+                                                                                  Model SI – is presented and brieﬂy described. For a more detailed
+    Mitsos (2010) deﬁnes several assumptions required for the con-
+                                                                                  explanation, please see (Alves et al., 2016; Soares et al., 2020).
+vergence of his algorithm devoted to general MINLBL problems.
+Under those assumptions, conditions for the ε -tolerances are de-                     Notation
+ﬁned that ensure the algorithm terminates ﬁnitely. Lozano and                         Parameters
+Smith (2017) assume that all leader’s variables are integer to guar-                  T = number of units of time the planning horizon T̄ = {1, . . . , T }
+antee the ﬁnite termination of their algorithm.                                   is discretized into (t ∈ T̄). A typical planning horizon is one day.
+    The DBP herein proposed for problem (P1) converges under the                      hˆ = length of the unit of time the planning horizon T̄ is dis-
+assumptions stated by Mitsos (2010) or Lozano and Smith (2017).                   cretized into (e.g., 15 or 5 minutes).
+In addition, the algorithm converges in a ﬁnite number of iter-                       I = number of periods of the planning horizon in which differ-
+ations for problems in which all follower’s variables are integer                 ent prices apply (i ∈ {1, . . . , I}).
+(regardless of the leader’s variables being continuous or integer)                    Pi = periods of prices (Pi ⊂ T̄ ), disjoint and contiguous, which
+without further assumptions and considering ε  = 0, as we show                   deﬁne the ToU tariff structure, i = 1, . . . , I.
+below. The models we will deal with in the next sections ﬁt into                      xAVG = average price for the whole planning horizon T̄.
+this case.                                                                            xi / xi = minimum / maximum energy price values in each pe-
+    The algorithm converges when U BF decreases or even when it                   riod Pi , i = 1, . . . , I.
+keeps the same value from one iteration to the next. We show the                      πt = energy acquisition prices incurred by the retailer at each
+ﬁniteness of the algorithm for the latter case, which also ensures                unit of time t, t = 1, . . . , T .
+convergence for the former case.                                                      L = number of power levels deﬁned by the retailer (l ∈
+    Let (xu(K+1) , yu(K+1 ) ) be the solution obtained by solving                 {1, . . . , L}), such that the consumer will pay for the peak power
+(P5) at iteration K, so U BF = F (xu(K+1) , yu(K+1) ). Let us suppose             taken during the planning horizon.
+that U BF did not decrease, i.e. F (xuK , yuK ) = F (xu(K+1) , yu(K+1 ) ),            PlCont = contracted power at level l (kW), l = 1, . . . , L.
+
+                                                                             56
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                                                           European Journal of Operational Research 291 (2021) 52–66
+
+
+    el = price charged to the consumer if he takes power level l (€),                                                The UL and LL objective functions have been linearized to tackle
+l = 1, . . . , L.                                                                                               the products of the UL variables and the LL variables (xi p jt and
+    bt = power of non-controllable base load at time t of the plan-                                                                         d j
+                                                                                                                xi qkt ). Since xi p jt = xi r=1 f jr w jrt and xi qkt = xi Qk vkt , then these
+ning period (kW), corresponding to appliances that are not sched-                                               nonlinearities arise from the product of continuous variables (x)
+uled by the optimization model, t = 1, . . . , T .                                                              by binary variables (w or v). Introducing additional variables y1jrt
+    For shiftable appliances:
+                                                                                                                for the shiftable loads, the products xi w jrt are equivalent to y1jrt by
+       J = number of shiftable appliances ( j ∈ {1, . . . , J}).
+       dj = duration of the operation cycle of shiftable appliance j,                                           imposing the additional constraints: y1jrt ≤ xi w jrt , y1jrt ≤ xi , y1jrt ≥
+ j = 1, . . . , J.                                                                                              xi − (1 − w jrt )xi . The transformation of the products xi vkt for the
+       fjr = power requested by appliance j at stage (unit of time) r                                           interruptible loads is analogous by considering the additional vari-
+of its operation cycle (kW), j = 1, . . . , J, r = 1, . . . , d j .                                             ables y2kt . This linearization is the exact form of the McCormick
+       [T1 j , T2 j ] = comfort time slot within T̄ for appliance j in which                                    (1976) relaxations (lower/upper envelopes) when one of the vari-
+it is allowed to operate, j = 1, . . . , J.                                                                     ables involved in the product is a binary variable.
+    For interruptible appliances:                                                                                   The BL model with the linearized objective functions is the fol-
+       K = number of interruptible appliances (k ∈ {1, . . . , K }).                                            lowing:
+       Qk = power requested by appliance k at each unit of time
+(kW), k = 1, . . . , K                                                                                                  Linearized Model SI
+       Ek = total energy required by appliance k (kWhˆ ), k = 1, . . . , K.                                                                                                      dj
+                                                                                                                                                                                                                      
+                                                                                                                                          I                    T            J                          K
+       [T1k , T2k ] = comfort time slot within T̄ for appliance k in which                                      max F =                             xi bt +                            y1jrt f jr +         y2kt Qk
+                                                                                                                    x
+it is allowed to operate, k = 1, . . . , K.                                                                                          i=1 t∈Pi                 t=1      j=1 r=1                        k=1
+                                                                                                                                                                                                                  
+Upper level decision variables                                                                                                                 L               T                        J             K
+
+  xi = energy price (€/kWhˆ ) in period Pi , i = 1, . . . , I.                                                                       +              el ul −         πt bt +                 p jt +          qkt                         (1)
+                                                                                                                                              l=1             t=1                     j=1             k=1
+Lower level decision variables
+                                                                                                               s.t.
+               1        if shiftable appliance j is ‘‘on’’ at time t and at
+w jrt =                    stage r of its operation cycle                                                       xi ≤ xi , i = 1, . . . , I                                                                                              (2)
+               0        otherwise
+
+j = 1, . . . , J, r = 1, . . . , d j , t = T1 j , . . . , T2 j                                                  x i ≥ xi , i = 1 , . . . , I                                                                                            (3)
+
+                                                                                                                        I
+           1           if interruptible appliance                                                               1
+vkt =                  k is ‘‘on’’ at time t      k = 1, . . . , K, t = T1k , . . . , T2k                                      P̄i xi = xAVG                                                                                            (4)
+                                                                                                                T
+           0           otherwise                                                                                        i=1
+
+       
+          1        if the consumer is charged
+                                                                                                                                                                                dj
+                                                                                                                                                                                                                     
+                                                                                                                                      I                       T         J                             K                        L
+ul =               at the power level l                                 l = 1, . . . , L
+          0        otherwise                                                                                    min f =                             xi bt +                           y1jrt f jr +         y2kt Qk       +          el ul
+                                                                                                                w,v,u
+                                                                                                                                     i=1 t∈Pi                 t=1      j=1 r=1                       k=1                      l=1
+Lower level auxiliary variables
+             d j                                                                                                                                                                                                                       (5)
+    p jt = r=1       f jr w jrt : power required by shiftable load j at time t,
+j = 1, . . . , J, t = T1 j , . . . , T2 j                                                                       s.t.
+                                                                d j                                                    (shiftable appliances)
+   (constraints                      ensure       that            r=1
+                                                                      w jrt ≤ 1
+                                                                                                                                dj
+so that at most one w jrt = 1 for each pair ( j, t ))
+   qkt = Qk vkt : power required by interruptible load k at time t,                                             p jt =               f jr w jrt , j = 1, . . . , J, t = T1 j , . . . , T2 j                                             (6)
+                                                                                                                               r=1
+k = 1, . . . , K, t = T1k , . . . , T2k
+   The UL objective function is the maximization of the retailer’s
+                                                                                                                p jt = 0, j = 1, . . . , J, t < T1 j ∨ t > T2 j                                                                         (7)
+proﬁt, whose components are the sale of energy to consumers
+(to supply the non-controllable load, the shiftable appliances and
+                                                                                                                 dj
+the interruptible appliances) plus the contracted power component
+revenue minus the cost of buying energy in the wholesale mar-                                                           w jrt ≤ 1, j = 1, . . . , J, t = T1 j , . . . , T2 j                                                            (8)
+ket:                                                                                                            r=1
+
+                        SE=sale of energy to consumers
+                                                                                                                w j (r+1)(t+1) ≥ w jrt ,
+                   I                          J               K
+                                                                                                                                                                                                                       
+max F =                      xi bt +               p jt +         qkt                                               j = 1, . . . , J, r = 1, . . . , d j − 1 , t = T1 j , . . . , T2 j − 1                                              (9)
+  x
+               i=1 t∈Pi                      j=1            k=1
+
+                       CP=contracted power                        cost of buying energy                          T2 j
+                                                                                                     
+                                 L                      T                    J             K                                 w jrt = 1, j = 1, . . . , J, r = 1, . . . , d j                                                           (10)
+               +                     el ul          −         πt bt +             p jt +         qkt            t=T1 j
+
+                              l=1                       t=1                 j=1            k=1
+                                                                                                                T2 j −d j +1
+   The LL objective function relates to the minimization of the
+                                                                                                                                w j1t ≥ 1, j = 1, . . . , J                                                                            (11)
+consumer’s electricity bill and matches with the corresponding
+                                                                                                                  t=T1 j
+revenue terms in the UL objective function, i.e. SE+CP, the cost of
+the energy consumed by controllable and non-controllable (base)
+loads and the contracted power for the whole planning horizon.                                                  w jrt ∈ {0, 1}, j = 1, . . . , J, r = 1, . . . , d j , t = T1 j , . . . , T2 j                                         (12)
+
+                                                                                                           57
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                                          European Journal of Operational Research 291 (2021) 52–66
+
+                                                ⎫
+         y1jrt ≤ xi w jrt   ⎬                                                                                  Table 1
+                                                                                                               Upper and lower bounds for the retailer’s proﬁt (in €) in each iteration of the DBP
+           y1jrt ≤ xi
+                          ⎭                                                                                  algorithm for the Model SI, discretization 15 minutes.
+  y1jrt ≥ xi − 1 − w jrt xi
+                                                                                                                Iteration                      Lower bound                        Upper bound
+              i = 1, . . . , I, j = 1, . . . , J, r = 1, . . . , d j , t = T1 j , . . . , T2 j ∧ t ∈ Pi         1                              3.11711                            5.57038
+                                                                                                 (13)           2                              3.11711                            3.19822
+                                                                                                                3                              3.16309                            3.16309
+
+
+y1jrt = 0, j = 1, . . . , J, r = 1, . . . , d j , t < T1 j ∨ t > T2 j                            (14)
+(interruptible appliances)                                                                                          Regarding the retailer’s problem, six tariff periods Pi =
+                                                                                                               [P1i , P2i ], i ∈ {1, . . . , 6}, are established for deﬁning the electricity
+qkt = vkt Qk , k = 1, . . . , K, t = T1k , . . . , T2k                                           (15)          prices to be charged to the consumers. The minimum and maxi-
+                                                                                                               mum prices that can be charged to the consumers in each period
+qkt = 0, k = 1, . . . , K, t < T1k ∨ t > T2k                                                     (16)          Pi and the average price over the entire planning period are dis-
+                                                                                                               played in Table A1 in the Appendix. These data deﬁne an UL prob-
+                                                                                                               lem with 6 continuous variables and 13 constraints (lower/upper
+ T2
+      k                                                                                                        bounds for the prices plus the average price constraint). The elec-
+              qkt = Ek , k = 1, . . . , K                                                        (17)          tricity prices paid by the retailer in the spot market in each t ∈ T̄
+t=T1                                                                                                           can be seen in Table A2 in the Appendix.
+          k
+
+                                                                                                                    In the consumer’s problem, in addition to the non-controllable
+vkt ∈ {0, 1}, k = 1, . . . , K, t = T1k , . . . , T2k                                            (18)          base load, ﬁve controllable appliances are considered: three
+                                                                                                               shiftable loads (J = 3) – dishwasher, laundry machine and clothes
+                                                                                                              dryer – and two interruptible loads (K = 2) – electric vehicle and
+       y2kt ≤ xi vkt                                                                                           electric water heater. The data related to the base load, the oper-
+        y2kt ≤ xi                                                                                              ation cycles of each controllable load and the comfort time slots
+  ykt ≥ xi − (1 − vkt )xi
+   2
+                                                                                                               allowed for its operation, as well as the power levels and corre-
+              i = 1, . . . , I, k = 1, . . . , K, t = T1k , . . . , T2k ∧ t ∈ Pi                 (19)          sponding costs are also detailed in the Appendix (Tables A3–A6).
+                                                                                                                    For each instantiation of the UL variables x, these data deﬁne
+                                                                                                               a LL problem with 559 binary variables, 691 continuous variables
+y2kt = 0, k = 1, . . . , K, t < T1k ∨ t > T2k                                                    (20)          and 2389 constraints. The tolerance parameters required by the al-
+(power component)                                                                                              gorithm were set as: ε = 10−4 and ε  = 10−5 .
+                                                                                                                    In all the experiments, we considered electricity prices (€/kWhˆ )
+ L
+                                                                                                               with ﬁve decimal places. Therefore, the UL decision variables can
+          ul = 1                                                                                 (21)          be seen as integer variables by considering a 105 scale factor.
+l=1
+                                                                                                                    The algorithm was written in R language and run in a com-
+                 J            K              L                                                                 puter with an Intel Xeon Gold 6138 CPU@3.7 GHz processor. The
+bt +                 p jt +         qkt ≤           PlCont ul , t = 1, . . . , T                 (22)          subproblems in DBP are swiftly solved to optimality using a state-
+               j=1            k=1           l=1                                                                of-the-art solver (CPLEX).
+                                                                                                                    The results for the Model SI are displayed in Table 1 and Fig.
+ul ∈ {0, 1}, l = 1, . . . , L                                                                    (23)          1. Table 1 shows the upper and lower bounds for the retailer’s
+                                                                                                               proﬁt (in €) obtained in each iteration of the DBP algorithm. The
+   In each period Pi , the electricity prices are limited by minimum                                           DBP produced swiftly tighter bounds such that at iteration 3 the
+and maximum values, respectively xi and xi (UL constraints (2) and                                             lower and upper bounds match and an optimal solution is obtained
+(3)). An average price xAVG for the whole planning horizon T̄ is also                                          (with F = 3.16309). The electricity prices (in €/kWh) for each tar-
+imposed to account for retail market competition (UL constraint                                                iff period Pi , i ∈ {1, . . . , 6} are displayed in Fig. 1: x = (0.09960,
+(4)).                                                                                                          0.27504, 0.28360, 0.08040, 0.15400, 0.14728 ). The prices deﬁned
+   The LL constraints (6) – (14) model the operation of shiftable                                              for the ﬁrst half of the day (periods P1 to P3 ) as well as the price
+loads and the set of LL constraints (15) – (20) model the op-                                                  deﬁned for the last period of the day (P6 ) are equal or close to the
+eration of interruptible appliances. The consumer should specify                                               respective maximum values (xi ). The remaining prices (for periods
+comfort time slots ([T1 j , T2 j ] and [T1k , T2k ]) in which each shiftable                                   P4 and P5 ) are equal to the respective minimum values (xi ).
+load j and interruptible load k should operate, according to his                                                    We now compare the results obtained using the DBP and the
+comfort preferences and routines. Outside these time slots, the                                                hybrid approach previously developed by the authors (Soares et al.,
+power requested to the grid by these types of appliances is al-                                                2020). This approach consists of the combination of a PSO algo-
+ways zero (constraints (7) and (16) respectively), remaining the                                               rithm to perform the UL search, which calls an external solver to
+non-controllable load only, bt (e.g. fridge, oven, etc.).                                                      deal with the LL MILP problem for each setting of x.
+   Constraints (21)-(23) deﬁne the peak power level the consumer                                                    Table A9 in the Appendix compares the prices in the best so-
+pays for. That is, the tariff structure comprises a time-variable en-                                          lutions obtained by both approaches. In the hybrid approach, the
+ergy component and a volume-based power component.                                                             best solution (maximum F) obtained over 20 runs (each with a
+                                                                                                               population of 30 UL solutions and 100 iterations) has F = 3.13996
+5. Results of the DBP applied to the model SI                                                                  €, i.e. 0.73% worse than the optimal solution given by the DBP
+                                                                                                               (F = 3.16309). The average F over the 20 runs is 3.13520, which is
+    This section presents results of the DBP proposed in                                                       0.88% worse than the DBP solution. Concerning the computational
+Section 3 applied to the BL model in Section 4 (Model SI). A                                                   effort involved, an optimal solution was obtained by the DBP in
+case study with a planning horizon of 24 hours is considered.                                                  just three iterations in less than 15 seconds, whereas the best so-
+First, we present the results for a discretization in units of time of                                         lution given by the hybrid approach (involving 30 0 0 calls of the
+quarter-hour (hˆ = 15 minutes).                                                                                MILP solver per run) took 12 minutes (per run).
+
+                                                                                                          58
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                European Journal of Operational Research 291 (2021) 52–66
+
+
+
+
+Fig 1. Power requested from the grid and prices imposed to the consumer in the optimal solution of DBP and in the best solution of the hybrid approach in the Model SI
+for the 15 min discretization.
+
+
+
+    Fig. 1 displays the electricity prices together with the power re-                (AC) system – in the follower’s problem. This BL model – Model
+quested to the grid during the planning period T̄ for the optimal                     SIAC – is presented below with a brief explanation of the changes
+solution in the DBP and the best solution in the hybrid approach.                     induced by the inclusion of the AC (a more complete description
+This ﬁgure shows that the electricity prices in both approaches are                   can be seen in Soares et al. (2020).
+very similar as well as the higher prices (within the allowed limits)
+                                                                                         Additional notation
+are associated with the periods in which the amount of electricity
+                                                                                         Parameters
+required by the consumer is higher, mainly due to the charging                            nom = nominal power of the AC system (W)
+                                                                                         PAC
+of the electric vehicle. These results indicate that a massive de-
+ployment of electric vehicles being charged at home during the
+                                                                                         θ max = maximum allowed indoor temperature during the entire
+                                                                                      planning horizon (°C)
+night may induce signiﬁcant changes in the shape of ToU pricing
+schemes currently offered by electricity retailers.
+                                                                                         θ re f = reference comfort indoor temperature during the entire
+                                                                                      planning horizon (°C)
+    We now present the results for a discretization in units
+of time of hˆ = 5 minutes, i.e. T̄ = {1, . . . , 288}. In this case,
+                                                                                         θAbs
+                                                                                           min = absolute minimum comfort indoor temperature during
+
+                                                                                      the entire planning horizon (°C)
+the follower’s problem has 4617 binary variables, 5031 con-
+                                                                                         c− = monetized cost of the discomfort (€/hˆ per °C below θ re f )
+tinuous variables and 18,981 constraints. The algorithm behav-
+                                                                                         c+ = monetized cost of the discomfort (€/hˆ per °C above θ re f )
+ior is similar to the discretization with hˆ = 15 minutes, ob-
+taining an optimal solution in 3 iterations with F = 3.16265
+                                                                                         α , β , γ = coeﬃcients associated with the thermal modeling of
+                                                                                      the space being conditioned
+but with a signiﬁcant increase in the overall computational ef-
+fort (around 10.5 minutes). The electricity prices (in €/kWh)
+                                                                                         θtext = outdoor temperature at time t (°C), t = 1, . . . , T
+are: x = (0.0996, 0.27492, 0.28344, 0.08052, 0.15396, 0.14748),                       Lower level decision variables
+which are different from the solution for the discretization                              θtmin = minimum indoor temperature at which the AC is set “on”
+of hˆ = 15 minutes just from the third decimal place onwards                          at time t (°C), t = 1, . . . , T
+(cf. Table A9).
+    For comparison purposes, ﬁve independent runs of the hybrid                              
+                                                                                             1    if the AC is ‘‘on’’ at time t
+approach were performed, with a population of 30 UL solutions                         st =                                      t = 1, . . . , T
+                                                                                             0            otherwise
+and 100 iterations. The best objective value was F = 3.14410 € in
+around 35 minutes (per run), which is 0.59% worse than the op-
+timal solution given by the DBP. The average F over the 5 runs is                     Lower level auxiliary variables
+3.12599, which is 1.16% worse than the DBP solution.                                       θtin = indoor temperature at time t (°C), t = 1, . . . , T
+                                                                                               t = indoor temperature deviation above θ
+                                                                                               +                                        re f at time t (°C), t =
+
+6. Including a thermostatic appliance in the consumer’s                               1, . . . , T
+                                                                                               t = indoor temperature deviation below θ
+                                                                                               −                                            re f at time t (°C),
+problem – model SIAC
+                                                                                      t = 1, . . . , T
+  The BL optimization model presented in Section 4 (Model SI) is                           zt , yt = binary variables to simulate the thermostat hysteresis
+now extended to include a thermostatic load – an air conditioning                     behavior, t = 1, . . . , T
+
+                                                                                 59
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                                                                          European Journal of Operational Research 291 (2021) 52–66
+
+
+    In addition to the cost of the energy consumed by controllable
+and non-controllable loads as well as the power cost, the LL objec-                                                                          −          +
+                                                                                                                                             t ,        t ≥ 0,    t = 1, . . . , T                                              (38)
+tive function also comprises the costs resulting from the monetiza-
+tion of the positive and negative deviations of the minimum indoor
+                                                                                                                                                                          
+temperature θtmin at each time t ∈ T̄ (which is a variable controlling                                                                       yt3 ≤ xi st
+the thermostat operation) from the reference comfort temperature.                                                                            yt3 ≤ xi                         i = 1, . . . , I, t ∈ Pi                          (39)
+    The consumer should specify minimum (θAbs        min ), maximum
+                                                                                                                                        yt ≥ xi − (1 − st )xi
+                                                                                                                                         3
+
+(θ max ) and reference (θ re f ) indoor temperatures used for setting
+the AC system. The LL constraints (26) – (38) below model the op-                                                                    (power component)
+eration of this thermostatic load.                                                                                                       L
+    As in the Model SI, the UL and LL objective functions have been                                                                            ul = 1                                                                           (40)
+                                                    nom ) associated
+linearized (because of the products Ii=1 t∈P xi (st PAC                                                                                 l=1
+                                                                                           i
+with the AC operation). The additional binary variables yt3 and con-
+straints (39) are used for this purpose, which derive from products                                                                                 J              K                         L
+                                                                                                                                                                                  nom
+xi st , with i ∈ {1, . . . , I} and t ∈ Pi .                                                                                            bt +             p jt +         qkt + st PAC  ≤          PlCont ul , t = 1, . . . , T   (41)
+                                                                                                                                                   j=1            k=1                      l=1
+       Linearized Model SIAC
+                                                              dj
+                                                                                                                         
+                                                     J
+                                                                                                                                        ul ∈ {0, 1}, l = 1, . . . , L
+                  I                      T                                                 K
+                                                                                                                                                                                                                                (42)
+max F =                       xi bt +                               y1jrt f jr +                                  nom
+                                                                                                   y2kt Qk + yt3 PAC
+  x
+                 i=1 t∈Pi                t=1        j=1 r=1                               k=1                                           The modelling of the thermostatic load enables to capture its
+                                                                                                                   
+                       L                 T                              J                      K                                     physical control characteristics but imposes a severe computational
+                +            el ul −          πt bt +                         p jt +                         nom
+                                                                                                   qkt + st PAC          (24)        burden, which is associated with the introduction of a signiﬁcant
+                      l=1               t=1                        j=1                     k=1                                       number of binary variables and constraints associated with the
+                                                                                                                                     thermostat hysteresis behavior. Moreover, the linearization of the
+s.t.
+       UL constraints (2) – (4)                                                                                                      products xi st increases the number of continuous variables and
+                                                                                                                                     constraints. This impairs obtaining the optimal LL solution in a
+                                                                                                                         
+                        I                      T          J        dj                          K                                     practical computational time by a state-of-the-art solver (Soares
+   min          f =                xi bt +                                  y1jrt f jr +                           nom
+                                                                                                    y2kt Qk + yt3 PAC                et al., 2020).
+w,v,u,s,θ min
+                       i=1 t∈Pi               t=1        j=1 r=1                           k=1
+                              L                    +          +    −             −
+                                                                                                                                    7. Improvements in the DBP to deal with a more demanding
+                       +           el ul +           c         t +c               t                                      (25)
+                             l=1             t∈T
+                                                                                                                                     problem
+
+s.t.                                                                                                                                     The subproblems required by the DBP revealed, in general, im-
+       LL constraints (6) – (14) for shiftable appliances                                                                            possible to be solved to optimality in an acceptable timeframe
+       LL constraints (15) – (20) for interruptible appliances                                                                       for the Model SIAC presented in the previous section, having in
+       (thermostatic appliance)                                                                                                      mind the need of the retailer to announce prices short in advance,
+       θtin = αθt−1
+                in
+                    + βθt−1
+                        ext
+                            + γ st−1 PAC
+                                      nom
+                                          , t = 1, . . . , T                                                             (26)        e.g., day-ahead. The solution process of most of these subprob-
+                                                                                                                                     lems terminated after a speciﬁed computation budget (from ﬁve
+                                                                                                                                     minutes until more than one hour) still with a signiﬁcant MIP
+       θtin ≥ θtmin − Mst , t = 1, . . . , T                                                                             (27)        gap. Moreover, in some cases, the solver was not able to ﬁnd a
+                                                                                                                                     feasible integer solution to these subproblems. Therefore, new re-
+       θtin ≤ θtmin + Mzt , t = 1, . . . , T                                                                             (28)        formulations were introduced in the DBP subproblems with addi-
+                                                                                                                                     tional constraints. Also, the information given by the solver after a
+                                                                                                                                     certain computation budget was considered to obtain meaningful
+       θtin ≥ θ max − Myt , t = 1, . . . , T                                                                             (29)        lower/upper bounds.
+                                                                                                                                         In the following, the diﬃculties faced to solve the subprob-
+       zt + yt − st−1 + st ≤ 2, t = 1, . . . , T                                                                         (30)        lems required by DBP are enumerated and the solution proposals
+                                                                                                                                     adopted to circumvent these diﬃculties are presented. It should
+                                                                                                                                     be noted that these diﬃculties have not been addressed in the
+       zt + yt + st−1 − st ≤ 2, t = 1, . . . , T                                                                         (31)        literature and, in general, are not observed in benchmark prob-
+                                                                                                                                     lems. Therefore, it is of utmost importance to test the DBP ap-
+                                                                                                                                     proach in challenging conditions associated with real-world prob-
+       θtin ≤ θ max + M (1 − st ), t = 1, . . . , T                                                                      (32)
+                                                                                                                                     lems in which a limited timeframe for computation is generally at
+                                                                                                                                     stake. The DBP herein proposed for this class of mixed-integer bi-
+       θtmin − θ re f =            +
+                                   t −
+                                             −
+                                             t ,    t = 1, . . . , T                                                     (33)        level programming problems revealed a good computational per-
+                                                                                                                                     formance in addressing these issues after including the proposals
+                                                                                                                                     presented below.
+       θtmin ≥ θAbs
+                min
+                    , t = 1, . . . , T                                                                                   (34)
+                                                                                                                                     Diﬃculty 1: The solver cannot ﬁnd feasible integer solutions to
+                                                                                                                                     the subproblems with additional constraints, i.e., problem (P4-)
+       θt
+         min
+             ≤   θ    max
+                            , t = 1, . . . , T                                                                           (35)
+                                                                                                                                     solved in Step 3 and problem (P5-) solved in Step 5 to calculate
+                                                                                                                                     the lower bound and the upper bound to the UL objective function,
+       st , zt , yt ∈ {0, 1}, t = 1, . . . , T                                                                           (36)        respectively.
+
+                                                                                                                                     Proposal: “Elastic” variables are introduced, which are penalized in
+       θtmin ∈ Z, t = 1, . . . , T                                                                                       (37)        the objective functions of (P4-D) and (P5-D) using a big-M.
+
+                                                                                                                                60
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                        European Journal of Operational Research 291 (2021) 52–66
+
+
+   1.1. The subproblem aimed at calculating (xuk , yk ), which leads                First, we present the results for the discretization in hˆ = 15
+to a lower bound to the UL objective function (Problem P4-                      minutes. The LL problem has 847 binary variables, 1171 continu-
+ solved in Step 3), is reformulated as (P4-D):                                 ous variables and 3627 constraints. The additional data of this BL
+                                                                              model concerning the AC operation can be seen in Tables A7 and
+max F xuk , y − M × D
+y∈Y, D                                                                          A8 in Appendix. The CPLEX models and the corresponding data are
+s.t.     g( y ) ≤ 0                                                             available at https://www.uc.pt/en/feuc/mjalves/DBP.
+                                                              (P4-D)              The application of the DBP, as presented in Section 3, to the
+       f xuk , y ≤ f u∗ + ε  + D                                               Model SIAC proved unable to proceed beyond the ﬁrst iteration. At
+       D≥0                                                                      the ﬁrst iteration, the U BF obtained in Step 1 was 7.21770 with a
+                                                                                relative MIP gap of 4.2% for a running time limited to 5 minutes;
+   If the optimal value of D in (P4-D) is different from zero, then             the gap decreased to 3.08% after 1 hour. Solving the LL problem
+the F-value obtained cannot be accepted as a lower bound because                (Step 2) for the UL prices obtained with the HPR resulted into a
+the f-value is not within the ε  -tolerance with respect to f u∗ . In          solution with a gap of 2.41% after 5 minutes of computation; the
+this case, the solution obtained in Step 2, (xuk , y ), is kept to pro-        gap decreased to 1.70% after 1 hour. Step 3 produced no solution
+ceed to Step 4.                                                                 and thus the UL objective function was evaluated for the solution
+   1.2. The HPR with additional constraints (Problem P5- solved in             obtained in Step 2. The problem (P5-) was then considered with
+Step 5) is reformulated as (P5-D):                                              an additional constraint from the previous iteration, but no solu-
+                                
+   max        F (x, y ) − M ×       Dk                                          tion was found within a computation budget of 5 minutes for the
+x∈X, y∈Y,Dk                     k                                               solver.
+  s.t. G(x ) ≤ 0                                                                    The reformulations (P4-D) and (P5-D) of the subproblems in
+       g( y ) ≤ 0                                               (P5-D)          Step 3 and Step 5, respectively, including the “elastic” variables,
+                                                                                were thus implemented to address the Diﬃculty 1 described in the
+       f (x, y ) ≤ f (x, y )
+                          k
+                               + ε  + Dk , ∀k
+                                                                                previous section.
+       Dk ≥ 0 , ∀k                                                                  Considering a computation budget of 5 minutes for the solver,
+                                                                                the reformulated subproblems became solvable (with a positive
+   This reformulation overcomes the infeasibility issue. However, if
+                                                                                MIP gap) and the DBP found a solution after just ﬁve iterations.
+any Dk > 0 then the upper bound obtained may be higher than the
+                                                                                The LBF obtained was 4.25261 € with a consumer’s cost of 7.20426
+current U BF and turn diﬃcult the convergence of the DBP.
+                                                                                € and a MIP gap of 3%. However, the positive MIP gaps lead to
+   Diﬃculty 2: The subproblems cannot be solved to optimality                   misleading bounds (Diﬃculty 2). The value of F (xu , yu ) (the it-
+and then the resulting bounds are misleading.                                   eration index k is omitted for clarity) in a sub-optimal solution
+    2.1. The HPR with additional constraints (Problem P5-, or its re-          for the HPR with additional constraints is not a true upper bound.
+formulation P5-D, solved in Step 5) cannot be solved to optimality.             In our experiments the U BF taken as F (xu , yu ) oscillated over it-
+    Proposal: The relative MIP gap (ga pHPR ) given by the                      erations and could even go below the LBF . To estimate a guar-
+solver is used to estimate a guaranteed upper bound:                            anteed upper bound, the proposal in Diﬃculty 2.1 was adopted,
+U BF = F (xu(k+1) , yu(k+1) ) × (1 + ga pHPR ).                                 U BF = F (xu , yu ) × (1 + ga pHPP ), which is never lower than LBF . In
+                                                                                addition, the introduction of the constraint F (x, y ) ≤ U BF , in both
+    2.2. The LL problem (Problem P3 solved in Step 2) cannot be
+                                                                                reformulated subproblems (P4-D) and (P5-D), enabled to improve
+solved to optimality.
+                                                                                the algorithm eﬃciency, which is in accordance with Mitsos (2010).
+    Proposal: In Step 2, if a solution with a relative MIP gap (ga pLL )
+                                                                                The introduction of this constraint avoids any oscillatory behavior
+is obtained, within the computation budget speciﬁed, the addi-
+                                                                                of the U BF .
+tional subproblem (P6) is considered to further improve the LL ob-
+                                                                                    To address Diﬃculty 2.2, the additional subproblem (P6) was
+jective function value f u∗ :
+                                                                                considered to further improve the f u∗ value obtained in (P3) with
+min D                                                                           a positive gap (ga pLL ).
+D, y
+                                                                                    The implementation of the proposals in Section 7 allowed the
+s.t.     g( y ) ≤ 0
+                                                                   (P6)         DBP to quickly converge to good and reliable bounds for the UL ob-
+       f (xuk , y ) ≤ f u∗ (1 − ga pLL ) + D                                    jective function, thus being able to offer useful information to the
+                                                                                leader/retailer helping him to make sound decisions. The respec-
+          D≥0
+                                                                                tive results can be seen in Table 2.
+   The solution obtained to (P6) is adopted to proceed with the                     The auxiliary stop criterion was implemented in parallel to
+algorithm in Step 3 if the corresponding f-value is better than f u∗ .          the ε threshold value to guarantee that the algorithm stops af-
+   These modiﬁcations enable the DBP to deal with challenging                   ter an acceptable computational time: if both U BF and LBF re-
+cases, obtaining optimal or nearly optimal solutions to the BL prob-            main unchanged over 10 iterations, then the DBP algorithm ter-
+lem. However, due to the way the bounds are calculated, consid-                 minates with the incumbent solution. In this setting, the al-
+ering the elastic variables D and the gaps, convergence cannot be               gorithm terminated after 12 iterations with the bounds U BF =
+ensured. For this reason, in the implementation of the algorithm                 4.51516 € and LBF = 4.31758 €, which remained the same from
+we have considered an additional stopping condition, which is de-               iteration 3 onwards. In the ﬁnal (incumbent) solution, F =
+ﬁned by a maximum number of iterations without updating U BF                    4.31758 € and the vector of electricity prices (in €/kWh) is
+and LBF .                                                                       x = (0.09960, 0.27108, 0.27900, 0.08040, 0.15400, 0.15716). The
+                                                                                corresponding consumer’s cost is 7.21030 €, obtained with a rela-
+8. Results of the DBP applied to the model SIAC                                 tive MIP gap of 3.69%. Like in the Model SI (including only shiftable
+                                                                                and interruptible loads), the highest electricity prices in the Model
+    In this section, the results of the DBP with the improvements               SIAC are also in the ﬁrst half of the day, with a peak price in the
+proposed in Section 7 applied to the Model SIAC (in Section 6) are              period P3 .
+presented for a planning horizon of 24 hours discretized in units                   We now compare the results obtained by the DBP with those
+of 15 minutes (T= 96 units of time) and 5 minutes (T = 288 units                obtained by the hybrid approach of Soares et al. (2020). The prices
+of time).                                                                       in the best solutions reached by both approaches are displayed in
+
+                                                                           61
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                          European Journal of Operational Research 291 (2021) 52–66
+
+
+Table 2
+Results obtained in each step of DBP in each iteration to solve the Model SIAC with a 15 minutes discretization. The retailer’s proﬁt and the consumer’s cost are in € and the
+relative MIP gap in % rounded to two decimal places.
+
+  Iteration    (P5-D) a                                 (P3)                       (P6)                            f∗           (P4-D)                      LB        LBF
+
+               F          D           gap     UBF       f         gap    F         D           f         F                      F         D          gap
+
+  0            7.21770    –           4.20    7.21770   7.15169   2.38   4.18519   0.17036     7.15169   4.14934   7.15169      4.21171   0          4.78   4.21171   4.21171
+  1            4.35962    [0]         3.57    4.51516   7.21624   2.78   4.25774   0.18448     7.19977   4.22362   7.19977      4.25130   0.01201    –      4.22362   4.22362
+  2            4.34726    [0,0]       3.86    4.51516   7.23393   4.08   4.26943   0.27319     7.21192   4.24715   7.21192      4.31758   0          3.69   4.31758   4.31758
+  3            4.31638    [0,0,0]     4.61    4.51516   7.19544   2.88   4.22251   0.19694     7.18510   4.18392   7.18510      4.24865   0.00003    –      4.18392   4.31758
+  4            4.34424    [0,0,0,0]   3.93    4.51516   7.24744   3.56   4.29839   0.23166     7.22075   4.24620   7.22075      4.30570   0.00993    –      4.24620   4.31758
+  5            4.09413    [0,…,0]     10.28   4.51516   6.99685   4.07   4.01645   0.26786     6.98019   4.01957   6.98019      4.07412   0.01566    –      4.01957   4.31758
+  6            4.27569    [0,…,0]     5.60    4.51516   7.21012   2.85   4.23562   0.20574     7.21012   4.23274   7.21012      4.27906   0.00766    –      4.23274   4.31758
+  7            4.07345    [0,…,0]     10.84   4.51516   6.95674   3.20   4.00582   0.24626     6.98013   –         6.95674      4.05966   0.02539    –      4.00582   4.31758
+  8            3.70999    [0,…,0]     21.70   4.51516   6.62908   4.42   3.66111   0.24604     6.58222   3.61847   6.58222      3.72576   0.04512    –      3.61847   4.31758
+  9            4.00664    [0,…,0]     12.69   4.51516   6.94414   3.08   4.00540   0.17881     6.90913   3.93321   6.90913      4.02904   0.03013    –      3.93321   4.31758
+  10           4.27393    [0,…,0]     5.64    4.51516   7.25503   3.51   4.23056   0.20082     7.20090   4.20288   7.20090      4.26429   0          5.16   4.26429   4.31758
+  11           4.26184    [0,…,0]     5.94    4.51516   7.16764   3.19   4.23714   0.20694     7.14578   4.19076   7.14578      4.26184   0.01478    –      4.19076   4.31758
+  a
+      in iteration k = 0 problem (P2) is solved.
+
+
+
+
+Fig. 2. Power requested from the grid and prices imposed to the consumer in the optimal solution of DBP and in the best solution of the hybrid approach to Model SIAC for
+the 15 minutes discretization.
+
+
+
+Table A10 in the Appendix. The electricity prices along the whole                                In what concerns the computational effort, the best solution
+planning horizon T̄ as well as the power requested to the grid in                            given by the DBP was obtained in less than 4 hours (a total of 12
+each t ∈ T̄ are displayed in Fig. 2.                                                         iterations) while the best solution attained by the hybrid approach
+    In the hybrid approach, the best solution has the retailer’s                             (over 20 runs, each with a population of 20 UL solutions and 70 it-
+proﬁt in the interval [3.86998, 4.24842] which compares with                                 erations, thus involving a total of 1400 MILP problems by run) took
+[4.31758, 4.51516] given by the DBP. The lower bound (the worst                              more than 6 hours (per run).
+possible retailer’s proﬁt) determined by the DBP is better than the                              We now present a comparison of the DBP and the hybrid ap-
+upper bound (the best retailer’s proﬁt) found by the hybrid ap-                              proach for the Model SIAC with a discretization of the planning
+proach.                                                                                      horizon in units of time of 5 minutes (T = 288). The LL problem
+
+
+
+                                                                                       62
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                           European Journal of Operational Research 291 (2021) 52–66
+
+
+has 5481 binary variables, 6471 continuous variables and 22,149                                (a PSO algorithm to tackle the UL problem calling a solver to ad-
+constraints.                                                                                   dress the LL problem) previously developed by the authors. How-
+    The computational budget to solve each MILP subproblem of                                  ever, when the LL problem became more complex (in our model
+the DBP was set as 10 minutes. With this budget, no subproblem                                 due to the consideration of a thermostatic appliance), the sub-
+could be solved to optimality. Therefore, the bounds have been                                 problems in the DBP presented several diﬃculties, including get-
+computed taken the gaps into account as described in Section 7.                                ting no feasible solution or yielding a sub-optimal solution with a
+The algorithm was stopped in the 17th iteration after 10 iterations                            signiﬁcant MIP gap, even when the computational budget was in-
+without changes in the bounds. It took 11h20 of computation time                               creased. Reformulations of those subproblems using “elastic” vari-
+leading to the bounds U BF = 4.64731 € and LBF = 4.37542 €. In                                 ables and additional subproblems were proposed using the infor-
+the ﬁnal (incumbent) solution, the UL objective value is F DBP =                               mation of the MIP gaps to obtain meaningful lower/upper bounds
+LBF = 4.37542 € and the consumer’s cost is 7.32245 €, obtained in                              within an acceptable computational time. The implementation of
+problem (P4-D) with a MIP gap of 5.8%.                                                         these techniques enabled the DBP to obtain good bounds for the
+    Five independent runs of the hybrid approach were performed,                               UL objective function, outperforming the ones obtained with the
+each with a population of 20 UL solutions and 70 iterations. With                              hybrid approach in most cases. These key issues can only be ascer-
+a computational budget of 30 seconds to solve each MILP subprob-                               tained with demanding models and, in general, are not observed
+lem, each run took around 12 hours. At a ﬁnal stage, the LL prob-                              in benchmark problems for which no physical analysis of results
+lem was solved again for the prices corresponding to the best F                                is possible. Also, the computation effort is much smaller for the
+of each run imposing the same computational budget as the DBP                                  DBP than for the hybrid approach. When the LL MILP problem
+allowed for each subproblem (10 min). The best ﬁnal solution was                               poses excessive combinatorial diﬃculties, the DBP endowed with
+F = 4.42863 €, which is 1.22% better than F DBP , and the consumer’s                           these techniques can quickly converge to good lower/upper bounds
+cost is 7.40614 €. This solution was obtained with a MIP gap of                                and offer reliable information to the leader to help him making
+6.98%, which is not directly comparable with the 5.8% above since                              sound decisions. The results showed that the hybrid approach can
+the problems that yielded the corresponding solutions are differ-                              be useful when it is not possible to solve subproblems to optimal-
+ent (P4-D in the DBP and the LL problem in the hybrid approach).                               ity within a given computational budget, since it could reach so-
+Although not all the ﬁve ﬁnal solutions were better than F DBP , the                           lutions competitive with the ones of the DBP or even slightly bet-
+average F is still 0.55% higher than that value. These results show                            ter. However, this is accomplished at the expense of a very high
+that the hybrid approach can be interesting when the subprob-                                  computational time as several runs may be required to reach good
+lems cannot be solved to optimality. However, due to the stochas-                              quality solutions. Future work will involve the development and
+tic nature of the UL search, it requires several runs to gauge the                             implementation of new subproblems and reformulations able to
+quality of the solutions since a single run may lead to a bad solu-                            provide even better bounds within reasonable computation time
+tion. In this problem instance, a single run was lengthier than the                            limits whenever it is not possible to reach optimality in diﬃcult
+DBP.                                                                                           problems.
+    The computation time is a relevant issue in the context of an-
+nouncing day-ahead dynamic ToU prices, depending on regulatory
+directives and the type of contracts between retailers and their                               Acknowledgments
+clients. Therefore, the computational budget should be adjusted to
+the requirements imposed by the energy regulator to retailers re-                                 This work was partially supported by projects UIBD/00308/2020
+garding the antecedence with which those prices are broadcasted.                               and UIDB/05037/2020, and by the European Regional Devel-
+                                                                                               opment Fund through the COMPETE 2020 Programme, FCT –
+9. Conclusions                                                                                 Portuguese Foundation for Science and Technology and Re-
+                                                                                               gional Operational Program of the Center Region (CENTRO2020)
+    In this paper, a deterministic bounding procedure (DBP) to de-                             within projects ESGRIDS (POCI-01–0145-FEDER-016434), SUSPENSE
+termine the optimal solution to a mixed-integer BL problem is pro-                             (CENTRO-01–0145-FEDER-0 0 0 0 06) and MAnAGER (POCI-01–0145-
+posed, which is suited to assist an electricity retailer in deﬁning                            FEDER-028040).
+time-of-use prices to maximize proﬁts to which consumers react
+to minimize costs by changing the operation of their appliances
+(price-based demand response). This algorithmic approach belongs                               Appendix
+to the family of methodologies based on optimal-value-function re-
+formulations and consists of generating a series of convergent up-                                The data in Tables A1–A8 refer to the 15 minutes discretization
+per and lower bounds for the UL objective function. Due to the                                 in Models SI and SIAC. The algorithm code in R, the model ﬁles
+speciﬁc features of our BL pricing model (upper/lower level vari-                              to be run in CPLEX and all data for the 5 minutes and 15 minutes
+ables do not appear in the lower/upper level constraints), it was                              discretization in both models are available at https://www.uc.pt/
+possible to develop a very eﬃcient approach. When the LL prob-                                 en/feuc/mjalves/DBP.
+lem does not impose an excessive computational burden to be                                       Tables A9 and A10 present the best solution of the hybrid ap-
+solved to optimality, the DBP is able to obtain the optimal solu-                              proach and the optimal solution of the DBP for the Models SI and
+tion displaying a much better performance than a hybrid approach                               SIAC, respectively.
+
+
+
+Table A1
+Minimum (xi ), maximum (xi ) and average (xAVG ) of the electricity prices (in €/kWh) that can be charged to the consumers by the retailer, in each sub-period Pi , i ∈ {1, . . . , 6}.
+
+  Periods                                  P1                   P2                   P3                  P4                   P5                   P6                  xAVG
+                                           (1,28)               (29,44)              (45,56)             (57,72)              (73,84)              (85,96)
+
+  Prices              xi                   0.0440               0.0848               0.1080              0.0804               0.1540               0.0920              0.1614
+  (€/kWh)
+                      xi                   0.0996               0.2780               0.2836              0.2492               0.3240               0.1620
+
+
+
+                                                                                          63
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                                         European Journal of Operational Research 291 (2021) 52–66
+
+
+
+                                         Table A2
+                                         Electricity spot market prices (in €/kWh) seen by the retailers.
+
+                                           Time intervals [initial time, ﬁnal time]                                                       Prices (€/kWh)
+
+                                           [1,8]                                                                                          0.050
+                                           [9,16]                                                                                         0.035
+                                           [17,24]                                                                                        0.045
+                                           [25,32]                                                                                        0.065
+                                           [33,40]                                                                                        0.075
+                                           [41,48]                                                                                        0.080
+                                           [49,56]                                                                                        0.090
+                                           [57,64]                                                                                        0.100
+                                           [65,72]                                                                                        0.110
+                                           [73,80]                                                                                        0.085
+                                           [81,88]                                                                                        0.080
+                                           [89,96]                                                                                        0.100
+
+
+
+                                         Table A3
+                                         Power requested to the grid (in W) in each unit of time t ∈ T (expressed in intervals of time
+                                         [initial time, ﬁnal time]) by (non-controllable) base load.
+
+                                           Time intervals [initial time, ﬁnal time]                                                           Power (W)
+
+                                           [1,32]                                                                                             165
+                                           [33,34]                                                                                            700
+                                           [35,36]                                                                                            170
+                                           [37,44]                                                                                            85
+                                           [45,54]                                                                                            160
+                                           [55,64]                                                                                            130
+                                           [65,80]                                                                                            160
+                                           [81,81]                                                                                            500
+                                           [82,83]                                                                                            1600
+                                           [84,85]                                                                                            750
+                                           [86,86]                                                                                            250
+                                           [87,87]                                                                                            450
+                                           [88,90]                                                                                            280
+                                           [91,91]                                                                                            1080
+                                           [92,96]                                                                                            250
+
+
+
+                                         Table A4
+                                         Comfort time slots, T j = [T1 j , T2 j ] and Tk = [T1k , T2k ] for j ∈ {1, . . . , J} and k ∈ {1, . . . , K }, allowed
+                                         for the operation of each controllable appliance.
+
+                                           Shiftable Loads                                                                 Interruptible Loads
+
+                                           DW                       LM                         CD                          EV                      EWH
+
+                                           [1,32]                   [28,58]                    [76,96]                     [1,48]                  [26,34]
+
+
+
+Table A5
+Operation cycles of the controllable appliances.
+
+                                   Appliance                Power required by the appliance at each stage of its operation cycle (W)
+
+                                                            1                  2                    3                  4                  5                   6          7              8–36
+
+  Shiftable Loads                  DW                       1750               1250                 120                1600               640                 220
+                                   LM                       1840               980                  160                220                300                 340        120
+                                   CD                       1660               1720                 300                220
+  Interruptible Loads              EV                       2300               2300                 2300               2300               2300                2300       2300           2300
+                                   EWH                      1500               1500                 1500               1500               1500                1500
+
+
+
+                                         Table A6
+                                         Power level prices (in €) charged to the consumers by the retailer.
+
+                                                                              Prices (€/day)                                     Maximum Power (W)
+
+                                           1                                  0.2047                                             2300
+                                           2                                  0.2206                                             3450
+                                           3                                  0.2834                                             4600
+                                           4                                  0.3492                                             5750
+                                           5                                  0.4198                                             6900
+                                           6                                  0.6280                                             10,350
+                                           7                                  0.8302                                             13,800
+                                           8                                  1.0324                                             17,250
+                                           9                                  1.2351                                             20,700
+
+
+
+
+                                                                                                  64
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                                      European Journal of Operational Research 291 (2021) 52–66
+
+
+                                        Table A7
+                                        Parameters of the thermostatic load.
+
+                                          θ max              θAbs
+                                                              min
+                                                                               θ re f                θ0in                     nom
+                                                                                                                             PAC                    s0
+
+                                          24 °C              18 °C             20 °C                 12 °C                   1400W                  0
+
+
+                                        Table A8
+                                        Outdoor temperatures for a period of 24 hour (T = 96).
+
+                                          t              θtext (◦C )           t                θtext (◦C )              t                  θtext (◦C )
+                                          0              9.45
+                                          1              9.45                  33               8.96                     65                 12.92
+                                          2              9.40                  34               8.92                     66                 12.79
+                                          3              9.35                  35               8.92                     67                 12.64
+                                          4              9.30                  36               9.00                     68                 12.50
+                                          5              9.25                  37               9.19                     69                 12.40
+                                          6              9.20                  38               9.43                     70                 12.35
+                                          7              9.15                  39               9.66                     71                 12.32
+                                          8              9.10                  40               9.80                     72                 12.30
+                                          9              9.05                  41               9.81                     73                 12.29
+                                          10             9.01                  42               9.75                     74                 12.27
+                                          11             8.96                  43               9.72                     75                 12.25
+                                          12             8.90                  44               9.80                     76                 12.20
+                                          13             8.83                  45               10.06                    77                 12.13
+                                          14             8.78                  46               10.48                    78                 12.02
+                                          15             8.76                  47               10.97                    79                 11.88
+                                          16             8.80                  48               11.50                    80                 11.70
+                                          17             8.91                  49               12.00                    81                 11.48
+                                          18             9.06                  50               12.43                    82                 11.25
+                                          19             9.20                  51               12.78                    83                 11.05
+                                          20             9.30                  52               13.00                    84                 10.90
+                                          21             9.32                  53               13.09                    85                 10.83
+                                          22             9.28                  54               13.07                    86                 10.85
+                                          23             9.19                  55               12.99                    87                 10.94
+                                          24             9.10                  56               12.90                    88                 11.10
+                                          25             9.02                  57               12.82                    89                 11.31
+                                          26             8.95                  58               12.78                    90                 11.52
+                                          27             8.91                  59               12.77                    91                 11.67
+                                          28             8.90                  60               12.80                    92                 11.70
+                                          29             8.92                  61               12.87                    93                 11.56
+                                          30             8.96                  62               12.95                    94                 11.18
+                                          31             9.00                  63               13.00                    95                 10.52
+                                          32             9.00                  64               13.00                    96                 9.50
+
+
+                                         Table A9
+                                         Prices (in €/kWh) obtained for the best solution of the hybrid approach and the optimal solu-
+                                         tion of the DBP for the Model SI with 15 minutes discretization.
+
+                                                                    P1         P2           P3                P4             P5            P6
+                                                                    (1,28)     (29,44)      (45,56)           (57,72)        (73,84)       (85,96)
+
+                                           Hybrid approach          0.09960    0.27504      0.28360           0.08048        0.15400       0.14716
+                                           DBP                      0.09960    0.27504      0.28360           0.08040        0.15400       0.14728
+
+
+                                    Table A10
+                                    Prices (in €/kWh) obtained for the best solution of the hybrid approach and the optimal solution of the
+                                    DBP for the Model SIAC with 15 minutes discretization.
+
+                                                                P1            P2            P3                 P4               P5               P6
+                                                                (1,28)        (29,44)       (45,56)            (57,72)          (73,84)          (85,96)
+
+                                      Hybrid approach           0.09960       0.27392       0.28284            0.08172          0.15480          0.14376
+                                      DBP                       0.09960       0.27108       0.27900            0.08040          0.15400          0.15716
+
+
+
+
+References                                                                                      Fischetti, M., Ljubić, I., Monaci, M., & Sinnl, M. (2016). "Intersection cuts for bilevel
+                                                                                                    optimization. Integer Programming and Combinatorial Optimization, 77–88.
+Alves, M. J., Antunes, C. H., & Carrasqueira, P. (2016). "A hybrid genetic algorithm            Fischetti, M., Ljubić, I., Monaci, M., & Sinnl, M. (2017). "A new general-purpose al-
+    for the interaction of electricity retailers with demand response. Applications of              gorithm for mixed-integer bilevel linear programs. Operations Research, 65(6),
+    Evolutionary Computation, 459–474.                                                              1615–1637.
+Aussel, D., Brotcorne, L., Lepaul, S., & von Niederhäusern, L. (2020). "A trilevel model        Gümüş, Z. H., & Floudas, C. A. (2005). "Global optimization of mixed-integer bilevel
+    for best response in energy demand-side management. European Journal of Op-                     programming problems. Computational Management Science, 2(3), 181–212.
+    erational Research, 281(2), 299–315.                                                        Kleniati, P.-. M., & Adjiman, C. S. (2015). "A generalization of the branch-and-sand-
+Caramia, M., & Mari, R. (2015). "Enhanced exact algorithms for discrete bilevel linear              wich algorithm: from continuous to mixed-integer nonlinear bilevel problems.
+    problems. Optimization Letters, 9(7), 1447–1468.                                                Computers & Chemical Engineering, 72, 373–386.
+DeNegre, S. T., & Ralphs, T. K. (2009). "A Branch-and-cut algorithm for integer                 Lozano, L., & Smith, J. C. (2017). "A value-function-based exact approach for
+    bilevel linear programs. Operations research and cyber-infrastructure (pp. 65–78).              the bilevel mixed-integer programming problem. Operations Research, 65(3),
+    New York: Springer.                                                                             768–786.
+
+
+
+
+                                                                                           65
+I. Soares, M.J. Alves and C. Henggeler Antunes                                                                           European Journal of Operational Research 291 (2021) 52–66
+
+
+McCormick, G. P. (1976). “Computability of global solutions to factorable noncon-              Sekizaki, S., Nishizaki, I., & Hayashida, T. (2016). "Electricity retail market model
+    vex programs: Part I - convex underestimating problems. Mathematical Program-                  with ﬂexible price settings and elastic price-based demand responses by con-
+    ming, 10(1), 147–175.                                                                          sumers in distribution network. International Journal of Electrical Power & Energy
+Meng, F. L., & Zeng, X. J. (2013). "An Optimal Real-time Pricing Algorithm for the                 Systems, 81, 371–386.
+    Smart Grid: A Bi-level Programming Approach. In Proceedings of the Imperial                Soares, I., Alves, M. J., & Antunes, C. H. (2020). "Designing time-of-use tariffs in
+    College Computing Student Workshop (ICCSW’13) - OpenAccess Series in Informatics               electricity retail markets using a bi-level model – estimating bounds when the
+    (pp. 81–88).                                                                                   lower level problem cannot be exactly solved. Omega, 93, Article 102027.
+Mersha, A. G., & Dempe, S. (2006). "Linear bilevel programming with upper level                Vicente, L., Savard, G., & Judice, J. (1996). Discrete linear bilevel programming prob-
+    constraints depending on the lower level solution. Applied Mathematics and                     lem. Journal of Optimization Theory and Applications, 89(3), 597–614.
+    Computation, 180(1), 247–254.                                                              Xu, P., & Wang, L. (2014). "An exact algorithm for the bilevel mixed integer linear
+Mitsos, A. (2010). "Global solution of nonlinear mixed-integer bilevel programs.                   programming problem under three simplifying assumptions. Computers & Oper-
+    Journal of Global Optimization, 47(4), 557–582.                                                ations Research, 41, 309–318.
+Mitsos, A., Lemonidis, P., & Barton, P. I. (2008). "Global solution of bilevel programs        Zeng, B., & An, Y. (2014). "Solving bilevel mixed integer program by reformulations
+    with a nonconvex inner program. Journal of Global Optimization, 42(4), 475–                    and decomposition. Optimization Online, 1–34.
+    513.                                                                                       Zugno, M., Morales, J. M., Pinson, P., & Madsen, H. (2013). "A bilevel model for elec-
+Moore, J. T., & Bard, J. F. (1990). "The mixed integer linear bilevel programming                  tricity retailers’ participation in a demand response market environment. Energy
+    problem. Operations Research, 38(5), 911–921.                                                  Economics, 36, 182–197.
+
+
+
+
+                                                                                          66
+

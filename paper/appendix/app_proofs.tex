@@ -1,0 +1,75 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  appendix/app_proofs.tex
+% ============================================================
+
+\section{Proofs}
+\label{app:proofs}
+
+%-----------------------------------------------------------------
+\begin{proof}[Proof of \Cref{lem:lb_validity}]
+Fix $k\ge0$ and let $(\taxhat^{*},\bz^{*})$ be optimal
+for~\eqref{eq:leader}, so $\bz^{*}\in\Sol{\taxhat^{*}}$. The feasible
+region $\setX$ of the follower's problem does not depend on $\taxhat$
+(\Cref{sec:model:follower}); only the objective~\eqref{eq:follower}
+does. Hence every $\bz^{(j)}\in\Sol{\taxhat^{(j)}}$ used to generate
+cut $j$, for $j$ ranging over the cut set $\mathcal{C}$ accumulated by
+iteration $k$, is itself a feasible -- if possibly suboptimal -- point
+of the follower's problem at $\taxhat^{*}$. Optimality of $\bz^{*}$ at
+$\taxhat^{*}$ therefore gives
+\begin{equation*}
+\Cost(\bz^{*})+\tfrac{\taxhat^{*}}{100}\Emis(\bz^{*})
+\;\le\;
+\Cost\!\bigl(\bz^{(j)}\bigr)+\tfrac{\taxhat^{*}}{100}\Emis\!\bigl(\bz^{(j)}\bigr)
+= c_{j}+\tfrac{\taxhat^{*}}{100}e_{j}
+\qquad\text{for every }(\taxhat^{(j)},c_{j},e_{j})\in\mathcal{C}.
+\end{equation*}
+Thus $(\taxhat^{*},\bz^{*})$ satisfies cut~\eqref{eq:cut} for every
+cut accumulated by iteration $k$, i.e.\ it is feasible for the
+relaxation master defining $\LB^{(k)}$ in~\eqref{eq:lb_def}. Since
+$\LB^{(k)}$ minimises $\Emis(\cdot)$ over that (larger) feasible set,
+$\LB^{(k)}\le\Emis(\bz^{*})$.
+\end{proof}
+
+%-----------------------------------------------------------------
+\begin{proof}[Proof of \Cref{thm:convergence}]
+\textbf{Validity of bounds.}
+By \Cref{lem:lb_validity,lem:ub_validity}, the inequalities
+$\LB^{(k)}\le\Emis(\bz^{*})\le\UB^{(k)}$ hold for every iteration $k$
+of \Cref{alg:dbp}.
+
+\textbf{Finite termination.}
+Fix any tax index $\taxhat'\in\mathcal{T}^{\tau}$ already evaluated by
+iteration $k$, i.e.\ $\taxhat'=\taxhat^{(j)}$ for some cut
+$(\taxhat^{(j)},c_{j},e_{j})\in\mathcal{C}$. Evaluating
+cut~\eqref{eq:cut} at $\taxhat=\taxhat'$ gives
+$\Cost(\bz)+\tfrac{\taxhat'}{100}\Emis(\bz)\le
+c_{j}+\tfrac{\taxhat'}{100}e_{j}$ for every $\bz$ feasible in the
+relaxation master defining $\LB^{(k)}$; and since
+$c_{j}+\tfrac{\taxhat'}{100}e_{j}=\Cost(\bz^{(j)})+\tfrac{\taxhat'}{100}\Emis(\bz^{(j)})$
+is itself the optimal value of~\eqref{eq:follower} at $\taxhat'$
+(because $\bz^{(j)}\in\Sol{\taxhat'}$), no feasible $\bz$ can improve
+on $\bz^{(j)}$ in objective~\eqref{eq:follower} at $\taxhat'$. Hence
+any $\bz$ chosen by the master at $\taxhat=\taxhat'$ must itself lie
+in $\Sol{\taxhat'}$, and minimising $\Emis(\cdot)$ over that
+restriction recovers exactly $\min\{\Emis(\bz):\bz\in\Sol{\taxhat'}\}$,
+the optimistic value at $\taxhat'$ (\Cref{as:opt}) -- i.e.\ the
+master's bound at every previously-evaluated index is \emph{exact},
+not merely a relaxation. Since $\mathcal{T}^{\tau}=\{\taxlb,\ldots,\taxub\}$
+has only $\taxub-\taxlb+1$ elements, after at most $\taxub-\taxlb+1$
+iterations every admissible tax index either (i) has been evaluated
+exactly, making $\LB^{(k)}$ exact there, or (ii) is dominated, in the
+master's emissions-minimisation, by an index covered by (i). In
+either case $\LB^{(k)}=\UB^{(k)}$ once $k=\taxub-\taxlb+1$, so the gap
+closes within a finite, explicitly bounded number of iterations --
+with no continuity or breakpoint-density argument on
+$\Emis(\bz^{*}(\taxhat))$ required.
+
+\textbf{$\epsilon$-optimality.}
+On termination, $\gap=(\UB^{(k)}-\LB^{(k)})/\UB^{(k)}\le\epsilon$, so
+the returned index $\taxhat^{\dagger}$ satisfies
+$\Emis\!\bigl(\bz^{\dagger}\bigr)=\UB^{(k)}
+ \le\LB^{(k)}/(1-\epsilon)
+ \le\Emis(\bz^{*})/(1-\epsilon)$, establishing the claimed
+$\epsilon$-optimality guarantee.
+\end{proof}

@@ -1,0 +1,117 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  sections/01_introduction.tex
+% ============================================================
+
+\section{Introduction}
+\label{sec:introduction}
+
+Climate change and the regulatory pressure for sustainable industrial
+practices have prompted governments worldwide to deploy market-based
+instruments for controlling greenhouse-gas (GHG) emissions. Among
+these, \emph{carbon taxation} is widely regarded as one of the most
+transparent and economically efficient policy tools: by attaching a
+monetary price to each unit of CO\textsubscript{2}-equivalent
+emitted, it internalises the negative externality of pollution and
+creates incentives for supply chains to redesign networks, adopt
+cleaner production technologies, and invest in reverse logistics
+\citep{nordhaus2007, pigou1920}. Evidence from an implemented carbon
+tax shows that a well-calibrated rate can produce a substantial,
+empirically verified drop in emissions \citep{andersson2019}, although
+the effectiveness of any given rate is mediated by the structure of
+the affected supply chains.
+
+Supply chain network design (\SCND) is one of the most consequential
+strategic decisions an organisation makes. Facility location, capacity
+sizing, technology installation, and transportation contracts
+typically lock in operating costs and emissions over horizons of
+several decades \citep{melo2009}. When a carbon tax is in force,
+these long-lived decisions must simultaneously balance cost
+efficiency, regulatory compliance, and environmental performance.
+The rise of \emph{closed-loop supply chains} (\CLSC), which integrate
+forward distribution with the recovery, remanufacturing, and reuse of
+end-of-life items, further expands the design space and enlarges the
+opportunities to abate emissions through circular operations
+\citep{fleischmann2001, govindan2015}.
+
+Crucially, the interaction between the regulator and the supply chain
+operator is \emph{inherently hierarchical}: the regulator commits
+first to a tax level, after which the operator optimises its network
+and operations. Conventional single-level \SCND models, including
+emission-aware variants, take the carbon tax as a fixed parameter and
+therefore cannot represent the regulator's strategic problem of
+\emph{choosing} a tax level so as to induce a desirable response
+from rational, cost-minimising supply chain operators. As a
+consequence, they may
+recommend tax rates that are either ineffective (failing to trigger
+network reconfiguration) or excessive (imposing economic costs out
+of proportion to the abatement they achieve).
+
+\subsection{Motivation}
+\label{sec:intro:motivation}
+
+Bilevel optimisation provides a natural framework for modelling
+Stackelberg leader--follower games \citep{colson2007, dempe2002}. In
+the present setting:
+\begin{itemize}
+  \item the \textbf{leader} (regulator) selects the carbon tax, with
+        the goal of minimising the supply chain's total GHG emissions
+        and, among all tax levels that achieve that minimum, levying
+        the lowest one;
+  \item the \textbf{follower} (supply chain operator) solves a
+        multi-echelon, multi-period \CLSC design and operations
+        problem parameterised by the carbon tax, minimising
+        total operating costs inclusive of tax payments.
+\end{itemize}
+The resulting \BLMIP is NP-hard even when both levels are linear
+programs \citep{jeroslow1985}. The presence of binary facility,
+technology, and capacity decisions in the follower compounds this
+difficulty and rules out direct application of techniques designed
+for continuous bilevel programs. Specialised solution methods are
+therefore required.
+
+\subsection{Contributions}
+\label{sec:intro:contributions}
+
+This paper makes three interrelated contributions, each positioned
+against the closest related work in \Cref{sec:lit:gap}:
+\begin{enumerate}
+  \item We formulate a tactical \BLMIP in which a regulator
+        chooses the carbon tax from a finite grid --- minimising
+        induced emissions, then the tax itself --- anticipating the
+        optimal response of a multi-echelon, multi-period closed-loop
+        supply chain operator whose facility, technology, and
+        capacity decisions remain integer.
+  \item We develop a \DBP that exploits the leader's
+        finite tax grid directly, combining valid lower bounds from a
+        parametric \LP relaxation of the follower with valid upper
+        bounds from exact follower responses at sampled tax levels,
+        with proved finite-time convergence to a global
+        $\epsilon$-optimal solution.
+  \item Runs
+        on generated benchmark instances show that the optimal tax is
+        strongly instance-specific, that the emissions response
+        saturates beyond a threshold --- an over-taxation pathology
+        for a purely emissions-minimising regulator --- and that
+        cleaner production/remanufacturing technology, not
+        transport-mode choice, is the binding abatement lever.
+\end{enumerate}
+
+\subsection{Paper organisation}
+\label{sec:intro:organisation}
+
+The remainder of the paper is structured as follows.
+\Cref{sec:literature} reviews the related literature on bilevel
+optimisation, sustainable \SCND, and carbon pricing in operations
+management, and positions our contribution.
+\Cref{sec:problem} describes the physical network and the
+hierarchical decision structure.
+\Cref{sec:model} states the bilevel mixed-integer mathematical
+formulation.
+\Cref{sec:methodology} presents the \DBP and establishes its
+convergence.
+\Cref{sec:experiments} reports computational experiments.
+\Cref{sec:discussion} discusses the managerial and policy
+implications, robustness of the findings, and limitations.
+\Cref{sec:conclusion} concludes and outlines directions for
+further research.

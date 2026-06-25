@@ -1,0 +1,78 @@
+% ============================================================
+%  Optimal Carbon Pricing of Closed-Loop Supply Chains:
+%  A Global-Optimisation of a Bi-Level Mixed-Integer Problem
+%  —  Master Document —
+%  Compile: pdflatex main && bibtex main && pdflatex main && pdflatex main
+% ============================================================
+
+\documentclass[11pt, a4paper]{article}
+
+\input{styles/preamble}
+\input{styles/macros}
+
+\begin{document}
+
+% ── Title block ──────────────────────────────────────────────
+\begin{titlepage}
+\begin{center}
+  \vspace*{1.5cm}
+  {\Large\bfseries
+    \mbox{Optimal Carbon Pricing of Closed-Loop Supply Chains:}\\[0.35em]
+    A Global-Optimisation of a Bi-Level Mixed-Integer Problem\par}
+  \vspace{1.2cm}
+
+  {\large
+    Marcelo Pinto\,\textsuperscript{a,\thefootnote}%
+    \footnotetext[1]{Corresponding author.
+      \href{mailto:marcelo.pinto@dem.uc.pt}{marcelo.pinto@dem.uc.pt}}\;
+    Paulo Nascimento\,\textsuperscript{a} \;
+    Cristóvão Silva\,\textsuperscript{a}\\[0.15em]
+    Maria João Alves\,\textsuperscript{b,c} \;
+    Carlos Henggeler\,\textsuperscript{b,d} \;
+    Samuel Moniz\,\textsuperscript{a}\par}
+
+  \vspace{1.2cm}
+
+  {\footnotesize
+    \textsuperscript{a}\,University of Coimbra, CEMMPRE, ARISE,
+      Department of Mechanical Engineering,
+      3030-788 Coimbra, Portugal \\[0.15em]
+    \textsuperscript{b}\,INESC Coimbra, DEEC,
+      Rua Sílvio Lima, Pólo II, 3030-290 Coimbra, Portugal \\[0.15em]
+    \textsuperscript{c}\,CeBER and Faculty of Economics,
+      University of Coimbra, 3004-512 Coimbra, Portugal \\[0.15em]
+    \textsuperscript{d}\,Department of Electrical and Computer
+      Engineering, University of Coimbra,
+      3030-290 Coimbra, Portugal\par}
+
+  \vspace{2.0cm}
+
+  {\normalsize\today\par}
+\end{center}
+\end{titlepage}
+
+% ── Abstract ─────────────────────────────────────────────────
+\input{sections/00_abstract}
+
+% ── Body ─────────────────────────────────────────────────────
+\input{sections/01_introduction}
+\input{sections/02_literature_review}
+\input{sections/03_problem_description}
+\input{sections/04_mathematical_model}
+\input{sections/05_solution_methodology}
+\input{sections/06_computational_experiments}
+\input{sections/07_discussion}
+\input{sections/08_conclusion}
+
+% ── Bibliography ─────────────────────────────────────────────
+\newpage
+\bibliography{references}
+
+% ── Appendices ───────────────────────────────────────────────
+\newpage
+\appendix
+\input{appendix/app_proofs}
+\input{appendix/app_additional_results}
+\input{appendix/app_data}
+
+\end{document}

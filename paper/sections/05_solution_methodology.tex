@@ -1,0 +1,143 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  sections/05_solution_methodology.tex
+% ============================================================
+
+\section{Solution Methodology}
+\label{sec:methodology}
+
+We develop a \emph{Deterministic Bounding Procedure} (\DBP) that
+solves problem~\eqref{eq:leader} to global $\epsilon$-optimality.
+The \DBP maintains a lower bound $\LB$ on the leader's optimal
+emissions and an upper bound $\UB$ attained by a bilevel-feasible
+solution, tightening both iteratively until the optimality gap falls
+below a prescribed tolerance $\epsilon$.
+
+%-----------------------------------------------------------------
+\subsection{Lower-bound construction}
+\label{sec:method:lb}
+
+A valid lower bound is obtained from a \emph{relaxation master} that
+optimises over the same feasible region $\setX$ as the follower
+(\Cref{sec:model:follower}) -- crucially, $\setX$ does not depend on
+$\taxhat$; only the follower's objective~\eqref{eq:follower} does.
+Each time the follower is solved exactly at some tax index
+$\taxhat^{(j)}$, obtaining the optimistic response
+$\bz^{(j)}\in\Sol{\taxhat^{(j)}}$ with $c_{j}\defeq\Cost(\bz^{(j)})$
+and $e_{j}\defeq\Emis(\bz^{(j)})$, the inequality
+\begin{equation}\label{eq:cut}
+\Cost(\bz)+\tfrac{\taxhat}{100}\,\Emis(\bz)
+\;\le\;
+c_{j}+\tfrac{\taxhat}{100}\,e_{j}
+\end{equation}
+is valid for \emph{every} $\taxhat\in\mathcal{T}^{\tau}$ and every
+$\bz\in\setX$ (\Cref{lem:lb_validity}), because $\bz^{(j)}$ remains a
+feasible -- if not necessarily optimal -- competitor in the
+follower's problem at any tax index. After $k$ such evaluations have
+accumulated the cut set $\mathcal{C}=\{(\taxhat^{(j)},c_{j},e_{j})\}_{j<k}$,
+the relaxation master is
+\begin{equation}\label{eq:lb_def}
+\LB^{(k)} \;\defeq\;
+\min_{\taxhat\in\mathcal{T}^{\tau},\,\bz\in\setX}
+\Bigl\{\Emis(\bz)\ :\ \eqref{eq:cut}\text{ holds for every }
+(\taxhat^{(j)},c_{j},e_{j})\in\mathcal{C}\Bigr\}.
+\end{equation}
+$\LB^{(k)}$ is non-decreasing in $k$, since each new cut only shrinks
+the master's feasible region, and bounds the leader's optimal
+emissions from below.
+
+\begin{lemma}\label{lem:lb_validity}
+For every $k\ge0$, $\LB^{(k)}\le\Emis(\bz^{*})$ for any optimal
+$(\taxhat^{*},\bz^{*})$ of~\eqref{eq:leader}.
+\end{lemma}
+
+\begin{proof}
+See \Cref{app:proofs}.
+\end{proof}
+
+%-----------------------------------------------------------------
+\subsection{Upper-bound construction}
+\label{sec:method:ub}
+
+A valid upper bound is obtained by evaluating the follower exactly --
+to \MILP optimality, with the optimistic tie-break of \Cref{as:opt}
+-- at the sequence of tax indices $\taxhat^{(0)},\taxhat^{(1)},\ldots$
+proposed by the relaxation master of \Cref{sec:method:lb}:
+\begin{enumerate}
+  \item Solve the follower \MIP~\eqref{eq:follower} at
+        $\taxhat=\taxhat^{(k)}$ to optimality, obtaining
+        $\bz^{(k)}\in\Sol{\taxhat^{(k)}}$.
+  \item Compute $\Emis\!\bigl(\bz^{(k)}\bigr)$ via~\eqref{eq:emissions}.
+  \item Set $\UB^{(k)}\defeq\min\{\UB^{(k-1)},\Emis(\bz^{(k)})\}$
+        (with $\UB^{(-1)}\defeq+\infty$), updating the incumbent
+        $(\taxhat^{\dagger},\bz^{\dagger})$ whenever the minimum
+        strictly improves.
+\end{enumerate}
+
+\begin{lemma}\label{lem:ub_validity}
+For every optimal leader tax $\taxhat^{*}$ and every
+$\bz^{*}\in\Sol{\taxhat^{*}}$, $\UB^{(k)} \ge \Emis(\bz^{*})$ for
+every $k$.
+\end{lemma}
+
+\begin{proof}
+Immediate: $\UB^{(k)}$ is the emissions of an explicitly
+bilevel-feasible solution, and $\Emis(\bz^{*})$ is optimal among such
+solutions by \Cref{as:opt}.
+\end{proof}
+
+%-----------------------------------------------------------------
+\subsection{Deterministic bounding procedure}
+\label{sec:method:dbp}
+
+The full \DBP is stated as \Cref{alg:dbp}.
+
+\input{algorithms/alg_bounding_procedure}
+
+%-----------------------------------------------------------------
+\subsection{Convergence analysis}
+\label{sec:method:convergence}
+
+\begin{theorem}[Convergence of \DBP]\label{thm:convergence}
+Under \Cref{as:det,as:lin,as:feas,as:opt}, the \DBP terminates in a
+finite number of iterations and returns a solution with optimality
+gap $\gap\le\epsilon$.
+\end{theorem}
+
+\begin{proof}
+See \Cref{app:proofs}.
+\end{proof}
+
+\begin{remark}[Iteration complexity]\label{rem:iter}
+Each iteration evaluates one tax index exactly. Once cut~\eqref{eq:cut}
+for index $\taxhat^{(j)}$ has been added, re-proposing
+$\taxhat=\taxhat^{(j)}$ can no longer yield a relaxation value below
+the optimistic value $e_{j}$ already found there (\Cref{app:proofs}).
+Since $\mathcal{T}^{\tau}=\{\taxlb,\ldots,\taxub\}$ is finite, the
+procedure therefore terminates after at most $\taxub-\taxlb+1$
+iterations even at $\epsilon=0$, with no dependence on a refinement
+step size and no breakpoint-density argument required.
+\end{remark}
+
+%-----------------------------------------------------------------
+\subsection{Implementation}
+\label{sec:method:implementation}
+
+The \DBP is implemented in Python using \texttt{gurobipy}; the
+reproducibility environment uses Python~3.14.4 and Gurobi~13.0.1. The
+command-line entry point \path{tools/solver/solve_batch.py} exposes several
+leader/follower oracles. The bilevel results in \Cref{sec:experiments} use the
+lexicographic exact workflow \texttt{lf\_lex\_exact} --- the lexicographic
+leader of~\eqref{eq:leader} over a follower~\eqref{eq:follower} that is solved
+to optimality with ties broken toward lower emissions (\Cref{as:opt}). On the
+base instances the workflow is cross-checked against an independent
+exhaustive enumeration of the tax index, \texttt{enum\_lf\_lex\_exact}, which
+returns identical leader decisions.
+
+The reported runs use relative \DBP tolerance $10^{-4}$, per-subproblem Gurobi
+MIP gap $10^{-4}$, six solver threads, and no per-instance time limit; outputs
+are written under \path{results/runs/} and every saved solution is revalidated
+by an independent feasibility-and-objective check before being stored. We
+therefore report each run as \emph{validated} at a relative gap below
+$10^{-4}$: termination is by the relative-gap criterion of \Cref{alg:dbp}
+rather than by an exactness certificate.

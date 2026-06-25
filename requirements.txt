@@ -1,0 +1,16 @@
+# Core solver and data utilities
+gurobipy>=13,<14
+pyyaml>=6,<7
+
+# Analysis stack
+pandas>=2,<3
+matplotlib>=3.8,<4
+numpy>=1.26,<3
+seaborn>=0.13,<1
+
+# Sensitivity analysis (Morris screening). Optional: tools/sensitivity/morris_design.py
+# falls back to a bundled trajectory sampler when SALib is absent.
+SALib>=1.4,<2
+
+# Testing
+pytest>=8,<10

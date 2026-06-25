@@ -1,0 +1,229 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  sections/04a_notation.tex
+% ============================================================
+
+%-----------------------------------------------------------------
+\subsection{Assumptions}
+\label{sec:model:assumptions}
+
+The model rests on the following assumptions, grouped by the aspect of
+the problem they govern.
+
+\medskip
+\noindent\textit{Data and cost structure.}
+\begin{itemize}[leftmargin=2.8em, label={}, itemsep=0.55em]
+\item \refstepcounter{assumption}\label{as:det}%
+  \textbf{\theassumption.}\enspace
+  Demand $d_{rpt}$ and return-rate bounds
+  $[\underline{\eta}_{rpt},\overline{\eta}_{rpt}]$ are known with
+  certainty over the entire planning horizon $\setT$.
+\item \refstepcounter{assumption}\label{as:lin}%
+  \textbf{\theassumption.}\enspace
+  All unit economic costs (production, remanufacturing, transport,
+  inventory holding, and material acquisition) are constant across
+  periods and scale linearly with quantities.
+\item \refstepcounter{assumption}\label{as:emis}%
+  \textbf{\theassumption.}\enspace
+  All emission factors are constant and technology- or mode-specific;
+  emissions scale linearly with processed output, transported mass,
+  and distance.
+\item \refstepcounter{assumption}\label{as:lead}%
+  \textbf{\theassumption.}\enspace
+  Transportation lead times are absorbed within a single planning period.
+\end{itemize}
+
+\medskip
+\noindent\textit{Operational constraints.}
+\begin{itemize}[leftmargin=2.8em, label={}, itemsep=0.55em]
+\item \refstepcounter{assumption}\label{as:dem}%
+  \textbf{\theassumption.}\enspace
+  Every market demand is met exactly in each period; no inventory is
+  held at markets.
+\item \refstepcounter{assumption}\label{as:hub}%
+  \textbf{\theassumption.}\enspace
+  Hub terminals operate as pure cross-docking facilities: all items
+  arriving at a hub in period $t$ depart in the same period, with no
+  on-site storage. Following \citet{mota2018}, hubs are treated as
+  outsourced terminal-access points; selecting a hub incurs fixed access
+  costs and flow-dependent handling costs, but no facility-construction
+  or opening emissions.
+\item \refstepcounter{assumption}\label{as:feas}%
+  \textbf{\theassumption.}\enspace
+  For every admissible index $\taxhat\in\{\taxlb,\ldots,\taxub\}$,
+  the follower's feasible region $\setX$ is non-empty. This can be
+  verified a priori by checking that the network has sufficient
+  installed capacity to cover maximum aggregate demand.
+\end{itemize}
+
+\medskip
+\noindent\textit{Bilevel game structure.}
+\begin{itemize}[leftmargin=2.8em, label={}, itemsep=0.55em]
+\item \refstepcounter{assumption}\label{as:stackelberg}%
+  \textbf{\theassumption.}\enspace
+  The regulator announces the carbon-tax index $\taxhat$ before the
+  supply chain operator makes any facility, technology, or operational
+  decision; the operator observes $\taxhat$ with certainty and responds
+  rationally (\emph{open-loop Stackelberg game}).
+\item \refstepcounter{assumption}\label{as:fixednet}%
+  \textbf{\theassumption.}\enspace
+  Facility-opening, supplier and hub selection, and
+  technology-installation decisions are made at the start of the
+  planning horizon and are irrevocable; no opening, closure, selection
+  change, or capacity expansion occurs mid-horizon.
+\item \refstepcounter{assumption}\label{as:singleop}%
+  \textbf{\theassumption.}\enspace
+  The supply chain operator is a single entity that centrally
+  coordinates all network design and operational decisions across all
+  echelons.
+\item \refstepcounter{assumption}\label{as:opt}%
+  \textbf{\theassumption.}\enspace
+  When the follower's optimal response is non-unique, the leader
+  selects the response with the lowest total emissions
+  (\emph{optimistic bilevel convention}).
+\end{itemize}
+
+%-----------------------------------------------------------------
+\subsection{Notation}
+\label{sec:model:notation}
+
+The following notation is used throughout the formulation. All
+sets, parameters, and decision variables are summarised in
+\Cref{tab:sets,tab:econ_params,tab:capacity_params,tab:demand_params,%
+tab:emission_params,tab:variables}.
+
+\input{tables/tab_notation}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Sets and indices}
+\label{sec:model:sets}
+
+\Cref{tab:sets} lists the node, item, technology, transport, arc,
+and planning-period sets. The set of all transportable items is
+$\setQ=\setU\cup\setP\cup\setK$ and the set of all nodes is
+$\setN=\setS\cup\setF\cup\setW\cup\setR\cup\setH$.
+Openable nodes are $\setNo=\setS\cup\setF\cup\setW\cup\setH$;
+inventory-holding nodes are $\setNv=\setW$ -- factories carry no
+inventory of their own (\Cref{sec:model:c1}), so finished-product
+stock is held only at warehouses.
+Transport partition as $\setM=\setMrd\cup\setMout$, where
+$\setMout=\setMa\cup\setMs$ collects the outsourced non-road modes.
+Instance files additionally carry a set labelled $I$, kept equal to
+$\setN$ for backward compatibility with an earlier node-indexing
+convention; it is validated against $\setN$ on load but is not an
+independent model object, and the implementation reads only $\setN$.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Parameters}
+\label{sec:model:parameters}
+
+\Cref{tab:econ_params} lists economic cost parameters;
+\Cref{tab:capacity_params} lists capacity, resource, and fleet
+parameters; \Cref{tab:demand_params} lists demand, return, and
+conversion parameters; \Cref{tab:emission_params} lists emission
+intensities and the leader's policy bounds. The set
+$\setM_{ij}\subseteq\setM$ denotes the modes permitted on arc $(i,j)$,
+and $\delta_{ij}$ its distance. $\setM_{ij}$ is general per-arc
+instance data; the data generator and implementation realise it via a
+fixed topological rule -- air-air arcs admit only $\setM^{\mathrm{a}}$,
+sea-sea arcs only $\setM^{\mathrm{s}}$, and every other arc admits the
+road-family modes $\setMrd$ -- which is sufficient for every benchmark
+topology used in this paper but is not the most general case the
+notation $\setM_{ij}$ permits. The indicator
+\begin{equation*}
+\xi^{\mathrm{o}}_{ij}=\mathbf{1}[i\in\setH], \qquad
+\xi^{\mathrm{d}}_{ij}=\mathbf{1}[j\in\setH]
+\end{equation*}
+flags whether the origin or destination of arc $(i,j)$ is a hub
+terminal, used to assess handling charges. Compatible
+product--technology pairs are collected in
+$\Omega^{\mathrm{p}}\subseteq\setP\times\setG$ (production) and
+$\Omega^{\mathrm{r}}\subseteq\setP\times\setL$ (remanufacturing).
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Decision variables}
+\label{sec:model:variables}
+
+\paragraph{Leader decision variable.}
+The regulator's sole decision is the integer carbon-tax index
+\begin{equation}
+\taxhat\in\mathcal{T}^{\tau}\defeq
+\{\taxlb,\taxlb+1,\ldots,\taxub\}\subset\Z,
+\label{eq:leader_domain}
+\end{equation}
+which induces the carbon-tax rate $\tau=\taxhat/100$ (USD/kg\,CO$_2$e).
+We work with the index $\taxhat$ rather than the rate $\tau$ directly
+because it keeps the leader's domain finite and discrete, enabling 
+the exact DBP of \Cref{sec:methodology}.
+
+\paragraph{Follower decision variables.}
+Given $\taxhat$, the follower chooses the vector
+\begin{equation*}
+\bz=\bigl(y,\,YC,\,\lambda^{\mathrm{p}},\,\lambda^{\mathrm{r}},\,a,\,
+\sigma,\,\zeta,\,\kappa,\,Q,\,K,\,q^{\mathrm{p}},\,q^{\mathrm{r}},\,
+s^{\mathrm{inv}},\,x\bigr).
+\end{equation*}
+\Cref{tab:variables} lists all component variables and their domains.
+
+To decouple the algebraic model from the physical network, the
+admissible flow-tuple set is
+\begin{equation}
+\Phi \defeq
+\bigl\{(q,i,j)\,:\, q\in\setQ,\,(i,j)\in\setA_q\bigr\},
+\label{eq:phi}
+\end{equation}
+which admits the partition
+$\Phi=\Phi^{\mathrm{u}}\cup\Phi^{\mathrm{p}}\cup\Phi^{\mathrm{k}}$
+according to $q\in\setU$, $q\in\setP$, or $q\in\setK$.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Auxiliary expressions}
+\label{sec:model:auxiliary}
+
+The following shorthand expressions are used throughout the
+formulation to keep the notation compact. For each item $q\in\setQ$,
+node $i\in\setN$, and period $t\in\setT$, the aggregate inflow and
+outflow at node $i$ are
+\begin{equation}
+X^{\mathrm{in}}_{qit} \defeq
+  \sum_{j:(j,i)\in\setA_q}\,\sum_{m\in\setM_{ji}} x_{qjimt},
+\qquad
+X^{\mathrm{out}}_{qit} \defeq
+  \sum_{j:(i,j)\in\setA_q}\,\sum_{m\in\setM_{ij}} x_{qijmt}.
+\label{eq:flows}
+\end{equation}
+To avoid case distinctions between openable and non-openable nodes
+in the flow constraints,
+\begin{equation}
+\bar{y}_{i} \defeq
+\begin{cases}
+y_{i}, & i\in\setNo,\\
+1,     & i\in\setR.
+\end{cases}
+\label{eq:ybar}
+\end{equation}
+The used floor area at facility $i\in\setF\cup\setW$ in period $t$
+combines a flow-based handling component, present at both factories
+and warehouses, with a stock-based storage component, present only at
+warehouses (factories carry no inventory of any kind,
+\Cref{sec:model:c1}):
+\begin{equation}
+YCT_{it} \defeq
+\begin{cases}
+\displaystyle\sum_{p\in\setP} apur_p\,X^{\mathrm{out}}_{pit},
+  & i\in\setF,\\[1.1em]
+\displaystyle
+\sum_{p\in\setP} apur_p\,X^{\mathrm{in}}_{pit}
+  + \sum_{p\in\setP} apu_p\,s^{\mathrm{inv}}_{pit},
+  & i\in\setW,
+\end{cases}
+\qquad t\in\setT.
+\label{eq:YCT}
+\end{equation}
+Factories carry no inventory of any kind (\Cref{sec:model:c1}), so
+their floor-area footprint has no stock component; their handling
+space is driven entirely by per-period throughput. Warehouses carry
+both: incoming-flow handling space and finished-product stock space,
+following \citet{mota2018}'s general facility-area expression (their
+Eq.~16), adapted to this project's flow-direction convention --- see
+\Cref{rem:floor_area_flow_direction}.
