@@ -11,7 +11,7 @@ from pathlib import Path
 
 from data.generator import GeneratedInstance, write_instance
 from data.generator.benchmark import apply_prefix_override, build_base_benchmark_specs, _set_base_metadata
-from data.generator.instance import generate_instance
+from data.generator.feasibility import generate_feasible_instance
 from src.models.instance_loader import InstanceData
 
 from experiments.designs._common import DesignPoint
@@ -35,7 +35,7 @@ def _load_base_payload(base_instance_id: str, *, seed_offset: int) -> dict:
         raise ValueError(f"No benchmark spec found for base instance {base_instance_id!r}")
     spec = specs[0]
     reseeded_spec = dataclasses.replace(spec, seed=spec.seed + seed_offset * SEED_OFFSET_STRIDE)
-    generated = generate_instance(reseeded_spec.to_config())
+    generated = generate_feasible_instance(reseeded_spec.to_config())
     benchmark_instance = apply_prefix_override(generated, reseeded_spec.prefix)
     _set_base_metadata(benchmark_instance, reseeded_spec)
     return benchmark_instance.to_dict()

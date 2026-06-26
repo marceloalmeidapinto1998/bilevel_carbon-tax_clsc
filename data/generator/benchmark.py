@@ -161,6 +161,7 @@ def generate_benchmark(
     include_base: bool = True,
     seed_base: int = 0,
     file_format: str = "json",
+    ensure_feasible: bool = True,
 ) -> BenchmarkSummary:
     if file_format not in {"json", "yaml"}:
         raise ValueError("file_format must be either 'json' or 'yaml'")
@@ -169,12 +170,19 @@ def generate_benchmark(
     output_root = Path(output_dir)
     specs = build_base_benchmark_specs(seed_base)
 
+    if ensure_feasible:
+        from .feasibility import generate_feasible_instance
+
     base_count = 0
     for spec in specs:
         if not include_base:
             continue
 
-        generated = generate_instance(spec.to_config())
+        generated = (
+            generate_feasible_instance(spec.to_config())
+            if ensure_feasible
+            else generate_instance(spec.to_config())
+        )
         benchmark_instance = apply_prefix_override(generated, spec.prefix)
         _set_base_metadata(benchmark_instance, spec)
         _validate_prefix_override(generated, benchmark_instance, spec.prefix)

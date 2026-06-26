@@ -37,7 +37,7 @@ def _sample_demand(
                 )
                 return_max_rate[retailer][product][period] = max_fraction
                 return_min_rate[retailer][product][period] = round(
-                    rng.uniform(0.0, max_fraction),
+                    rng.uniform(0.0, taut.RETURN_MIN_RATE_DAMPING * max_fraction),
                     4,
                 )
 
@@ -74,9 +74,21 @@ def _sample_bom_and_product_profiles(
     }
     product_unit_weight: dict[str, float] = {}
     product_unit_area: dict[str, float] = {}
+    # Diagonal by construction, mirroring return_yield_matrix below: rp_i is the recovered form
+    # of p_i (same positional correspondence the generator labels them with), so the BOM ratio
+    # is only physically meaningful for matching (recovered_product, final_product) pairs. A
+    # dense (non-diagonal) sample here lets the factory-level recovered-product balance equation
+    # in shared_models._add_inventory_and_flow_constraints pick up an unrelated product's
+    # remanufacturing throughput, which produced a ~50% network-flow infeasibility rate for
+    # multi-product (M8) instances despite a 100% rate for single-product (M4) ones -- confirmed
+    # via Gurobi IIS and a before/after feasibility sweep, 2026-06-26.
     remanufacturing_bom_matrix: dict[str, dict[str, float]] = {
         recovered_product: {
-            final_product: round(rng.uniform(*taut.BOM_REM_RANGE), 4)
+            final_product: (
+                round(rng.uniform(*taut.BOM_REM_RANGE), 4)
+                if recovered_product.removeprefix("rp") == final_product.removeprefix("p")
+                else 0.0
+            )
             for final_product in products
         }
         for recovered_product in recovered_products

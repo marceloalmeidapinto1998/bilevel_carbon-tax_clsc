@@ -9,6 +9,9 @@ Role modules:
   benchmark  — STD benchmark set building
   cli        — argparse parsers + main
   tautenhain_data — sampling rules/constants
+  feasibility — generate_feasible_instance(): retries generate_instance() with a perturbed seed
+                until the follower's network-flow relaxation is feasible. Not imported here
+                (it depends on src.models/Gurobi) -- import it explicitly when needed.
 """
 from __future__ import annotations
 

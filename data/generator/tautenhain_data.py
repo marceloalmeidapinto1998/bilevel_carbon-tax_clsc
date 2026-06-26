@@ -8,6 +8,14 @@ from typing import Any
 DEMAND_RANGE = (8336.8, 34481.28)
 RETURN_RATE_UPPER_BOUND = 0.15
 RETURN_RATE_RANGE = (0.0, RETURN_RATE_UPPER_BOUND)
+# ret_min_frac_r_p_t (mandatory minimum collection) is a hard lower bound on the recovered-
+# product flow network, independent of routing/connectivity, so sampling it arbitrarily close
+# to ret_max_frac_r_p_t risks several retailers landing near-simultaneously near their ceiling
+# in the same period purely by chance -- a compounding network-flow infeasibility unrelated to
+# instance size (confirmed via Gurobi IIS on STD_I17_M8_T6/STD_I25_M8_T3, 2026-06-26). Capping
+# the minimum at half the max keeps real optimizer slack regardless of how the independent draws
+# land.
+RETURN_MIN_RATE_DAMPING = 0.5
 RETURN_LAG_RANGE = (1, 3)
 BOM_PROD_RANGE = (0.015, 0.45)
 BOM_REM_RANGE = (4.0, 5.0)

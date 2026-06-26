@@ -52,7 +52,7 @@ FAMILY_MODULES = {
     "G": family_g_performance,
 }
 
-BILEVEL_METHOD = "dbp_lf_lex_exact"
+BILEVEL_METHOD = "dbp_f_lex_exact"
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +104,19 @@ def _manifest_path(point: DesignPoint) -> Path:
 
 
 def _is_terminal(manifest: dict[str, Any]) -> bool:
-    return manifest.get("solve_status") in {"success", "failed", "infeasible"}
+    return manifest.get("solve_status") in {"success", "censored", "failed", "infeasible"}
+
+
+def _classify_solve_status(summary: dict[str, Any]) -> str:
+    """success | censored (hit the time limit, incumbent retained per plan §5b) |
+    infeasible (genuine Gurobi INFEASIBLE) | failed (anything else, e.g. a solver exception)."""
+    if summary.get("success"):
+        return "success"
+    if summary.get("gurobi_status") == "TIME_LIMIT" or summary.get("termination_reason") in {"time_limit", "TIME_LIMIT"}:
+        return "censored"
+    if summary.get("gurobi_status") == "INFEASIBLE":
+        return "infeasible"
+    return "failed"
 
 
 def _append_heartbeat(message: str) -> None:
@@ -123,20 +135,28 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
             "Family F/G execute in Phase 4)."
         )
     out_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        sys.executable, "-m", "tools.solver.solve_batch", str(instance_path),
-        "--method", BILEVEL_METHOD,
-        "--time-limit", str(point.per_subproblem_time_limit_seconds),
-        "--results-root", str(out_dir),
-    ]
-    completed = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
     summary_paths = list(out_dir.glob("**/summary.json"))
     if not summary_paths:
-        raise RuntimeError(
-            f"{point.design_point_id}: solver subprocess produced no summary.json "
-            f"(returncode={completed.returncode}); stderr tail:\n{completed.stderr[-2000:]}"
-        )
-    summary = json.loads(summary_paths[0].read_text(encoding="utf-8"))
+        # No subprocess.run() guard here is needed for resumability: if a prior attempt already
+        # produced a valid summary.json (e.g. it crashed/raised only in post-processing), reuse
+        # it rather than re-spend a possibly multi-hour solve.
+        cmd = [
+            sys.executable, "-m", "tools.solver.solve_batch", str(instance_path),
+            "--method", BILEVEL_METHOD,
+            "--time-limit", str(point.per_subproblem_time_limit_seconds),
+            "--results-root", str(out_dir),
+        ]
+        completed = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+        summary_paths = list(out_dir.glob("**/summary.json"))
+        if not summary_paths:
+            raise RuntimeError(
+                f"{point.design_point_id}: solver subprocess produced no summary.json "
+                f"(returncode={completed.returncode}); stderr tail:\n{completed.stderr[-2000:]}"
+            )
+    summary_payload = json.loads(summary_paths[0].read_text(encoding="utf-8"))
+    # tools.solver.batch writes summary.json as a list of per-instance records (batch format),
+    # even for a single-instance invocation.
+    summary = summary_payload[0] if isinstance(summary_payload, list) else summary_payload
     summary["_summary_path"] = str(summary_paths[0].relative_to(REPO_ROOT))
     return summary
 
@@ -222,9 +242,10 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
 
         manifest.update(
             {
-                "solve_status": "success" if summary.get("success") else "infeasible",
+                "solve_status": _classify_solve_status(summary),
                 "termination_reason": summary.get("termination_reason"),
-                "censored": summary.get("termination_reason") in {"time_limit", "TIME_LIMIT"},
+                "censored": summary.get("gurobi_status") == "TIME_LIMIT"
+                or summary.get("termination_reason") in {"time_limit", "TIME_LIMIT"},
                 "objective_values": {
                     "cost": summary.get("cost"),
                     "emissions": summary.get("emissions"),
@@ -250,8 +271,16 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
     return manifest
 
 
-def run_family(family_id: str, *, fail_fast: bool = False, overwrite: bool = False) -> list[dict[str, Any]]:
+def run_family(
+    family_id: str,
+    *,
+    fail_fast: bool = False,
+    overwrite: bool = False,
+    base_instance: str | None = None,
+) -> list[dict[str, Any]]:
     points = build_design_matrix(family_id)
+    if base_instance is not None:
+        points = [p for p in points if p.base_instance_id == base_instance]
     results = []
     for point in points:
         manifest = run_point(point, overwrite=overwrite)
@@ -285,6 +314,8 @@ def main(argv: list[str] | None = None) -> int:
     run_cmd.add_argument("--family", default="all", help="Family id (A-G) or 'all'.")
     run_cmd.add_argument("--fail-fast", action="store_true")
     run_cmd.add_argument("--overwrite", action="store_true", help="Re-run even if already terminal.")
+    run_cmd.add_argument("--base-instance", default=None,
+                          help="Restrict to design points on this base instance only (e.g. for a pilot).")
 
     args = parser.parse_args(argv)
 
@@ -301,7 +332,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         family_ids = _resolve_family_ids(args.family)
         for family_id in family_ids:
-            results = run_family(family_id, fail_fast=args.fail_fast, overwrite=args.overwrite)
+            results = run_family(
+                family_id, fail_fast=args.fail_fast, overwrite=args.overwrite,
+                base_instance=args.base_instance,
+            )
             n_success = sum(1 for r in results if r.get("solve_status") == "success")
             print(f"Family {family_id}: {n_success}/{len(results)} succeeded")
         return 0

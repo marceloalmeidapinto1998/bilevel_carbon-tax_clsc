@@ -211,7 +211,6 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
             round(params["apu_p"][product] / taut.PRODUCT_ROTATION_PER_PERIOD, 6)
         )
 
-    off_diagonal_bom_values = []
     for recovered_product in instance.sets["RP"]:
         assert params["rpc_rp"][recovered_product] >= 0.0
         expected_recovered_area = sum(
@@ -222,13 +221,18 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
         assert params["apu_q"][recovered_product] == params["apu_rp"][recovered_product]
         for product in instance.sets["P"]:
             value = params["bom_rem_r_p"][recovered_product][product]
-            assert taut.BOM_REM_RANGE[0] <= value <= taut.BOM_REM_RANGE[1]
-            expected_yield = 1.0 if recovered_product.removeprefix("rp") == product.removeprefix("p") else 0.0
+            is_diagonal = recovered_product.removeprefix("rp") == product.removeprefix("p")
+            # bom_rem_r_p is diagonal by construction (rp_i is the recovered form of p_i, same
+            # positional correspondence as ret_yield_rp_p below): a dense sample here let the
+            # factory-level recovered-product balance equation pick up an unrelated product's
+            # remanufacturing throughput, producing a ~50% network-flow infeasibility rate for
+            # multi-product (M8) instances. Confirmed via Gurobi IIS, 2026-06-26.
+            if is_diagonal:
+                assert taut.BOM_REM_RANGE[0] <= value <= taut.BOM_REM_RANGE[1]
+            else:
+                assert value == 0.0
+            expected_yield = 1.0 if is_diagonal else 0.0
             assert params["ret_yield_rp_p"][recovered_product][product] == expected_yield
-            if recovered_product[-1] != product[-1]:
-                off_diagonal_bom_values.append(value)
-    assert off_diagonal_bom_values
-    assert all(value > 0.0 for value in off_diagonal_bom_values)
 
     for hub in (*instance.sets["AIR"], *instance.sets["PORT"]):
         assert taut.CONTRACTED_FIXED_COST_RANGE[0] <= params["f_h"][hub] <= taut.CONTRACTED_FIXED_COST_RANGE[1]

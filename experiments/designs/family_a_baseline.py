@@ -23,18 +23,28 @@ BASE_INSTANCES: tuple[str, ...] = (
 PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 7200.0
 PER_RUN_WALL_CLOCK_CAP_SECONDS = 25200.0
 
+# T12 is expected intractable (per the v1 paper finding); the goal is documenting where it
+# stalls, not forcing convergence, so it gets one single hard cap instead of the regular
+# Family A per-subproblem/wall-clock pair (plan §5b, "G ... incl. T12 probe").
+T12_PROBE_HARD_CAP_SECONDS = 21600.0
+
 
 def build_design_matrix() -> list[DesignPoint]:
-    return [
-        DesignPoint(
-            family_id=FAMILY_ID,
-            design_point_id=f"A-{index:02d}",
-            run_code="baseline",
-            base_instance_id=instance_id,
-            execution_mode=EXECUTION_MODE,
-            per_subproblem_time_limit_seconds=PER_SUBPROBLEM_TIME_LIMIT_SECONDS,
-            per_run_wall_clock_cap_seconds=PER_RUN_WALL_CLOCK_CAP_SECONDS,
-            notes="tractability probe" if instance_id.endswith("_T12") else "",
+    points = []
+    for index, instance_id in enumerate(BASE_INSTANCES, start=1):
+        is_t12_probe = instance_id.endswith("_T12")
+        cap = T12_PROBE_HARD_CAP_SECONDS if is_t12_probe else PER_SUBPROBLEM_TIME_LIMIT_SECONDS
+        wall_clock_cap = T12_PROBE_HARD_CAP_SECONDS if is_t12_probe else PER_RUN_WALL_CLOCK_CAP_SECONDS
+        points.append(
+            DesignPoint(
+                family_id=FAMILY_ID,
+                design_point_id=f"A-{index:02d}",
+                run_code="baseline",
+                base_instance_id=instance_id,
+                execution_mode=EXECUTION_MODE,
+                per_subproblem_time_limit_seconds=cap,
+                per_run_wall_clock_cap_seconds=wall_clock_cap,
+                notes="tractability probe" if is_t12_probe else "",
+            )
         )
-        for index, instance_id in enumerate(BASE_INSTANCES, start=1)
-    ]
+    return points
