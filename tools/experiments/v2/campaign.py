@@ -139,12 +139,18 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
     if not summary_paths:
         # No subprocess.run() guard here is needed for resumability: if a prior attempt already
         # produced a valid summary.json (e.g. it crashed/raised only in post-processing), reuse
-        # it rather than re-spend a possibly multi-hour solve.
+        # it rather than re-spend a possibly multi-hour solve. --overwrite handles the other
+        # interrupted case: a prior attempt that was killed mid-solve (no summary.json yet) can
+        # still have left a partial run directory behind, which solve_batch's own prepare_run_root
+        # otherwise refuses to write into (FileExistsError) -- confirmed via a kill+relaunch smoke
+        # test, 2026-06-26. Always safe here since we've just confirmed no usable summary.json
+        # exists, so there's nothing worth preserving in whatever is there.
         cmd = [
             sys.executable, "-m", "tools.solver.solve_batch", str(instance_path),
             "--method", BILEVEL_METHOD,
             "--time-limit", str(point.per_subproblem_time_limit_seconds),
             "--results-root", str(out_dir),
+            "--overwrite",
         ]
         completed = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
         summary_paths = list(out_dir.glob("**/summary.json"))
