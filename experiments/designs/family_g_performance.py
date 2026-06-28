@@ -22,8 +22,12 @@ THREAD_SETTINGS: tuple[int, ...] = (1, 6, 12)
 MIP_FOCUS_SETTINGS: tuple[int, ...] = (0, 1, 2)
 DEFAULT_CELL = (6, 0)  # already covered by Family A; excluded from this family's dedicated runs
 
-PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 7200.0
-PER_RUN_WALL_CLOCK_CAP_SECONDS = 25200.0
+# Doubled from the plan's original 7200s/25200s (Phase 3.5 pre-flight check, 2026-06-26):
+# the stress instance (STD_I25_M8_T6) hit the original Family A cap at mip_gap~0.0001,
+# essentially converged but needing more time -- and Family G specifically stress-tests
+# solver settings on this instance, so it should get every chance to converge.
+PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 14400.0
+PER_RUN_WALL_CLOCK_CAP_SECONDS = 50400.0
 
 
 def build_design_matrix() -> list[DesignPoint]:

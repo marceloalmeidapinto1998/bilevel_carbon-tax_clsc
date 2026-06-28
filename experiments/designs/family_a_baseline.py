@@ -20,8 +20,12 @@ BASE_INSTANCES: tuple[str, ...] = (
     "STD_I17_M4_T12",  # tractability probe, RQ7
 )
 
-PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 7200.0
-PER_RUN_WALL_CLOCK_CAP_SECONDS = 25200.0
+# Doubled from the plan's original 7200s/25200s (Phase 3.5 pre-flight check, 2026-06-26):
+# STD_I25_M8_T6 hit the original 7200s cap at mip_gap~0.0001 (essentially converged, just
+# needed more time) and 2 other classes ran 2-3x slower than the v1 historical baseline under
+# the regenerated/bug-fixed instances.
+PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 14400.0
+PER_RUN_WALL_CLOCK_CAP_SECONDS = 50400.0
 
 # T12 is expected intractable (per the v1 paper finding); the goal is documenting where it
 # stalls, not forcing convergence, so it gets one single hard cap instead of the regular

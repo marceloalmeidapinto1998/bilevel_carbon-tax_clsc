@@ -29,8 +29,11 @@ DEFAULT_TOP_FACTORS: tuple[str, ...] = ("emission_intensity", "demand", "scope3_
 N_LEVELS_FAST = 9
 N_LEVELS_CONFIRM = 3
 
-PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 3600.0
-PER_RUN_WALL_CLOCK_CAP_SECONDS = 14400.0
+# Doubled from the plan's original 3600s/14400s (Phase 3.5 pre-flight check, 2026-06-26):
+# the confirmatory instance (STD_I25_M8_T6) hit the original Family A cap at mip_gap~0.0001,
+# essentially converged but needing more time.
+PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 7200.0
+PER_RUN_WALL_CLOCK_CAP_SECONDS = 28800.0
 
 
 def build_design_matrix(top_factors: tuple[str, ...] = DEFAULT_TOP_FACTORS) -> list[DesignPoint]:
