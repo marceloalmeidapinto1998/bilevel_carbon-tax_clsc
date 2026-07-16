@@ -183,36 +183,36 @@ def load_data(instance: str, cat_key: str) -> dict:
         p = base_dir / name
         return pd.read_csv(p) if p.exists() else pd.DataFrame(columns=fallback_cols)
 
-    production      = _read_optional("production.csv",      ["hat_tau", "factory",  "value", "active"])
-    remanufacturing = _read_optional("remanufacturing.csv", ["hat_tau", "factory",  "value", "active"])
-    transport_modes = _read_optional("transport_modes.csv", ["hat_tau", "mode", "total_flow_qty"])
-    installed_area  = _read_optional("installed_area.csv",  ["hat_tau", "facility", "value", "active"])
-    tech_use        = _read_optional("tech_use.csv",        ["hat_tau", "factory", "tech", "period", "value", "active"])
-    supplier_orders = _read_optional("supplier_orders.csv", ["hat_tau", "raw_material", "supplier", "period", "value", "active"])
-    inventory       = _read_optional("inventory.csv",       ["hat_tau", "level", "product", "factory", "period", "value", "active"])
-    trips_df        = _read_optional("trips.csv",           ["hat_tau", "origin", "destination", "mode", "period", "value", "active"])
-    vehicles_df     = _read_optional("vehicles.csv",        ["hat_tau", "origin", "mode", "value", "active"])
+    production      = _read_optional("production.csv",      ["tax_index", "factory",  "value", "active"])
+    remanufacturing = _read_optional("remanufacturing.csv", ["tax_index", "factory",  "value", "active"])
+    transport_modes = _read_optional("transport_modes.csv", ["tax_index", "mode", "total_flow_qty"])
+    installed_area  = _read_optional("installed_area.csv",  ["tax_index", "facility", "value", "active"])
+    tech_use        = _read_optional("tech_use.csv",        ["tax_index", "factory", "tech", "period", "value", "active"])
+    supplier_orders = _read_optional("supplier_orders.csv", ["tax_index", "raw_material", "supplier", "period", "value", "active"])
+    inventory       = _read_optional("inventory.csv",       ["tax_index", "level", "product", "factory", "period", "value", "active"])
+    trips_df        = _read_optional("trips.csv",           ["tax_index", "origin", "destination", "mode", "period", "value", "active"])
+    vehicles_df     = _read_optional("vehicles.csv",        ["tax_index", "origin", "mode", "value", "active"])
 
     # Pre-compute max flow across ALL tau for stable arc-width normalisation.
-    # Group by (hat_tau, origin, destination) to get per-arc per-tau totals,
+    # Group by (tax_index, origin, destination) to get per-arc per-tau totals,
     # then take the global max so the scale is stable as the slider moves.
     flow_agg_all = (
         flows[flows["active"] == 1]
-        .groupby(["hat_tau", "origin", "destination"])["value"].sum()
+        .groupby(["tax_index", "origin", "destination"])["value"].sum()
     )
     max_flow = float(flow_agg_all.max()) if not flow_agg_all.empty else 1.0
 
     # Pre-aggregate node volumes across ALL tau for stable node-size normalisation
     prod_agg = (
         production[production["active"] == 1]
-        .groupby(["hat_tau", "factory"])["value"].sum()
+        .groupby(["tax_index", "factory"])["value"].sum()
         .reset_index().rename(columns={"value": "prod_qty"})
     )
     max_prod_vol = float(prod_agg["prod_qty"].max()) if not prod_agg.empty else 1.0
 
     rem_agg = (
         remanufacturing[remanufacturing["active"] == 1]
-        .groupby(["hat_tau", "factory"])["value"].sum()
+        .groupby(["tax_index", "factory"])["value"].sum()
         .reset_index().rename(columns={"value": "rem_qty"})
     )
     max_rem_vol = float(rem_agg["rem_qty"].max()) if not rem_agg.empty else 1.0
@@ -226,7 +226,7 @@ def load_data(instance: str, cat_key: str) -> dict:
             (flows["origin"].isin(suppliers_set)) &
             (flows["destination"].isin(factories_set))
         ]
-        .groupby(["hat_tau", "origin"])["value"].sum()
+        .groupby(["tax_index", "origin"])["value"].sum()
         .reset_index()
         .rename(columns={"origin": "supplier", "value": "order_qty"})
     )
@@ -235,7 +235,7 @@ def load_data(instance: str, cat_key: str) -> dict:
     retailers = set(sets.get("R", []))
     demand_agg = (
         flows[(flows["active"] == 1) & (flows["destination"].isin(retailers))]
-        .groupby(["hat_tau", "destination"])["value"].sum()
+        .groupby(["tax_index", "destination"])["value"].sum()
         .reset_index().rename(columns={"destination": "retailer", "value": "demand_qty"})
     )
     max_retailer_demand = float(demand_agg["demand_qty"].max()) if not demand_agg.empty else 1.0
@@ -270,10 +270,10 @@ def load_data(instance: str, cat_key: str) -> dict:
         "inventory":             inventory,
         "trips_df":              trips_df,
         "vehicles_df":           vehicles_df,
-        "tau_min":     int(summary["hat_tau"].min()),
-        "tau_max":     int(summary["hat_tau"].max()),
+        "tau_min":     int(summary["tax_index"].min()),
+        "tau_max":     int(summary["tax_index"].max()),
         "incumbent_tau": int(
-            summary.loc[summary["is_lf_lex_incumbent"] == 1, "hat_tau"].iloc[0]
+            summary.loc[summary["is_lf_lex_incumbent"] == 1, "tax_index"].iloc[0]
         ),
     }
 
@@ -286,7 +286,7 @@ def _open_nodes(data: dict, tau: int) -> set[str]:
     fac = data["facility"]
     entity_cols = [c for c in ["factory", "supplier", "warehouse", "hub"]
                    if c in fac.columns]
-    sub = fac.loc[(fac["hat_tau"] == tau) & (fac["active"] == 1), entity_cols]
+    sub = fac.loc[(fac["tax_index"] == tau) & (fac["active"] == 1), entity_cols]
     return set(
         sub.stack().dropna().astype(str).str.strip().loc[lambda s: s != ""]
     )
@@ -294,20 +294,20 @@ def _open_nodes(data: dict, tau: int) -> set[str]:
 
 def _active_arcs(data: dict, tau: int) -> set[tuple[str, str]]:
     ma = data["mode_active"]
-    sub = ma[(ma["hat_tau"] == tau) & (ma["active"] == 1) & (ma["family"] == "zt")]
+    sub = ma[(ma["tax_index"] == tau) & (ma["active"] == 1) & (ma["family"] == "zt")]
     return set(zip(sub["origin"], sub["destination"]))
 
 
 def _arc_flow_map(data: dict, tau: int) -> dict[tuple[str, str], float]:
     fl = data["flows"]
-    sub = fl[(fl["hat_tau"] == tau) & (fl["active"] == 1)]
+    sub = fl[(fl["tax_index"] == tau) & (fl["active"] == 1)]
     agg = sub.groupby(["origin", "destination"])["value"].sum()
     return {(o, d): v for (o, d), v in agg.items()}
 
 
 def _arc_mode_map(data: dict, tau: int) -> dict[tuple[str, str], str]:
     ma = data["mode_active"]
-    sub = ma[(ma["hat_tau"] == tau) & (ma["active"] == 1) & (ma["family"] == "zt")]
+    sub = ma[(ma["tax_index"] == tau) & (ma["active"] == 1) & (ma["family"] == "zt")]
     grouped = sub.groupby(["origin", "destination"])["mode"].apply(
         lambda s: " / ".join(sorted(s.unique()))
     )
@@ -324,7 +324,7 @@ def _arc_width(flow: float, max_flow: float, show_flow: bool) -> float:
 def _installed_tech(data: dict, tau: int) -> dict[str, dict[str, str]]:
     """Returns {factory: {"prod": tech, "rem": tech}} active at given tau."""
     ti = data["tech_install"]
-    sub = ti[(ti["hat_tau"] == tau) & (ti["active"] == 1)]
+    sub = ti[(ti["tax_index"] == tau) & (ti["active"] == 1)]
     result: dict[str, dict[str, str]] = {}
     for _, row in sub.iterrows():
         f = str(row["factory"])
@@ -337,19 +337,19 @@ def _node_volume_map(data: dict, tau: int) -> dict[str, dict[str, float]]:
     result: dict[str, dict[str, float]] = {}
 
     prod_sub = data["prod_by_tau_factory"]
-    for _, r in prod_sub[prod_sub["hat_tau"] == tau].iterrows():
+    for _, r in prod_sub[prod_sub["tax_index"] == tau].iterrows():
         result.setdefault(str(r["factory"]), {})["prod"] = float(r["prod_qty"])
 
     rem_sub = data["rem_by_tau_factory"]
-    for _, r in rem_sub[rem_sub["hat_tau"] == tau].iterrows():
+    for _, r in rem_sub[rem_sub["tax_index"] == tau].iterrows():
         result.setdefault(str(r["factory"]), {})["rem"] = float(r["rem_qty"])
 
     ord_sub = data["order_by_tau_supplier"]
-    for _, r in ord_sub[ord_sub["hat_tau"] == tau].iterrows():
+    for _, r in ord_sub[ord_sub["tax_index"] == tau].iterrows():
         result.setdefault(str(r["supplier"]), {})["order"] = float(r["order_qty"])
 
     dem_sub = data["retailer_demand_agg"]
-    for _, r in dem_sub[dem_sub["hat_tau"] == tau].iterrows():
+    for _, r in dem_sub[dem_sub["tax_index"] == tau].iterrows():
         result.setdefault(str(r["retailer"]), {})["demand"] = float(r["demand_qty"])
 
     return result
@@ -367,7 +367,7 @@ def _installed_area_map(data: dict, tau: int) -> dict[str, float]:
     ia = data["installed_area"]
     if ia.empty:
         return {}
-    sub = ia[(ia["hat_tau"] == tau) & (ia["active"] == 1)]
+    sub = ia[(ia["tax_index"] == tau) & (ia["active"] == 1)]
     return {str(r["facility"]): float(r["value"]) for _, r in sub.iterrows()}
 
 
@@ -376,7 +376,7 @@ def _vehicle_map(data: dict, tau: int) -> dict[str, dict[str, int]]:
     vdf = data["vehicles_df"]
     if vdf.empty:
         return {}
-    sub = vdf[(vdf["hat_tau"] == tau) & (vdf["active"] == 1)]
+    sub = vdf[(vdf["tax_index"] == tau) & (vdf["active"] == 1)]
     result: dict[str, dict[str, int]] = {}
     for _, r in sub.iterrows():
         result.setdefault(str(r["origin"]), {})[str(r["mode"])] = int(r["value"])
@@ -388,7 +388,7 @@ def _trip_map_by_arc(data: dict, tau: int, period: str | None) -> dict[tuple[str
     tdf = data["trips_df"]
     if tdf.empty:
         return {}
-    sub = tdf[(tdf["hat_tau"] == tau) & (tdf["active"] == 1)]
+    sub = tdf[(tdf["tax_index"] == tau) & (tdf["active"] == 1)]
     if period is not None:
         sub = sub[sub["period"] == period]
     result: dict[tuple[str, str, str], int] = {}
@@ -405,7 +405,7 @@ def _inventory_by_node(data: dict, tau: int, period: str | None) -> dict[str, di
     inv = data["inventory"]
     if inv.empty:
         return {}
-    sub = inv[(inv["hat_tau"] == tau) & (inv["active"] == 1)]
+    sub = inv[(inv["tax_index"] == tau) & (inv["active"] == 1)]
     if period is not None:
         sub = sub[sub["period"] == period]
     result: dict[str, dict[str, float]] = {}
@@ -429,7 +429,7 @@ def _supplier_orders_active(data: dict, tau: int, period: str | None) -> dict[st
     so = data["supplier_orders"]
     if so.empty:
         return {}
-    sub = so[(so["hat_tau"] == tau) & (so["active"] == 1)]
+    sub = so[(so["tax_index"] == tau) & (so["active"] == 1)]
     if period is not None:
         sub = sub[sub["period"] == period]
     result: dict[str, set[str]] = {}
@@ -463,11 +463,11 @@ def build_network_fig(
     # Period-filtered arc/flow data when a period is selected
     if period is not None:
         ma_p = data["mode_active"]
-        ma_p = ma_p[(ma_p["hat_tau"] == tau) & (ma_p["active"] == 1) &
+        ma_p = ma_p[(ma_p["tax_index"] == tau) & (ma_p["active"] == 1) &
                     (ma_p["family"] == "zt") & (ma_p["period"] == period)]
         active_arcs = set(zip(ma_p["origin"], ma_p["destination"]))
         fl_p = data["flows"]
-        fl_p = fl_p[(fl_p["hat_tau"] == tau) & (fl_p["active"] == 1) &
+        fl_p = fl_p[(fl_p["tax_index"] == tau) & (fl_p["active"] == 1) &
                     (fl_p["period"] == period)]
         flow_map = {(o, d): v for (o, d), v in
                     fl_p.groupby(["origin", "destination"])["value"].sum().items()}
@@ -493,7 +493,7 @@ def build_network_fig(
 
     # Build a set of modes with active contracts at this tau (for κ_mt arc dash)
     tm_tau       = data["transport_modes"]
-    tm_tau       = tm_tau[tm_tau["hat_tau"] == tau] if not tm_tau.empty else tm_tau
+    tm_tau       = tm_tau[tm_tau["tax_index"] == tau] if not tm_tau.empty else tm_tau
     contracted_modes: set[str] = set()
     if not tm_tau.empty and "active_contract_periods" in tm_tau.columns:
         contracted_modes = set(
@@ -728,7 +728,7 @@ def build_network_fig(
 def build_sparkline(summary: pd.DataFrame, tau: int, incumbent_tau: int) -> go.Figure:
     fig = go.Figure()
 
-    eff_tax = summary["hat_tau"] * 10  # USD/t CO₂e
+    eff_tax = summary["tax_index"] * 10  # USD/t CO₂e
 
     # Left axis — Supply chain emissions (kt CO₂e)
     fig.add_trace(go.Scatter(
@@ -754,7 +754,7 @@ def build_sparkline(summary: pd.DataFrame, tau: int, incumbent_tau: int) -> go.F
     inc = summary[summary["is_lf_lex_incumbent"] == 1]
     if not inc.empty:
         fig.add_trace(go.Scatter(
-            x=inc["hat_tau"] * 10,
+            x=inc["tax_index"] * 10,
             y=inc["emissions"] / 1e6,
             mode="markers",
             marker=dict(symbol="diamond", size=12, color=BILEVEL_COLOR,
@@ -821,7 +821,7 @@ def build_tech_gantt(data: dict, tau: int, incumbent_tau: int) -> go.Figure:
             (ti["tech_kind"] == tech_kind) &
             (ti["tech"]      == tech_name) &
             (ti["active"]    == 1)
-        ]["hat_tau"].tolist()
+        ]["tax_index"].tolist()
 
         color     = "#0284C7" if tech_kind == "prod" else "#059669"
         leg_label = "Production technology" if tech_kind == "prod" else "Remanufacturing technology"
@@ -977,7 +977,7 @@ def build_transport_gantt(data: dict, tau: int, incumbent_tau: int) -> go.Figure
                 (active_ma["origin"]      == orig) &
                 (active_ma["destination"] == dest) &
                 (active_ma["mode"]        == mode)
-            ]["hat_tau"]
+            ]["tax_index"]
             .unique()
             .tolist()
         )
@@ -1136,8 +1136,8 @@ def main() -> None:
             st.success(f"Bilevel optimal tax ({eff_tax_val:.0f} USD/t CO₂e)")
 
         st.divider()
-        row          = summary[summary["hat_tau"] == tau].iloc[0]
-        baseline_row = summary[summary["hat_tau"] == tau_min].iloc[0]
+        row          = summary[summary["tax_index"] == tau].iloc[0]
+        baseline_row = summary[summary["tax_index"] == tau_min].iloc[0]
 
         st.metric(
             "Supply chain emissions",
@@ -1157,7 +1157,7 @@ def main() -> None:
         # pre-compute transport stats (reused across Facilities and Transport)
         ma_sub = data["mode_active"]
         ma_sub = ma_sub[
-            (ma_sub["hat_tau"] == tau) & (ma_sub["active"] == 1) & (ma_sub["family"] == "zt")
+            (ma_sub["tax_index"] == tau) & (ma_sub["active"] == 1) & (ma_sub["family"] == "zt")
         ]
         used_hubs  = set(ma_sub["origin"]) | set(ma_sub["destination"])
         n_airports = len(used_hubs & set(data["sets"].get("AIR",  [])))
@@ -1177,7 +1177,7 @@ def main() -> None:
         # baseline transport stats for delta comparison
         ma_base = data["mode_active"]
         ma_base = ma_base[
-            (ma_base["hat_tau"] == tau_min) & (ma_base["active"] == 1) & (ma_base["family"] == "zt")
+            (ma_base["tax_index"] == tau_min) & (ma_base["active"] == 1) & (ma_base["family"] == "zt")
         ]
         base_route_by_mode = (
             ma_base.groupby("mode")
@@ -1194,8 +1194,8 @@ def main() -> None:
 
         # transport_modes aggregates
         tm      = data["transport_modes"]
-        tm_tau  = tm[tm["hat_tau"] == tau]
-        tm_base = tm[tm["hat_tau"] == tau_min]
+        tm_tau  = tm[tm["tax_index"] == tau]
+        tm_base = tm[tm["tax_index"] == tau_min]
 
         def _tm_sum(df: pd.DataFrame, prefix: str, col: str) -> int:
             sub = df[df["mode"].str.startswith(prefix)]
@@ -1254,7 +1254,7 @@ def main() -> None:
                 c2.caption(", ".join(open_warehouses))
             ia_tau = data["installed_area"]
             if not ia_tau.empty:
-                ia_sub = ia_tau[(ia_tau["hat_tau"] == tau) & (ia_tau["active"] == 1)]
+                ia_sub = ia_tau[(ia_tau["tax_index"] == tau) & (ia_tau["active"] == 1)]
                 if not ia_sub.empty:
                     st.caption("Installed area")
                     st.dataframe(
@@ -1373,7 +1373,7 @@ def main() -> None:
             # κ_mt — outsourced capacity contracts
             tm_c = data["transport_modes"]
             if not tm_c.empty and "active_contract_periods" in tm_c.columns:
-                tm_c_tau = tm_c[tm_c["hat_tau"] == tau]
+                tm_c_tau = tm_c[tm_c["tax_index"] == tau]
                 air_sea_c = tm_c_tau[tm_c_tau["mode"].str.startswith(("ma", "ms"))]
                 if not air_sea_c.empty:
                     st.caption("Outsourced contracts (κ_mt)")
@@ -1389,7 +1389,7 @@ def main() -> None:
 
         # technology install lists and output volumes
         ti     = data["tech_install"]
-        ti_tau = ti[(ti["hat_tau"] == tau) & (ti["active"] == 1)]
+        ti_tau = ti[(ti["tax_index"] == tau) & (ti["active"] == 1)]
         prod_tech_list = sorted(
             f"{r['tech']} at {r['factory']}"
             for _, r in ti_tau[ti_tau["tech_kind"] == "prod"].iterrows()
@@ -1400,10 +1400,10 @@ def main() -> None:
         )
         pbt = data["prod_by_tau_factory"]
         rbt = data["rem_by_tau_factory"]
-        prod_vol      = pbt[pbt["hat_tau"] == tau]["prod_qty"].sum()
-        prod_vol_base = pbt[pbt["hat_tau"] == tau_min]["prod_qty"].sum()
-        rem_vol       = rbt[rbt["hat_tau"] == tau]["rem_qty"].sum()
-        rem_vol_base  = rbt[rbt["hat_tau"] == tau_min]["rem_qty"].sum()
+        prod_vol      = pbt[pbt["tax_index"] == tau]["prod_qty"].sum()
+        prod_vol_base = pbt[pbt["tax_index"] == tau_min]["prod_qty"].sum()
+        rem_vol       = rbt[rbt["tax_index"] == tau]["rem_qty"].sum()
+        rem_vol_base  = rbt[rbt["tax_index"] == tau_min]["rem_qty"].sum()
 
         # ── Technologies ─────────────────────────────────────────────────────
         with st.expander("Technologies", expanded=True):
@@ -1446,7 +1446,7 @@ def main() -> None:
             if inv_df.empty:
                 st.caption("No inventory data available.")
             else:
-                inv_tau = inv_df[(inv_df["hat_tau"] == tau) & (inv_df["active"] == 1)]
+                inv_tau = inv_df[(inv_df["tax_index"] == tau) & (inv_df["active"] == 1)]
                 if inv_tau.empty:
                     st.caption("No active inventory at this tax level.")
                 else:
@@ -1564,7 +1564,7 @@ def main() -> None:
             c2.metric("MIP gap", f"{float(row['mip_gap']):.4%}")
 
         st.divider()
-        csv_row = summary[summary["hat_tau"] == tau].to_csv(index=False)
+        csv_row = summary[summary["tax_index"] == tau].to_csv(index=False)
         st.download_button(
             "Export current row",
             data=csv_row,

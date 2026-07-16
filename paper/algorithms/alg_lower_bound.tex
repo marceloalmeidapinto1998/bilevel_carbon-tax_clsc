@@ -6,10 +6,14 @@
 % NOTE: this file is \input inside alg_bounding_procedure.tex;
 %       it does NOT open a new algorithm float.
 
-\tcp*[h]{Re-solve the relaxation master with all cuts collected so far}
-$\bigl(\taxhat^{(k+1)},\,\bz\bigr)\leftarrow
-  \displaystyle\argmin_{\taxhat\in\mathcal{T}^{\tau},\,\bz\in\setX}
+\tcp*[h]{Stage 1: re-solve the relaxation master's emissions minimum with all cuts collected so far}
+$\LB\leftarrow
+  \displaystyle\min_{\taxindex\in\mathcal{T}^{\tau},\,\bz\in\setX}
   \Bigl\{\Emis(\bz)\ :\
-  \Cost(\bz)+\tfrac{\taxhat}{100}\Emis(\bz)\le c_{j}+\tfrac{\taxhat}{100}e_{j}
-  \ \ \forall(\taxhat^{(j)},c_{j},e_{j})\in\mathcal{C}\Bigr\}$\;
-$\LB\leftarrow\Emis(\bz)$\;
+  \Cost(\bz)+\tfrac{\taxindex}{100}\Emis(\bz)\le c_{j}+\tfrac{\taxindex}{100}e_{j}
+  \ \ \forall(\taxindex^{(j)},c_{j},e_{j})\in\mathcal{C}\Bigr\}$\;
+\tcp*[h]{Stage 2: among master points attaining $\LB$, take the smallest tax index (\Cref{lem:tiebreak_validity})}
+$\taxindex^{(k+1)}\leftarrow
+  \displaystyle\min\Bigl\{\taxindex\in\mathcal{T}^{\tau}\ :\ \exists\,\bz\in\setX,\ \Emis(\bz)=\LB,\
+  \Cost(\bz)+\tfrac{\taxindex}{100}\Emis(\bz)\le c_{j}+\tfrac{\taxindex}{100}e_{j}
+  \ \ \forall(\taxindex^{(j)},c_{j},e_{j})\in\mathcal{C}\Bigr\}$\;

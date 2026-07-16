@@ -15,8 +15,8 @@ without re-running the full grid.
 from __future__ import annotations
 
 from experiments.designs._common import DesignPoint
-from tools.experiments.v2.design.response_surface import dense_levels
-from tools.experiments.v2.factors import FACTOR_REGISTRY
+from tools.experiments.doe_campaign_01.design.response_surface import dense_levels
+from tools.experiments.doe_campaign_01.factors import FACTOR_REGISTRY
 
 FAMILY_ID = "E"
 EXECUTION_MODE = "bilevel"
@@ -24,16 +24,19 @@ EXECUTION_MODE = "bilevel"
 FAST_INSTANCE = "STD_I17_M4_T3"
 CONFIRMATORY_INSTANCE = "STD_I25_M8_T6"
 
-# Placeholder only — replace with Family C's actual top-ranked factors before Phase 4 (RQ5).
-DEFAULT_TOP_FACTORS: tuple[str, ...] = ("emission_intensity", "demand", "scope3_emissions")
+# Confirmed by Family C's 32-run resolution-IV screening on STD_I17_M4_T3 (2026-06-29):
+# demand (+60.5%), emission_intensity (+54.8%), scope3_emissions (+39.4%) -- all others <=3%.
+# technology_menu has a large negative effect (-25.7%) and is tested in Family D.
+DEFAULT_TOP_FACTORS: tuple[str, ...] = ("demand", "emission_intensity", "scope3_emissions")
 N_LEVELS_FAST = 9
 N_LEVELS_CONFIRM = 3
 
-# Doubled from the plan's original 3600s/14400s (Phase 3.5 pre-flight check, 2026-06-26):
-# the confirmatory instance (STD_I25_M8_T6) hit the original Family A cap at mip_gap~0.0001,
-# essentially converged but needing more time.
-PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 7200.0
-PER_RUN_WALL_CLOCK_CAP_SECONDS = 28800.0
+# Two-tier time-limit scheme (2026-07-01), see family_a_baseline.py: FAST_INSTANCE gets the
+# standard tier; CONFIRMATORY_INSTANCE (STD_I25_M8_T6) gets the hard tier.
+STANDARD_SUBPROBLEM_SECONDS = 3600.0
+STANDARD_WALL_CLOCK_SECONDS = 28800.0
+HARD_SUBPROBLEM_SECONDS = 10800.0
+HARD_WALL_CLOCK_SECONDS = 50400.0
 
 
 def build_design_matrix(top_factors: tuple[str, ...] = DEFAULT_TOP_FACTORS) -> list[DesignPoint]:
@@ -51,8 +54,8 @@ def build_design_matrix(top_factors: tuple[str, ...] = DEFAULT_TOP_FACTORS) -> l
                     run_code=f"{factor_name}_{level:.4f}",
                     base_instance_id=FAST_INSTANCE,
                     execution_mode=EXECUTION_MODE,
-                    per_subproblem_time_limit_seconds=PER_SUBPROBLEM_TIME_LIMIT_SECONDS,
-                    per_run_wall_clock_cap_seconds=PER_RUN_WALL_CLOCK_CAP_SECONDS,
+                    per_subproblem_time_limit_seconds=STANDARD_SUBPROBLEM_SECONDS,
+                    per_run_wall_clock_cap_seconds=STANDARD_WALL_CLOCK_SECONDS,
                     factor_levels={factor_name: level},
                 )
             )
@@ -68,8 +71,8 @@ def build_design_matrix(top_factors: tuple[str, ...] = DEFAULT_TOP_FACTORS) -> l
                 run_code=f"{top_ranked}_{level:.4f}",
                 base_instance_id=CONFIRMATORY_INSTANCE,
                 execution_mode=EXECUTION_MODE,
-                per_subproblem_time_limit_seconds=PER_SUBPROBLEM_TIME_LIMIT_SECONDS,
-                per_run_wall_clock_cap_seconds=PER_RUN_WALL_CLOCK_CAP_SECONDS,
+                per_subproblem_time_limit_seconds=HARD_SUBPROBLEM_SECONDS,
+                per_run_wall_clock_cap_seconds=HARD_WALL_CLOCK_SECONDS,
                 factor_levels={top_ranked: level},
                 notes="confirmatory instance, top-ranked factor only",
             )

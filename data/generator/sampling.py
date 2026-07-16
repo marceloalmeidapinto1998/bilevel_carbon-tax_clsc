@@ -78,7 +78,7 @@ def _sample_bom_and_product_profiles(
     # of p_i (same positional correspondence the generator labels them with), so the BOM ratio
     # is only physically meaningful for matching (recovered_product, final_product) pairs. A
     # dense (non-diagonal) sample here lets the factory-level recovered-product balance equation
-    # in shared_models._add_inventory_and_flow_constraints pick up an unrelated product's
+    # in subproblems._add_inventory_and_flow_constraints pick up an unrelated product's
     # remanufacturing throughput, which produced a ~50% network-flow infeasibility rate for
     # multi-product (M8) instances despite a 100% rate for single-product (M4) ones -- confirmed
     # via Gurobi IIS and a before/after feasibility sweep, 2026-06-26.

@@ -30,7 +30,10 @@ under the naming convention \texttt{STD\_I\textit{n}\_M\textit{m}\_T\textit{t}}
 (\Cref{tab:instances}). The eight T3 and T6 instances are solved to
 validation and form the basis of the analysis; the four T12 instances are
 intractable within our single-machine compute budget and are excluded
-throughout.
+throughout. The leader's tax grid spans $\tau\in[0,200]$ USD/t\,CO$_2$e
+(index $\taxindex\in\{0,\ldots,20\}$, \Cref{sec:model:variables}); this range
+is justified against current and prospective real-world carbon prices in
+\Cref{app:data:tax_range}.
 
 \begin{table}[ht]
   \centering
@@ -55,7 +58,7 @@ change is normalized to an elasticity so that factors are comparable. The
 screen is complemented by a Morris elementary-effects design
 \citep{morris1991,saltelli2010} on \texttt{STD\_I17\_M4\_T3} and by extended
 tax-range runs that lift the leader
-ceiling from $\taxub=20$ to $40$ and $80$, used in \Cref{sec:exp:tradeoff} to
+ceiling from 200 USD/t to 400 and 800 USD/t, used in \Cref{sec:exp:tradeoff} to
 test whether the base range truncates the regulator's optimum.
 
 \paragraph{Solver configuration.}
@@ -78,8 +81,8 @@ limit; base runs are cross-checked against the independent enumeration
 \end{table}
 
 The regulator's optimal tax is strongly \emph{instance-specific}: across the
-eight networks $\tau^{\star}$ spans the full base range, from $0.02$ to
-$0.20$ USD/kg\,CO\textsubscript{2}e. There is no single ``right'' carbon
+eight networks $\tau^{\star}$ spans the full base range, from $20$ to
+$200$ USD/t\,CO\textsubscript{2}e. There is no single ``right'' carbon
 price; the rate that minimises emissions for one network configuration can
 be an order of magnitude away from the rate for another. Because the
 follower carries binary facility, technology, capacity, and transport
@@ -88,16 +91,16 @@ nearby tax levels can induce the same network and identical emissions.
 
 This blockiness has a sharp consequence at the high end. Two instances
 (\texttt{STD\_I17\_M8\_T3} and \texttt{STD\_I17\_M8\_T6}) place
-$\tau^{\star}$ exactly at the base ceiling $\taxub=20$, signalling that the
+$\tau^{\star}$ exactly at the base ceiling of $200$ USD/t, signalling that the
 base range may truncate the true optimum. The extended-range runs
 (\Cref{app:tax_extended}) reveal a \emph{saturating} emission--tax response:
 beyond a moderate rate, additional tax buys negligible further abatement. For \texttt{STD\_I25\_M8\_T3}, lifting
-the ceiling moves the lexicographic optimum from $\hat\tau=2$ to $\hat\tau=36$
+the ceiling moves the lexicographic optimum from $20$ to $360$ USD/t
 while cutting emissions by only $0.04\%$ --- an eighteen-fold higher tax for a
 rounding-error reduction. For \texttt{STD\_I25\_M4\_T3} the optimum moves from
-$\hat\tau=15$ to $31$ for a $0.016\%$ reduction, and for
+$150$ to $310$ USD/t for a $0.016\%$ reduction, and for
 \texttt{STD\_I17\_M8\_T3} emissions are flat to within solver tolerance across
-$\hat\tau\in[14,31]$, so the emissions-minimising tax is not point-identified
+$\tau\in[140,310]$ USD/t, so the emissions-minimising tax is not point-identified
 at all but spread over a wide band.
 
 This is the central caution of the study. A regulator whose \emph{sole}

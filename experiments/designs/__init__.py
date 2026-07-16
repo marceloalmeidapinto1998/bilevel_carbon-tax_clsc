@@ -5,5 +5,5 @@
 
 `build_design_matrix()` returns a list of dict rows (one design point each); every row has at
 least: family_id, design_point_id, run_code, base_instance_id, factor_levels (dict),
-technology_menu, transport_menu, seed, fixed_hat_tau, mip_gap, dbp_relative_gap.
+technology_menu, transport_menu, seed, fixed_tax_index, mip_gap, dbp_relative_gap.
 """

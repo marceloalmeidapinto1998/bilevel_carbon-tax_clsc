@@ -52,11 +52,28 @@ compute budget (\Cref{sec:exp:scalability}).
   Remanufacturing technologies & 3 \\
   Planning periods & T3, T6, or T12 \\
   Coordinate span & \SI{750}{\kilo\metre} square \\
-  Tax-index domain & $\taxhat\in\{0,\ldots,20\}$ \\
-  Effective tax rate & $\tau=0.01\,\taxhat$ USD/kg\,CO\textsubscript{2}e \\
+  Tax-index domain & $\taxindex\in\{0,\ldots,20\}$ \\
+  Effective tax rate & $\tau=10\,\taxindex$ USD/t\,CO\textsubscript{2}e, i.e.\ $\tau\in[0,200]$ USD/t \\
   \bottomrule
 \end{tabularx}
 \end{table}
+
+\subsection{Carbon-Tax Range Justification}
+\label{app:data:tax_range}
+
+The interval $[0,200]$ USD/t\,CO\textsubscript{2}e was chosen to span
+the range from no tax to levels consistent with ambitious
+decarbonisation trajectories. The current global average price stands
+at approximately \$19/t \citep{worldbank2025}, up from about \$10/t a
+decade earlier; the range recommended to meet the Paris Agreement
+targets is \$50--\$100/t by 2030 (\$40--\$80/t by 2020)
+\citep{stiglitzstern2017}; the highest carbon tax currently implemented
+anywhere in the world, Sweden's, stands at approximately \$130--\$145/t
+\citep{oecd2024sweden}; and IMF analyses point to shadow prices of
+\$150--\$200+/t under scenarios consistent with net-zero emissions by
+2050 \citep{imf2024netzero}. The base ceiling $\taxindexub=20$ (200 USD/t)
+therefore covers the full policy-relevant spectrum, from today's market
+average to the upper end of what net-zero-consistent pathways require.
 
 \subsection{Seed Protocol}
 \label{app:data:seeds}

@@ -11,15 +11,17 @@ import pytest
 from gurobipy import GRB
 
 from data.generator import ArcConnectivityConfig, GeneratorConfig, generate_instance, write_instance
-from src.models.instance_loader import InstanceData
-from src.models.shared_models import SolveResult
-from src.solvers.dbp_exact import (
+from src.config.gap_tol import DEFAULT
+from src.models.instance import InstanceData
+from src.models.subproblems import SolveResult
+from src.solvers.dbp_lex import (
     BilevelSolveResult,
     BoundCertificate,
     DbpTimingSummary,
     IncumbentSolution,
     SubproblemStatusError,
 )
+from src.solvers.dbp_lex import solve_bilevel_dbp_lex
 
 
 def _load_solve_instances_module():
@@ -33,19 +35,13 @@ def _load_solve_instances_module():
 
 
 def method_results_dir(method: str, mode: str) -> str:
-    if method == "dbp_exact":
-        return "exact"
-    if method == "dbp_certified":
-        return "certified"
-    if method == "dbp_f_lex_exact":
+    if method == "dbp_lex":
         return "f_lex_exact"
-    if method == "dbp_lf_lex_exact":
-        return "lf_lex_exact"
-    if method == "enumeration_lf_lex_exact":
-        return "enum_lf_lex_exact"
     return f"{method}_{mode}"
 
 
+@pytest.mark.gurobi
+@pytest.mark.slow
 def test_solve_instances_writes_structured_results(tmp_path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     input_root = tmp_path / "inputs"
@@ -84,6 +80,8 @@ def test_solve_instances_writes_structured_results(tmp_path) -> None:
             "tools/solver/solve_batch.py",
             str(input_root),
             "--recursive",
+            "--method",
+            "dbp_lex",
             "--results-root",
             str(results_root),
             "--run-id",
@@ -97,7 +95,7 @@ def test_solve_instances_writes_structured_results(tmp_path) -> None:
 
     assert completed.returncode == 0, completed.stderr
 
-    run_root = results_root / "base" / "tiny_cli_case" / method_results_dir("dbp_exact", "exact")
+    run_root = results_root / "base" / "tiny_cli_case" / method_results_dir("dbp_lex", "exact")
     manifest_path = run_root / "manifest.json"
     summary_json_path = run_root / "summary.json"
     summary_csv_path = run_root / "summary.csv"
@@ -115,11 +113,11 @@ def test_solve_instances_writes_structured_results(tmp_path) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["run_id"] == run_id
     assert manifest["input"]["instance_count"] == 1
-    assert manifest["solver"]["method"] == "dbp_exact"
+    assert manifest["solver"]["method"] == "dbp_lex"
     assert manifest["solver"]["mode"] == "exact"
-    assert manifest["solver"]["tolerances"]["dbp_relative_gap"] == 1.0e-4
-    assert manifest["solver"]["tolerances"]["lex_epsilon_prime"] == 0.1
-    assert manifest["solver"]["tolerances"]["mip_gap"] == 1.0e-4
+    assert manifest["solver"]["tolerances"]["dbp_relative_gap"] == DEFAULT.dbp_relative_gap
+    assert manifest["solver"]["tolerances"]["lex_epsilon_prime"] == 1.0e-6
+    assert manifest["solver"]["tolerances"]["mip_gap"] == DEFAULT.mip_gap
     assert manifest["solver"]["tolerances"]["mip_focus"] == 0
     assert manifest["solver"]["tolerances"]["eps"] == 1.0e-7
     assert manifest["results_scope"] == "base"
@@ -145,21 +143,16 @@ def test_solve_instances_writes_structured_results(tmp_path) -> None:
     assert result_payload["runtime"]["solve_seconds"] >= 0.0
     assert result_payload["runtime"]["dbp_seconds"] >= 0.0
     assert result_payload["runtime"]["validation_seconds"] >= 0.0
-    assert result_payload["runtime"]["lexicographic"] == 0.0
     assert result_payload["runtime"]["phase_seconds"]["dbp_subproblems"] >= 0.0
-    assert result_payload["runtime"]["phase_seconds"]["lexicographic_tiebreak"] == 0.0
     assert result_payload["runtime"]["subproblem_seconds"]["total"] >= 0.0
     assert result_payload["validation"]["status"] == "validated"
     assert result_payload["bounds"]["certificates"]["lower"]["source"] == "relaxation"
-    assert result_payload["bounds"]["certificates"]["upper"]["source"] == "optimistic"
+    assert result_payload["bounds"]["certificates"]["upper"]["source"] == "lexicographic"
     assert result_payload["dbp"]["trace_file"] == "dbp_trace.csv"
     assert result_payload["dbp"]["timings"]["initial_relaxation_seconds"] >= 0.0
     assert len(result_payload["dbp"]["timings"]["iterations"]) == result_payload["dbp"]["trace_rows"]
-    assert result_payload["phase_summary"]["phase_1_dbp_iterations"] == result_payload["dbp"]["trace_rows"]
-    assert result_payload["phase_summary"]["phase_2_lexicographic_iterations"] == 0
-    assert result_payload["lexicographic_tiebreak"] is None
+    assert result_payload["phase_summary"]["dbp_iterations"] == result_payload["dbp"]["trace_rows"]
     assert result_payload["files"]["solution_file"] == "solution.json"
-    assert result_payload["files"]["lex_trace_file"] is None
 
     solution_payload = json.loads(solution_json_path.read_text(encoding="utf-8"))
     assert solution_payload["instance"] == "tiny_cli_case"
@@ -177,6 +170,8 @@ def test_solve_instances_writes_structured_results(tmp_path) -> None:
     assert "relaxation_seconds" in trace_rows[0]
 
 
+@pytest.mark.gurobi
+@pytest.mark.slow
 def test_solve_single_base_instance_preserves_base_folder(tmp_path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     input_root = tmp_path / "data" / "instances"
@@ -214,6 +209,8 @@ def test_solve_single_base_instance_preserves_base_folder(tmp_path) -> None:
             sys.executable,
             "tools/solver/solve_batch.py",
             str(instance_path),
+            "--method",
+            "dbp_lex",
             "--results-root",
             str(results_root),
             "--run-id",
@@ -226,12 +223,14 @@ def test_solve_single_base_instance_preserves_base_folder(tmp_path) -> None:
     )
 
     assert completed.returncode == 0, completed.stderr
-    run_root = results_root / "base" / "tiny_base_case" / method_results_dir("dbp_exact", "exact")
+    run_root = results_root / "base" / "tiny_base_case" / method_results_dir("dbp_lex", "exact")
     assert (run_root / "result.json").exists()
     assert (run_root / "dbp_trace.csv").exists()
     assert (run_root / "solution.json").exists()
 
 
+@pytest.mark.gurobi
+@pytest.mark.slow
 def test_solve_single_non_base_instance_preserves_scenarios_folder(tmp_path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     input_root = tmp_path / "data" / "instances" / "experiments" / "scenarios" / "custom"
@@ -269,6 +268,8 @@ def test_solve_single_non_base_instance_preserves_scenarios_folder(tmp_path) -> 
             sys.executable,
             "tools/solver/solve_batch.py",
             str(instance_path),
+            "--method",
+            "dbp_lex",
             "--results-root",
             str(results_root),
             "--run-id",
@@ -281,18 +282,20 @@ def test_solve_single_non_base_instance_preserves_scenarios_folder(tmp_path) -> 
     )
 
     assert completed.returncode == 0, completed.stderr
-    run_root = results_root / "experiments" / "scenarios" / "custom" / "tiny_custom_case" / method_results_dir("dbp_exact", "exact")
+    run_root = results_root / "experiments" / "scenarios" / "custom" / "tiny_custom_case" / method_results_dir("dbp_lex", "exact")
     assert (run_root / "result.json").exists()
     assert (run_root / "dbp_trace.csv").exists()
     assert (run_root / "solution.json").exists()
 
 
+@pytest.mark.gurobi
+@pytest.mark.slow
 def test_solve_single_scenario_scope_writes_method_dir(tmp_path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     input_root = tmp_path / "data" / "instances" / "experiments" / "scenarios" / "tech"
     instance_path = input_root / "tiny_scenario_case.json"
     results_root = tmp_path / "results"
-    run_id = "tech_lf_lex"
+    run_id = "tech_f_lex"
 
     instance = generate_instance(
         GeneratorConfig(
@@ -329,7 +332,7 @@ def test_solve_single_scenario_scope_writes_method_dir(tmp_path) -> None:
             "--run-id",
             run_id,
             "--method",
-            "dbp_lf_lex_exact",
+            "dbp_lex",
         ],
         cwd=repo_root,
         capture_output=True,
@@ -339,7 +342,7 @@ def test_solve_single_scenario_scope_writes_method_dir(tmp_path) -> None:
 
     assert completed.returncode == 0, completed.stderr
     run_root = results_root / "experiments" / "scenarios" / "tech" / "tiny_scenario_case" / method_results_dir(
-        "dbp_lf_lex_exact",
+        "dbp_lex",
         "exact",
     )
     instance_root = run_root
@@ -355,6 +358,8 @@ def test_solve_single_scenario_scope_writes_method_dir(tmp_path) -> None:
     assert result_payload["instance"]["relative_result_dir"] == "."
 
 
+@pytest.mark.gurobi
+@pytest.mark.slow
 def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     input_root = tmp_path / "data" / "instances"
@@ -391,6 +396,8 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
             sys.executable,
             "tools/solver/solve_batch.py",
             str(instance_path),
+            "--method",
+            "dbp_lex",
             "--results-root",
             str(results_root),
         ],
@@ -401,7 +408,7 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
     )
     assert first_run.returncode == 0, first_run.stderr
 
-    run_root = results_root / "base" / "tiny_overwrite_case" / method_results_dir("dbp_exact", "exact")
+    run_root = results_root / "base" / "tiny_overwrite_case" / method_results_dir("dbp_lex", "exact")
     stale_file = run_root / "stale.txt"
     stale_file.write_text("old", encoding="utf-8")
 
@@ -410,6 +417,8 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
             sys.executable,
             "tools/solver/solve_batch.py",
             str(instance_path),
+            "--method",
+            "dbp_lex",
             "--results-root",
             str(results_root),
             "--overwrite",
@@ -425,6 +434,8 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
     assert (run_root / "result.json").exists()
 
 
+@pytest.mark.gurobi
+@pytest.mark.slow
 def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     input_root = tmp_path / "data" / "instances"
@@ -461,6 +472,8 @@ def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) ->
             sys.executable,
             "tools/solver/solve_batch.py",
             str(instance_path),
+            "--method",
+            "dbp_lex",
             "--results-root",
             str(results_root),
         ],
@@ -471,7 +484,7 @@ def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) ->
     )
     assert first_run.returncode == 0, first_run.stderr
 
-    run_root = results_root / "base" / "tiny_skip_case" / method_results_dir("dbp_exact", "exact")
+    run_root = results_root / "base" / "tiny_skip_case" / method_results_dir("dbp_lex", "exact")
     marker_file = run_root / "marker.txt"
     marker_file.write_text("keep", encoding="utf-8")
 
@@ -480,6 +493,8 @@ def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) ->
             sys.executable,
             "tools/solver/solve_batch.py",
             str(instance_path),
+            "--method",
+            "dbp_lex",
             "--results-root",
             str(results_root),
             "--skip-existing",
@@ -612,6 +627,49 @@ def test_solve_instances_continues_after_failed_instance_and_writes_diagnostics(
     assert invalid_diagnostics["failure_stage"] == "instance_validation"
 
 
+@pytest.mark.gurobi
+@pytest.mark.slow
+def test_solve_bilevel_dbp_lex_lower_bound_never_exceeds_upper_bound() -> None:
+    """General safety net for the certified-gap framework: whatever the
+    solver internals do, the reported lower bound must never exceed the
+    reported upper bound (beyond a tiny numerical allowance) -- this is
+    exactly the invariant a Stage-2 LB leak (or any other cross-model
+    floating-point drift) could otherwise violate silently, since
+    relative_optimality_gap clips negative gaps to zero instead of
+    surfacing the inversion.
+    """
+    instance = generate_instance(
+        GeneratorConfig(
+            suppliers=1,
+            factories=1,
+            warehouses=1,
+            retailers=1,
+            products=1,
+            raw_materials=1,
+            production_technologies=1,
+            remanufacturing_technologies=1,
+            periods=2,
+            seed=59,
+            instance_name="tiny_lb_ub_invariant_case",
+            tax_lower=0.0,
+            tax_upper=20.0,
+            connectivity=ArcConnectivityConfig(
+                sf_neighbors=1,
+                fw_neighbors=1,
+                wr_neighbors=1,
+                rf_neighbors=1,
+            ),
+        ),
+    )
+
+    result = solve_bilevel_dbp_lex(InstanceData.from_dict(instance.to_dict()))
+
+    tolerance = max(1e-6, 1e-6 * abs(result.upper_bound))
+    assert result.lower_bound <= result.upper_bound + tolerance
+
+
+@pytest.mark.gurobi
+@pytest.mark.slow
 def test_solve_instances_supports_dbp_lex_method(tmp_path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
     input_root = tmp_path / "data" / "instances" / "base"
@@ -654,7 +712,7 @@ def test_solve_instances_supports_dbp_lex_method(tmp_path) -> None:
             "--run-id",
             run_id,
             "--method",
-            "dbp_f_lex_exact",
+            "dbp_lex",
         ],
         cwd=repo_root,
         capture_output=True,
@@ -664,271 +722,66 @@ def test_solve_instances_supports_dbp_lex_method(tmp_path) -> None:
 
     assert completed.returncode == 0, completed.stderr
 
-    run_root = results_root / "base" / "tiny_lex_case" / method_results_dir("dbp_f_lex_exact", "exact")
+    run_root = results_root / "base" / "tiny_lex_case" / method_results_dir("dbp_lex", "exact")
     manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
     result_payload = json.loads((run_root / "result.json").read_text(encoding="utf-8"))
 
-    assert manifest["solver"]["method"] == "dbp_f_lex_exact"
+    assert manifest["solver"]["method"] == "dbp_lex"
     assert manifest["solver"]["mode"] == "exact"
-    assert manifest["solver"]["tolerances"]["dbp_relative_gap"] == 1.0e-4
-    assert manifest["solver"]["tolerances"]["mip_gap"] == 1.0e-4
-    assert result_payload["solve_status"]["method"] == "dbp_f_lex_exact"
+    assert manifest["solver"]["tolerances"]["dbp_relative_gap"] == DEFAULT.dbp_relative_gap
+    assert manifest["solver"]["tolerances"]["mip_gap"] == DEFAULT.mip_gap
+    assert manifest["solver"]["leader_objective"] == "lex_emissions_then_min_tax_index"
+    assert result_payload["solve_status"]["method"] == "dbp_lex"
     assert result_payload["solve_status"]["mode"] == "exact"
     assert result_payload["bounds"]["certificates"]["upper"]["source"] == "lexicographic"
     assert "lex_primary_mip_gap" in result_payload["follower"]
     assert "lex_secondary_mip_gap" in result_payload["follower"]
     assert result_payload["runtime"]["subproblem_seconds"]["optimistic_total"] == 0.0
-    assert result_payload["runtime"]["lexicographic"] == 0.0
-    assert result_payload["lexicographic_tiebreak"] is None
-def test_solve_instances_supports_dbp_lf_lex_method(tmp_path) -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    input_root = tmp_path / "data" / "instances" / "base"
-    instance_path = input_root / "tiny_lf_lex_case.json"
-    results_root = tmp_path / "results"
-    run_id = "run_lf_lex_test"
-
-    instance = generate_instance(
-        GeneratorConfig(
-            suppliers=1,
-            factories=1,
-            warehouses=1,
-            retailers=1,
-            products=1,
-            raw_materials=1,
-            production_technologies=1,
-            remanufacturing_technologies=1,
-            periods=2,
-            seed=41,
-            instance_name="tiny_lf_lex_case",
-            tax_lower=0.0,
-            tax_upper=20.0,
-            connectivity=ArcConnectivityConfig(
-                sf_neighbors=1,
-                fw_neighbors=1,
-                wr_neighbors=1,
-                rf_neighbors=1,
-            ),
-        ),
-    )
-    write_instance(instance, instance_path)
-
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "tools/solver/solve_batch.py",
-            str(instance_path),
-            "--results-root",
-            str(results_root),
-            "--run-id",
-            run_id,
-            "--method",
-            "dbp_lf_lex_exact",
-        ],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert completed.returncode == 0, completed.stderr
-
-    run_root = results_root / "base" / "tiny_lf_lex_case" / method_results_dir("dbp_lf_lex_exact", "exact")
-    manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
-    result_payload = json.loads((run_root / "result.json").read_text(encoding="utf-8"))
-
-    assert manifest["solver"]["method"] == "dbp_lf_lex_exact"
-    assert manifest["solver"]["mode"] == "exact"
-    assert manifest["solver"]["tolerances"]["dbp_relative_gap"] == 1.0e-4
-    assert manifest["solver"]["tolerances"]["mip_gap"] == 1.0e-4
-    assert manifest["solver"]["tolerances"]["eps"] == 1.0e-7
-    assert manifest["solver"]["tolerances"]["lex_epsilon_prime"] == 0.1
-    assert manifest["solver"]["leader_objective"] == "lex_emissions_then_min_hat_tau"
-    assert "lex_trace.csv" in manifest["outputs"]["per_instance"]
-    assert result_payload["solve_status"]["method"] == "dbp_lf_lex_exact"
-    assert result_payload["solve_status"]["mode"] == "exact"
-    assert result_payload["lexicographic_tiebreak"] is not None
-    assert result_payload["lexicographic_tiebreak"]["trace_rows"] == result_payload["lexicographic_tiebreak"]["attempt_count"]
-    assert result_payload["phase_summary"]["phase_1_dbp_iterations"] == result_payload["dbp"]["trace_rows"]
-    assert (
-        result_payload["phase_summary"]["phase_2_lexicographic_iterations"]
-        == result_payload["lexicographic_tiebreak"]["trace_rows"]
-    )
-    assert result_payload["phase_summary"]["phase_1_selected_hat_tau"] == result_payload["lexicographic_tiebreak"]["initial_hat_tau"]
-    assert result_payload["phase_summary"]["phase_2_selected_hat_tau"] == result_payload["lexicographic_tiebreak"]["selected_hat_tau"]
-    assert result_payload["phase_summary"]["final_hat_tau"] == result_payload["leader"]["hat_tau"]
-    assert result_payload["files"]["lex_trace_file"] == "lex_trace.csv"
+    assert result_payload["phase_summary"]["dbp_iterations"] == result_payload["dbp"]["trace_rows"]
+    assert result_payload["phase_summary"]["final_tax_index"] == result_payload["leader"]["tax_index"]
 
     with (run_root / "dbp_trace.csv").open("r", encoding="utf-8", newline="") as handle:
         dbp_trace_rows = list(csv.DictReader(handle))
     assert dbp_trace_rows
-    assert "relaxation_hat_tau" in dbp_trace_rows[0]
-    assert "next_relaxation_hat_tau" in dbp_trace_rows[0]
-
-    with (run_root / "lex_trace.csv").open("r", encoding="utf-8", newline="") as handle:
-        refinement_trace_rows = list(csv.DictReader(handle))
-    assert refinement_trace_rows
-    assert "tested_hat_tau" in refinement_trace_rows[0]
-    assert "matched_incumbent_emissions" in refinement_trace_rows[0]
-    assert "follower_objective" in refinement_trace_rows[0]
-    assert any(row["selected"] == "True" for row in refinement_trace_rows)
+    assert "relaxation_tax_index" in dbp_trace_rows[0]
+    assert "next_relaxation_tax_index" in dbp_trace_rows[0]
 
 
-def test_solve_instances_supports_enumeration_lf_lex_method(tmp_path) -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    input_root = tmp_path / "data" / "instances" / "base"
-    instance_path = input_root / "tiny_enum_lf_lex_case.json"
-    results_root = tmp_path / "results"
-    run_id = "run_enum_lf_lex_test"
+def test_is_better_candidate_treats_large_scale_near_ties_as_ties() -> None:
+    """At realistic emissions magnitudes (~1e8 kg, per the project's
+    instances), a bare absolute eps (1e-7) sits far below ordinary
+    cross-model floating-point reconstruction noise. The clearest place
+    this bites: the strict-improvement branch is a plain linear inequality
+    with no magnitude scaling at all (unlike math.isclose's branch, which
+    gets an incidental assist from its own default relative tolerance) --
+    so a noise-level emissions "decrease" of a few kg, well above 1e-7 but
+    utterly negligible at this scale, used to be accepted as a genuine
+    improvement even when it meant switching to a *larger* tax. That
+    violates the leader's least-intervention tie-break (eq:leader_obj):
+    never pay a heavier tax than the emissions target requires.
+    """
+    from src.solvers.dbp_lex import IncumbentSolution, _is_better_candidate
 
-    instance = generate_instance(
-        GeneratorConfig(
-            suppliers=1,
-            factories=1,
-            warehouses=1,
-            retailers=1,
-            products=1,
-            raw_materials=1,
-            production_technologies=1,
-            remanufacturing_technologies=1,
-            periods=2,
-            seed=43,
-            instance_name="tiny_enum_lf_lex_case",
-            tax_lower=0.0,
-            tax_upper=0.2,
-            connectivity=ArcConnectivityConfig(
-                sf_neighbors=1,
-                fw_neighbors=1,
-                wr_neighbors=1,
-                rf_neighbors=1,
-            ),
-        ),
+    smaller_tax_incumbent = IncumbentSolution(tax_index=14, cost=1.0, emissions=1.5e8, follower_objective=1.0)
+    larger_tax_noise_candidate = IncumbentSolution(
+        tax_index=20, cost=1.0, emissions=1.5e8 - 1.0, follower_objective=1.0
     )
-    write_instance(instance, instance_path)
+    # 1 kg "lower" emissions out of 1.5e8 kg is noise, not a real
+    # improvement -- paying a higher tax for it must be rejected.
+    assert _is_better_candidate(larger_tax_noise_candidate, smaller_tax_incumbent) is False
 
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "tools/solver/solve_batch.py",
-            str(instance_path),
-            "--results-root",
-            str(results_root),
-            "--run-id",
-            run_id,
-            "--method",
-            "enumeration_lf_lex_exact",
-        ],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
+    larger_tax_incumbent = IncumbentSolution(tax_index=20, cost=1.0, emissions=1.5e8, follower_objective=1.0)
+    smaller_tax_tied_candidate = IncumbentSolution(
+        tax_index=14, cost=1.0, emissions=1.5e8 + 1e-3, follower_objective=1.0
     )
+    # The reverse direction: a smaller-tax candidate within noise-level
+    # tolerance of the incumbent's emissions must still win the tie-break.
+    assert _is_better_candidate(smaller_tax_tied_candidate, larger_tax_incumbent) is True
 
-    assert completed.returncode == 0, completed.stderr
-
-    run_root = results_root / "base" / "tiny_enum_lf_lex_case" / method_results_dir(
-        "enumeration_lf_lex_exact",
-        "exact",
-    )
-    manifest = json.loads((run_root / "manifest.json").read_text(encoding="utf-8"))
-    result_payload = json.loads((run_root / "result.json").read_text(encoding="utf-8"))
-    enumeration_solutions_path = run_root / "enumeration_solutions.json"
-
-    assert manifest["solver"]["method"] == "enumeration_lf_lex_exact"
-    assert manifest["solver"]["mode"] == "exact"
-    assert manifest["solver"]["tolerances"]["mip_gap"] == 1.0e-4
-    assert manifest["solver"]["tolerances"]["eps"] == 1.0e-7
-    assert manifest["solver"]["tolerances"]["lex_epsilon_prime"] == 0.1
-    assert manifest["solver"]["enumeration_oracle"] is True
-    assert manifest["solver"]["leader_objective"] == "lex_emissions_then_min_hat_tau"
-    assert "enumeration_solutions.json" in manifest["outputs"]["per_instance"]
-    assert result_payload["solve_status"]["method"] == "enumeration_lf_lex_exact"
-    assert result_payload["solve_status"]["termination_reason"] == "enumerated_tax_range"
-    assert result_payload["files"]["enumeration_solutions_file"] == "enumeration_solutions.json"
-    expected_iterations = len(tuple(InstanceData.from_dict(instance.to_dict()).iter_hat_tau()))
-    assert result_payload["solve_status"]["iterations"] == expected_iterations
-    assert result_payload["bounds"]["relative_gap"] == 0.0
-
-    solution_payload = json.loads((run_root / "solution.json").read_text(encoding="utf-8"))
-    assert solution_payload["decision_variables"]["leader"]["hat_tau"] == solution_payload["leader"]["hat_tau"]
-    assert solution_payload["decision_variables"]["leader"]["effective_tax"] == solution_payload["leader"]["effective_tax"]
-    assert solution_payload["decision_variables"]["follower"] == solution_payload["variables"]
-    assert solution_payload["decision_variables"]["follower"]
-
-    assert enumeration_solutions_path.exists()
-    enumeration_payload = json.loads(enumeration_solutions_path.read_text(encoding="utf-8"))
-    assert enumeration_payload["selected_hat_tau"] == solution_payload["leader"]["hat_tau"]
-    assert len(enumeration_payload["tax_solutions"]) == expected_iterations
-    assert any(candidate["selected_incumbent"] for candidate in enumeration_payload["tax_solutions"])
-    first_candidate = enumeration_payload["tax_solutions"][0]
-    assert first_candidate["decision_variables"]["leader"]["hat_tau"] == first_candidate["leader"]["hat_tau"]
-    assert first_candidate["decision_variables"]["leader"]["effective_tax"] == first_candidate["leader"]["effective_tax"]
-    assert first_candidate["decision_variables"]["follower"] == first_candidate["variables"]
-    assert first_candidate["decision_variables"]["follower"]
-
-
-def test_solve_instances_can_validate_dbp_with_enumeration_oracle(tmp_path) -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    input_root = tmp_path / "data" / "instances" / "base"
-    instance_path = input_root / "tiny_oracle_validation_case.json"
-    results_root = tmp_path / "results"
-    run_id = "run_oracle_validation_test"
-
-    instance = generate_instance(
-        GeneratorConfig(
-            suppliers=1,
-            factories=1,
-            warehouses=1,
-            retailers=1,
-            products=1,
-            raw_materials=1,
-            production_technologies=1,
-            remanufacturing_technologies=1,
-            periods=2,
-            seed=47,
-            instance_name="tiny_oracle_validation_case",
-            tax_lower=0.0,
-            tax_upper=0.2,
-            connectivity=ArcConnectivityConfig(
-                sf_neighbors=1,
-                fw_neighbors=1,
-                wr_neighbors=1,
-                rf_neighbors=1,
-            ),
-        ),
-    )
-    write_instance(instance, instance_path)
-
-    completed = subprocess.run(
-        [
-            sys.executable,
-            "tools/solver/solve_batch.py",
-            str(instance_path),
-            "--results-root",
-            str(results_root),
-            "--run-id",
-            run_id,
-            "--method",
-            "dbp_lf_lex_exact",
-            "--validate-with-enumeration-oracle",
-        ],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert completed.returncode == 0, completed.stderr
-
-    run_root = results_root / "base" / "tiny_oracle_validation_case" / method_results_dir(
-        "dbp_lf_lex_exact",
-        "exact",
-    )
-    result_payload = json.loads((run_root / "result.json").read_text(encoding="utf-8"))
-
-    assert result_payload["solve_status"]["method"] == "dbp_lf_lex_exact"
-    assert result_payload["oracle_validation"]["status"] == "validated"
-    assert result_payload["oracle_validation"]["hat_tau_match"] is True
-    assert result_payload["oracle_validation"]["emissions_match"] is True
+    genuinely_worse_candidate = IncumbentSolution(tax_index=14, cost=1.0, emissions=1.5e8 + 1000.0, follower_objective=1.0)
+    # A difference far above the magnitude-scaled tolerance is still a
+    # real emissions regression, regardless of how small its tax index is.
+    assert _is_better_candidate(genuinely_worse_candidate, larger_tax_incumbent) is False
 
 
 def test_extract_failure_trace_rows_reads_partial_trace_from_subproblem_error() -> None:
@@ -939,13 +792,13 @@ def test_extract_failure_trace_rows_reads_partial_trace_from_subproblem_error() 
         trace_rows=(
             {
                 "iteration": 1,
-                "relaxation_hat_tau": 0,
+                "relaxation_tax_index": 0,
                 "relaxation_lower_bound": 0.1,
                 "follower_seconds": 1.0,
                 "follower_objective": 2.0,
                 "incumbent_emissions": 4.0,
                 "relaxation_seconds": 5.0,
-                "next_relaxation_hat_tau": -1,
+                "next_relaxation_tax_index": -1,
                 "next_relaxation_lower_bound": float("nan"),
             },
         ),
@@ -955,7 +808,7 @@ def test_extract_failure_trace_rows_reads_partial_trace_from_subproblem_error() 
 
     assert len(trace_rows) == 1
     assert trace_rows[0]["iteration"] == 1
-    assert trace_rows[0]["next_relaxation_hat_tau"] == -1
+    assert trace_rows[0]["next_relaxation_tax_index"] == -1
 
 
 def test_canonicalize_result_solution_uses_recomputed_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -975,7 +828,7 @@ def test_canonicalize_result_solution_uses_recomputed_metrics(monkeypatch: pytes
         variable_values={"x": 1.0},
     )
     result = BilevelSolveResult(
-        method="dbp_exact",
+        method="dbp_lex",
         mode="exact",
         termination_reason="relative_gap",
         exact=True,
@@ -984,7 +837,7 @@ def test_canonicalize_result_solution_uses_recomputed_metrics(monkeypatch: pytes
         upper_bound=20.0,
         lower_bound_certificate=BoundCertificate(20.0, True, 0.0, 0.0, "relaxation"),
         upper_bound_certificate=BoundCertificate(20.0, True, 0.0, 0.0, "optimistic"),
-        incumbent=IncumbentSolution(hat_tau=1, cost=1.0, emissions=2.0, follower_objective=3.0),
+        incumbent=IncumbentSolution(tax_index=1, cost=1.0, emissions=2.0, follower_objective=3.0),
         iteration_records=(),
         dbp_timing=DbpTimingSummary(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ()),
         incumbent_solution=optimistic,
@@ -1049,7 +902,7 @@ def test_canonicalize_result_solution_repairs_lexicographic_cached_solution(
         variable_values={"trip[a,b,m,t]": 1.0, "x[u,a,b,m,t]": 0.1},
     )
     result = BilevelSolveResult(
-        method="dbp_lf_lex_exact",
+        method="dbp_lex",
         mode="exact",
         termination_reason="relative_gap",
         exact=True,
@@ -1058,7 +911,7 @@ def test_canonicalize_result_solution_repairs_lexicographic_cached_solution(
         upper_bound=19.5,
         lower_bound_certificate=BoundCertificate(19.5, True, 0.0, 0.0, "relaxation"),
         upper_bound_certificate=BoundCertificate(19.5, True, 0.0, 0.0, "optimistic"),
-        incumbent=IncumbentSolution(hat_tau=1, cost=10.0, emissions=20.0, follower_objective=30.0),
+        incumbent=IncumbentSolution(tax_index=1, cost=10.0, emissions=20.0, follower_objective=30.0),
         iteration_records=(),
         dbp_timing=DbpTimingSummary(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ()),
         incumbent_solution=optimistic,

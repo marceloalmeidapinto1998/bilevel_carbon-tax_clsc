@@ -60,87 +60,51 @@ def test_generated_initial_product_inventory_is_zero_for_all_nodes() -> None:
     )
 
 
-def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structures() -> None:
+def _std_i17_m8_t3():
     spec = next(item for item in build_base_benchmark_specs(seed_base=13) if item.name == "STD_I17_M8_T3")
-    instance = generate_instance(spec.to_config())
+    return generate_instance(spec.to_config())
+
+
+def test_generated_parameter_schema_has_required_and_no_legacy_keys() -> None:
+    instance = _std_i17_m8_t3()
     params = instance.parameters
 
-    assert "a_in_u_p_g" in params
-    assert "a_in_u_p" not in params
-    assert "bar_s_s_u" in params
-    assert "f_s" in params
-    assert "h_p" in params
-    assert "bom_rem_r_p" in params
-    assert "icmax_p_n" in params
-    assert "icmin_p_n" in params
-    assert "pcmin_g" in params
-    assert "pcmin_l" in params
-    assert "scmin_s_u" in params
-    assert "rmc_s_u" in params
-    assert "rpc_rp" in params
-    assert "ret_yield_rp_p" in params
-    assert "theta_p" in params
-    assert "c_handle_m" in params
-    assert "c_trip_m" in params
-    assert "f_h" in params
-    assert "ret_min_frac_r_p_t" in params
-    assert "ret_max_frac_r_p_t" in params
-    assert "road_return_factor_m" in params
-    assert "speed_km_h_m" in params
-    assert "max_driving_hours_m" in params
-    assert "truck_investment_budget" in params
-    assert "trip_big_m_m" in params
-    assert "e_raw_s_u" in params
-    assert "c_area_f" in params
-    assert "c_area_w" in params
-    assert "Amin_f" in params
-    assert "Amin_w" in params
-    assert "apu_u" in params
-    assert "apu_p" in params
-    assert "apur_p" in params
-    assert "apu_rp" in params
-    assert "apu_q" in params
-    assert not {
-        "bar_i_f",
-        "bar_i_r",
-        "bar_i_w",
-        "bar_s_s",
-        "bom_rem_p",
-        "bom_rem_r",
-        "d_fw",
-        "d_rf",
-        "d_sf",
-        "d_wr",
-        "eta_p",
-        "h_f",
-        "h_r",
-        "h_w",
-        "psu_p",
-        "rp_of_p",
-        "rpc_p",
-    }.intersection(params)
-    assert "H_prod" in instance.sets
-    assert "H_rem" in instance.sets
-    assert "AIR" in instance.sets
-    assert "PORT" in instance.sets
-    assert "RP" in instance.sets
-    assert "FLOW_RAW" in instance.sets
-    assert "FLOW_FP" in instance.sets
-    assert "FLOW_RP" in instance.sets
+    required = {
+        "a_in_u_p_g", "bar_s_s_u", "f_s", "h_p", "bom_rem_r_p", "icmax_p_n", "icmin_p_n",
+        "pcmin_g", "pcmin_l", "scmin_s_u", "rmc_s_u", "rpc_rp", "ret_yield_rp_p", "theta_p",
+        "c_handle_m", "c_trip_m", "f_h", "ret_min_frac_r_p_t", "ret_max_frac_r_p_t",
+        "road_return_factor_m", "speed_km_h_m", "max_driving_hours_m", "truck_investment_budget",
+        "trip_big_m_m", "e_raw_s_u", "c_area_f", "c_area_w", "Amin_f", "Amin_w",
+        "apu_u", "apu_p", "apur_p", "apu_rp", "apu_q",
+    }
+    legacy = {
+        "a_in_u_p", "bar_i_f", "bar_i_r", "bar_i_w", "bar_s_s", "bom_rem_p", "bom_rem_r",
+        "d_fw", "d_rf", "d_sf", "d_wr", "eta_p", "f_f", "f_w", "h_f", "h_r", "h_w",
+        "e_open_s", "h_rp", "icmax_rp_n", "icmin_rp_n", "i_rp_n_0", "psu_p", "rp_of_p", "rpc_p",
+    }
+
+    assert required <= params.keys(), f"Missing required keys: {required - params.keys()}"
+    present_legacy = legacy & params.keys()
+    assert not present_legacy, f"Legacy keys still present: {present_legacy}"
+
+
+def test_generated_set_and_metadata_conventions() -> None:
+    instance = _std_i17_m8_t3()
+
+    for key in ("H_prod", "H_rem", "AIR", "PORT", "RP", "FLOW_RAW", "FLOW_FP", "FLOW_RP"):
+        assert key in instance.sets, f"Missing set: {key}"
+
     assert instance.sets["N"] == [
-        *instance.sets["S"],
-        *instance.sets["F"],
-        *instance.sets["W"],
-        *instance.sets["R"],
-        *instance.sets["AIR"],
-        *instance.sets["PORT"],
+        *instance.sets["S"], *instance.sets["F"], *instance.sets["W"],
+        *instance.sets["R"], *instance.sets["AIR"], *instance.sets["PORT"],
     ]
     assert instance.sets["V"] == instance.sets["W"]
     assert instance.sets["K"] == instance.sets["RP"]
+
     assert instance.metadata["carbon_tax_units"] == {
         "underline_tau_overline_tau": "USD/kg CO2e",
-        "hat_tau_step": "0.01 USD/kg CO2e",
-        "tau_formula_usd_per_kg_co2e": "0.01 * hat_tau",
+        "tax_index_step": "0.01 USD/kg CO2e",
+        "tau_formula_usd_per_kg_co2e": "0.01 * tax_index",
     }
     assert instance.metadata["source_model"] == "paper/bilevel_model.tex"
     assert instance.metadata["unit_convention"] == {
@@ -151,11 +115,45 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
         "remanufacturing_emission_intensity": "kg CO2e/kg",
     }
     assert set(instance.metadata["node_coordinates"]) == set(instance.sets["I"])
-    for node, coordinate in instance.metadata["node_coordinates"].items():
+    span = instance.metadata["config"]["coordinate_span_km"]
+    for coordinate in instance.metadata["node_coordinates"].values():
         assert set(coordinate) == {"x", "y"}
-        assert 0.0 <= coordinate["x"] <= instance.metadata["config"]["coordinate_span_km"]
-        assert 0.0 <= coordinate["y"] <= instance.metadata["config"]["coordinate_span_km"]
+        assert 0.0 <= coordinate["x"] <= span
+        assert 0.0 <= coordinate["y"] <= span
 
+    # Arc distances follow Tautenhain's uniform range U[10, 750] and are sampled
+    # independently per node pair -- NOT computed as the Euclidean distance between
+    # the sampled coordinates (which are used only to decide arc existence). Euclidean
+    # distances obey the triangle inequality, which makes every intermodal hub route
+    # (A -> hub -> hub -> B) >= the direct truck arc and leaves the air/sea modes
+    # structurally unusable; the uniform model breaks it so hub routing can win.
+    # Regression guard for the distance sampling in data/generator/instance.py.
+    d_i_j = instance.parameters["d_i_j"]
+    for targets in d_i_j.values():
+        for distance in targets.values():
+            assert taut.DISTANCE_RANGE[0] <= distance <= taut.DISTANCE_RANGE[1]
+    nodes = list(d_i_j)
+
+    def _d(a: str, b: str) -> float | None:
+        return d_i_j.get(a, {}).get(b)
+
+    # At least one triangle-inequality violation must exist (impossible under a
+    # Euclidean/metric distance, guaranteed to occur under independent uniform draws).
+    assert any(
+        _d(i, j) is not None
+        and _d(i, k) is not None
+        and _d(k, j) is not None
+        and _d(i, j) > _d(i, k) + _d(k, j) + 1e-6
+        for i in nodes
+        for j in nodes
+        for k in nodes
+        if i != j and i != k and j != k
+    )
+
+
+def test_generated_bom_follows_tautenhain_ranges() -> None:
+    instance = _std_i17_m8_t3()
+    params = instance.parameters
     production_pairs = {tuple(pair) for pair in instance.sets["H_prod"]}
 
     for material in instance.sets["U"]:
@@ -167,6 +165,11 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
                 else:
                     assert value == 0.0
 
+
+def test_generated_supplier_parameters_follow_ranges() -> None:
+    instance = _std_i17_m8_t3()
+    params = instance.parameters
+
     for supplier in instance.sets["S"]:
         assert taut.SUPPLIER_SELECTION_FIXED_COST_RANGE[0] <= params["f_s"][supplier] <= taut.SUPPLIER_SELECTION_FIXED_COST_RANGE[1]
         for material in instance.sets["U"]:
@@ -175,13 +178,10 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
             assert taut.RAW_AREA_RANGE[0] <= params["apu_u"][material] <= taut.RAW_AREA_RANGE[1]
             assert params["apu_q"][material] == params["apu_u"][material]
 
-    assert "f_f" not in params
-    assert "f_w" not in params
-    assert "e_open_s" not in params
-    assert "h_rp" not in params
-    assert "icmax_rp_n" not in params
-    assert "icmin_rp_n" not in params
-    assert "i_rp_n_0" not in params
+
+def test_generated_facility_area_parameters_are_bounded() -> None:
+    instance = _std_i17_m8_t3()
+    params = instance.parameters
 
     for factory in instance.sets["F"]:
         assert taut.AREA_INSTALLATION_COST_RANGE[0] <= params["c_area_f"][factory] <= taut.AREA_INSTALLATION_COST_RANGE[1]
@@ -193,23 +193,27 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
         assert taut.WAREHOUSE_AREA_MIN_RANGE[0] <= params["Amin_w"][warehouse] <= taut.WAREHOUSE_AREA_MIN_RANGE[1]
         assert params["Amin_w"][warehouse] <= params["A_w"][warehouse]
 
+
+def test_generated_product_and_recovered_product_parameters() -> None:
+    instance = _std_i17_m8_t3()
+    params = instance.parameters
+
     for product in instance.sets["P"]:
         assert taut.RETURN_LAG_RANGE[0] <= params["theta_p"][product] <= min(taut.RETURN_LAG_RANGE[1], len(instance.sets["T"]))
         assert params["h_p"][product] == round(taut.STOCK_COST_BASE + params["omega_p"][product], 4)
+        assert params["apu_p"][product] > 0.0
+        assert params["apu_q"][product] == params["apu_p"][product]
+        assert params["apur_p"][product] == pytest.approx(
+            round(params["apu_p"][product] / taut.PRODUCT_ROTATION_PER_PERIOD, 6)
+        )
         for retailer in instance.sets["R"]:
             for period in instance.sets["T"]:
                 assert 0.0 <= params["ret_min_frac_r_p_t"][retailer][product][period] <= params["ret_max_frac_r_p_t"][retailer][product][period]
                 assert params["rho_r_p_t"][retailer][product][period] == params["ret_max_frac_r_p_t"][retailer][product][period]
         for node in instance.sets["V"]:
             assert params["icmin_p_n"][product][node] == round(
-                taut.INVENTORY_FRAC_MIN * params["icmax_p_n"][product][node],
-                2,
+                taut.INVENTORY_FRAC_MIN * params["icmax_p_n"][product][node], 2,
             )
-        assert params["apu_p"][product] > 0.0
-        assert params["apu_q"][product] == params["apu_p"][product]
-        assert params["apur_p"][product] == pytest.approx(
-            round(params["apu_p"][product] / taut.PRODUCT_ROTATION_PER_PERIOD, 6)
-        )
 
     for recovered_product in instance.sets["RP"]:
         assert params["rpc_rp"][recovered_product] >= 0.0
@@ -231,11 +235,16 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
                 assert taut.BOM_REM_RANGE[0] <= value <= taut.BOM_REM_RANGE[1]
             else:
                 assert value == 0.0
-            expected_yield = 1.0 if is_diagonal else 0.0
-            assert params["ret_yield_rp_p"][recovered_product][product] == expected_yield
+            assert params["ret_yield_rp_p"][recovered_product][product] == (1.0 if is_diagonal else 0.0)
+
+
+def test_generated_transport_mode_parameters_are_correct() -> None:
+    instance = _std_i17_m8_t3()
+    params = instance.parameters
 
     for hub in (*instance.sets["AIR"], *instance.sets["PORT"]):
         assert taut.CONTRACTED_FIXED_COST_RANGE[0] <= params["f_h"][hub] <= taut.CONTRACTED_FIXED_COST_RANGE[1]
+
     assert instance.sets["M_RD"] == ["mrd1", "mrd2"]
     assert instance.sets["M_A"] == ["ma1", "ma2"]
     assert instance.sets["M_S"] == ["ms1", "ms2"]
@@ -258,26 +267,22 @@ def test_generated_parameters_follow_tautenhain_bom_capacity_and_stock_structure
             assert params["c_trip_m"][mode] == 0.0
             assert params["road_return_factor_m"][mode] == 1.0
 
+
+def test_generated_technology_capacity_and_emission_ranges() -> None:
+    instance = _std_i17_m8_t3()
+    params = instance.parameters
+
     for technology in instance.sets["G"]:
         assert params["pcmin_g"][technology] == round(
-            taut.TECH_MIN_CAPACITY_FRAC * params["bar_p_g"][technology],
-            2,
+            taut.TECH_MIN_CAPACITY_FRAC * params["bar_p_g"][technology], 2,
         )
-        assert (
-            taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[0]
-            <= params["e_prod_g"][technology]
-            <= taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[1]
-        )
+        assert taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[0] <= params["e_prod_g"][technology] <= taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[1]
+
     for technology in instance.sets["L"]:
         assert params["pcmin_l"][technology] == round(
-            taut.TECH_MIN_CAPACITY_FRAC * params["bar_q_l"][technology],
-            2,
+            taut.TECH_MIN_CAPACITY_FRAC * params["bar_q_l"][technology], 2,
         )
-        assert (
-            taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[0]
-            <= params["e_rem_l"][technology]
-            <= taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[1]
-        )
+        assert taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[0] <= params["e_rem_l"][technology] <= taut.PROCESS_EMISSION_RANGE_PER_KG_MASS[1]
 
 
 def test_transport_mode_family_resolution_accepts_numbered_modes() -> None:

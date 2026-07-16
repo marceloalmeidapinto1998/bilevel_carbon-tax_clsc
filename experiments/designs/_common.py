@@ -23,12 +23,21 @@ class DesignPoint:
     technology_menu: str = "base"
     transport_menu: str = "base"
     seed_offset: int = 0                              # 0 = base instance's own seed
-    fixed_hat_tau: int | None = None                  # Family B only
+    fixed_tax_index: int | None = None                  # Family B only
     mip_gap: float | None = None                      # None = solver default
     dbp_relative_gap: float | None = None
     threads: int | None = None
     mip_focus: int | None = None
     notes: str = ""
+    # doe_campaign_02's 5-way structural split (EXPERIMENTAL_PLAN.md §5.1, Family C), additive to
+    # the 2-way technology_menu/transport_menu pair above (doe_campaign_01's already-executed design).
+    production_technology_menu: str = "base"
+    remanufacturing_technology_menu: str = "base"
+    road_menu: str = "base"
+    sea_menu: str = "base"
+    air_menu: str = "base"
+    # Family B's epsilon-constraint sweep only: the emissions cap for execution_mode="epsilon_constraint".
+    epsilon_emissions: float | None = None
 
     def to_row(self) -> dict[str, Any]:
         row = {
@@ -41,8 +50,14 @@ class DesignPoint:
             "per_run_wall_clock_cap_seconds": self.per_run_wall_clock_cap_seconds,
             "technology_menu": self.technology_menu,
             "transport_menu": self.transport_menu,
+            "production_technology_menu": self.production_technology_menu,
+            "remanufacturing_technology_menu": self.remanufacturing_technology_menu,
+            "road_menu": self.road_menu,
+            "sea_menu": self.sea_menu,
+            "air_menu": self.air_menu,
             "seed_offset": self.seed_offset,
-            "fixed_hat_tau": self.fixed_hat_tau,
+            "fixed_tax_index": self.fixed_tax_index,
+            "epsilon_emissions": self.epsilon_emissions,
             "mip_gap": self.mip_gap,
             "dbp_relative_gap": self.dbp_relative_gap,
             "threads": self.threads,

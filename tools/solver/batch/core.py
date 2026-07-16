@@ -15,49 +15,32 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.config.gap_tol import DEFAULT
-from src.models.shared_models import (
+from src.models.subproblems import (
     build_fixed_tax_follower_master,
     solve_fixed_tax_lexicographic,
     validate_fixed_tax_solution,
 )
-from src.models.instance_loader import InstanceData, InstanceValidationError
-from src.solvers.dbp_exact import (
+from src.models.instance import InstanceData, InstanceValidationError
+from src.solvers.dbp_lex import (
     BilevelSolveError,
-    DEFAULT_DBP_MODE,
     SubproblemStatusError,
     relative_optimality_gap,
-    solve_bilevel_dbp,
-)
-from src.solvers.dbp_f_lex_exact import solve_bilevel_dbp_f_lex_exact
-from src.solvers.dbp_lf_lex_exact import solve_bilevel_dbp_lf_lex_exact
-from src.solvers.enum_lf_lex_exact import (
-    solve_bilevel_enumeration_lf_lex_exact,
-    validate_result_against_enumeration_oracle,
+    solve_bilevel_dbp_lex,
 )
 
 SUPPORTED_SOLVER_METHODS = (
-    "dbp_exact",
-    "dbp_certified",
-    "dbp_f_lex_exact",
-    "dbp_lf_lex_exact",
-    "enumeration_lf_lex_exact",
+    "dbp_lex",
 )
 
 LEXICOGRAPHIC_SOLVER_METHODS = {
-    "dbp_f_lex_exact",
-    "dbp_lf_lex_exact",
-    "enumeration_lf_lex_exact",
+    "dbp_lex",
 }
 
 SOLVER_METHOD_RESULT_DIRS = {
-    "dbp_exact": "exact",
-    "dbp_certified": "certified",
-    "dbp_f_lex_exact": "f_lex_exact",
-    "dbp_lf_lex_exact": "lf_lex_exact",
-    "enumeration_lf_lex_exact": "enum_lf_lex_exact",
+    "dbp_lex": "f_lex_exact",
 }
 
-RESULT_SCHEMA_VERSION = 2
+RESULT_SCHEMA_VERSION = 3
 INTEGER_SNAP_TOL = max(DEFAULT.eps, 1e-5)
 SUMMARY_FIELDNAMES = [
     "instance",
@@ -66,7 +49,7 @@ SUMMARY_FIELDNAMES = [
     "exact",
     "termination_reason",
     "iterations",
-    "hat_tau",
+    "tax_index",
     "effective_tax",
     "cost",
     "emissions",
@@ -85,23 +68,14 @@ SUMMARY_FIELDNAMES = [
 ]
 TRACE_FIELDNAMES = [
     "iteration",
-    "relaxation_hat_tau",
+    "relaxation_tax_index",
     "relaxation_lower_bound",
     "follower_seconds",
     "follower_objective",
     "incumbent_emissions",
     "relaxation_seconds",
-    "next_relaxation_hat_tau",
+    "next_relaxation_tax_index",
     "next_relaxation_lower_bound",
-]
-TAU_REFINEMENT_TRACE_FIELDNAMES = [
-    "iteration",
-    "tested_hat_tau",
-    "solve_seconds",
-    "emissions",
-    "follower_objective",
-    "matched_incumbent_emissions",
-    "selected",
 ]
 
 
@@ -119,30 +93,54 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--method",
         choices=SUPPORTED_SOLVER_METHODS,
-        default="dbp_exact",
+        default="dbp_lex",
         help=(
-            "DBP algorithm variant. Accepted values are 'dbp_exact', 'dbp_certified', "
-            "'dbp_f_lex_exact', 'dbp_lf_lex_exact', and 'enumeration_lf_lex_exact'."
+            "DBP algorithm variant. 'dbp_lex' implements the leader's full "
+            "lexicographic objective (min emissions, then min tax_index) directly inside "
+            "the relaxation master -- no separate tax-tiebreak phase."
         ),
     )
     parser.add_argument("--max-iterations", type=int, help="Maximum DBP iterations.")
     parser.add_argument("--time-limit", type=float, help="Per-subproblem Gurobi time limit in seconds.")
     parser.add_argument(
-        "--dbp-mode",
-        choices=("exact", "certified"),
+        "--mip-gap",
+        type=float,
         help=(
-            "Optional consistency check for the chosen method. When omitted, the method's natural mode is used."
+            "Override the Gurobi MIPGap target for every follower sub-solve "
+            "(default: src.config.gap_tol.DEFAULT.mip_gap). Only supported with "
+            "--method dbp_lex."
+        ),
+    )
+    parser.add_argument(
+        "--dbp-relative-gap",
+        type=float,
+        help=(
+            "Override the DBP loop's own relative-gap stopping criterion "
+            "(default: src.config.gap_tol.DEFAULT.dbp_relative_gap). This is the "
+            "outer algorithm's stopping tolerance, not a Gurobi parameter. Only "
+            "supported with --method dbp_lex."
+        ),
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        help=(
+            "Override Gurobi Threads for every sub-solve (default: "
+            "src.config.gap_tol.DEFAULT.threads). Only supported with --method "
+            "dbp_lex."
+        ),
+    )
+    parser.add_argument(
+        "--mip-focus",
+        type=int,
+        choices=(0, 1, 2, 3),
+        help=(
+            "Override Gurobi MIPFocus for every sub-solve (default: "
+            "src.config.gap_tol.DEFAULT.mip_focus). Only supported with --method "
+            "dbp_lex."
         ),
     )
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
-    parser.add_argument(
-        "--validate-with-enumeration-oracle",
-        action="store_true",
-        help=(
-            "After solving dbp_lf_lex_exact, solve the pure enumeration lex-follower oracle "
-            "and fail the run if the DBP incumbent differs in emissions or hat_tau."
-        ),
-    )
     parser.add_argument(
         "--results-root",
         default="results/runs",
@@ -188,11 +186,15 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     try:
-        args.method, args.dbp_mode = canonicalize_solver_method(args.method, args.dbp_mode)
+        args.method, args.dbp_mode = canonicalize_solver_method(args.method)
     except ValueError as error:
         parser.error(str(error))
-    if args.validate_with_enumeration_oracle and args.method != "dbp_lf_lex_exact":
-        parser.error("--validate-with-enumeration-oracle is currently only supported for dbp_lf_lex_exact")
+    tolerance_override_flags = (args.mip_gap, args.dbp_relative_gap, args.threads, args.mip_focus)
+    if any(value is not None for value in tolerance_override_flags) and args.method != "dbp_lex":
+        parser.error(
+            "--mip-gap/--dbp-relative-gap/--threads/--mip-focus are currently only supported "
+            "with --method dbp_lex"
+        )
 
     target = Path(args.path)
     instance_paths = collect_instance_paths(target, pattern=args.pattern, recursive=args.recursive)
@@ -247,33 +249,16 @@ def main() -> int:
         try:
             instance = InstanceData.from_file(instance_path)
             solve_started_at = time.perf_counter()
-            if args.method == "dbp_f_lex_exact":
-                result = solve_bilevel_dbp_f_lex_exact(
+            if args.method == "dbp_lex":
+                result = solve_bilevel_dbp_lex(
                     instance,
                     max_iterations=args.max_iterations,
                     output_flag=args.solver_output,
                     time_limit=args.time_limit,
-                )
-            elif args.method == "dbp_lf_lex_exact":
-                result = solve_bilevel_dbp_lf_lex_exact(
-                    instance,
-                    max_iterations=args.max_iterations,
-                    output_flag=args.solver_output,
-                    time_limit=args.time_limit,
-                )
-            elif args.method == "enumeration_lf_lex_exact":
-                result = solve_bilevel_enumeration_lf_lex_exact(
-                    instance,
-                    output_flag=args.solver_output,
-                    time_limit=args.time_limit,
-                )
-            elif args.method in {"dbp_exact", "dbp_certified"}:
-                result = solve_bilevel_dbp(
-                    instance,
-                    max_iterations=args.max_iterations,
-                    output_flag=args.solver_output,
-                    time_limit=args.time_limit,
-                    mode=args.dbp_mode,
+                    mip_gap=args.mip_gap,
+                    dbp_relative_gap=args.dbp_relative_gap,
+                    threads=args.threads,
+                    mip_focus=args.mip_focus,
                 )
             else:
                 raise ValueError(f"Unsupported solver method {args.method!r}")
@@ -282,21 +267,6 @@ def main() -> int:
             validation_started_at = time.perf_counter()
             solution_validation = validate_result_solution(instance=instance, result=result)
             oracle_validation = None
-            if args.validate_with_enumeration_oracle:
-                oracle_validation_result, _oracle = validate_result_against_enumeration_oracle(
-                    instance,
-                    result,
-                    output_flag=args.solver_output,
-                    time_limit=args.time_limit,
-                )
-                oracle_validation = asdict(oracle_validation_result)
-                if not oracle_validation_result.matched:
-                    raise OutputValidationError(
-                        "Enumeration oracle mismatch: "
-                        f"candidate hat_tau={oracle_validation_result.candidate_hat_tau}, "
-                        f"oracle hat_tau={oracle_validation_result.oracle_hat_tau}, "
-                        f"emissions_delta={oracle_validation_result.emissions_delta}"
-                    )
             validation_seconds = round(time.perf_counter() - validation_started_at, 6)
             solve_seconds = round(time.perf_counter() - started_at, 6)
 
@@ -333,27 +303,11 @@ def main() -> int:
                     solution_validation=solution_validation,
                 ),
             )
-            enumeration_solutions_payload = build_enumeration_solutions_payload(
-                instance=instance,
-                result=result,
-            )
-            if enumeration_solutions_payload is not None:
-                write_json(
-                    instance_results_dir / "enumeration_solutions.json",
-                    enumeration_solutions_payload,
-                )
             write_csv(
                 instance_results_dir / "dbp_trace.csv",
                 TRACE_FIELDNAMES,
                 build_dbp_trace_rows(result),
             )
-            tau_refinement_trace_rows = build_tau_refinement_trace_rows(result)
-            if tau_refinement_trace_rows:
-                write_csv(
-                    instance_results_dir / "lex_trace.csv",
-                    TAU_REFINEMENT_TRACE_FIELDNAMES,
-                    tau_refinement_trace_rows,
-                )
         except Exception as error:
             failed_instances += 1
             solve_seconds = round(time.perf_counter() - started_at, 6)
@@ -449,37 +403,15 @@ def build_run_id() -> str:
     return f"run_{timestamp}"
 
 
-def build_method_results_dir(method: str, mode: str) -> str:
-    canonical_method, _ = canonicalize_solver_method(method, mode)
+def build_method_results_dir(method: str, mode: str = "") -> str:
+    canonical_method, _ = canonicalize_solver_method(method)
     return SOLVER_METHOD_RESULT_DIRS[canonical_method]
 
 
-def canonicalize_solver_method(method: str, mode: str | None = None) -> tuple[str, str]:
-    if method == "dbp_exact":
-        _require_compatible_mode(method, mode, expected_mode="exact")
-        return "dbp_exact", "exact"
-    if method == "dbp_certified":
-        _require_compatible_mode(method, mode, expected_mode="certified")
-        return "dbp_certified", "certified"
-    if method == "dbp_f_lex_exact":
-        _require_compatible_mode(method, mode, expected_mode="exact")
-        return "dbp_f_lex_exact", "exact"
-    if method == "dbp_lf_lex_exact":
-        _require_compatible_mode(method, mode, expected_mode="exact")
-        return "dbp_lf_lex_exact", "exact"
-    if method == "enumeration_lf_lex_exact":
-        _require_compatible_mode(method, mode, expected_mode="exact")
-        return "enumeration_lf_lex_exact", "exact"
+def canonicalize_solver_method(method: str) -> tuple[str, str]:
+    if method == "dbp_lex":
+        return "dbp_lex", "exact"
     raise ValueError(f"Unknown solver method {method!r}. Choose from {SUPPORTED_SOLVER_METHODS}.")
-
-
-def _require_compatible_mode(method: str, mode: str | None, *, expected_mode: str) -> None:
-    if mode is None:
-        return
-    if mode != expected_mode:
-        raise ValueError(
-            f"--dbp-mode {mode!r} is not available with method {method!r}; expected {expected_mode!r}."
-        )
 
 
 def build_manifest(
@@ -490,22 +422,18 @@ def build_manifest(
     run_scope: str | None,
     args: argparse.Namespace,
 ) -> dict[str, object]:
-    enumeration_method = args.method == "enumeration_lf_lex_exact"
     per_instance_outputs = ["result.json", "dbp_trace.csv", "solution.json", "diagnostics.json"]
-    if args.method == "dbp_lf_lex_exact":
-        per_instance_outputs.append("lex_trace.csv")
-    if enumeration_method:
-        per_instance_outputs.append("enumeration_solutions.json")
     tolerance_config: dict[str, object] = {
         "eps": DEFAULT.eps,
-        "mip_gap": DEFAULT.mip_gap,
-        "dbp_relative_gap": DEFAULT.dbp_relative_gap,
+        "mip_gap": DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap,
+        "dbp_relative_gap": DEFAULT.dbp_relative_gap if args.dbp_relative_gap is None else args.dbp_relative_gap,
         "lex_epsilon_prime": DEFAULT.lex_epsilon_prime,
         "dbp_cut_epsilon": DEFAULT.dbp_cut_epsilon,
+        "dbp_cut_epsilon_relative": DEFAULT.dbp_cut_epsilon_relative,
         "stagnation_limit": DEFAULT.stagnation_limit,
         "elastic_penalty_mult": DEFAULT.elastic_penalty_mult,
-        "threads": DEFAULT.threads,
-        "mip_focus": DEFAULT.mip_focus,
+        "threads": DEFAULT.threads if args.threads is None else args.threads,
+        "mip_focus": DEFAULT.mip_focus if args.mip_focus is None else args.mip_focus,
         "output_flag": DEFAULT.output_flag,
     }
     solver_manifest: dict[str, object] = {
@@ -515,12 +443,9 @@ def build_manifest(
         "time_limit": args.time_limit,
         "tolerances": tolerance_config,
         "fail_fast": bool(args.fail_fast),
-        "validate_with_enumeration_oracle": bool(args.validate_with_enumeration_oracle),
     }
-    if args.method in {"dbp_lf_lex_exact", "enumeration_lf_lex_exact"}:
-        solver_manifest["leader_objective"] = "lex_emissions_then_min_hat_tau"
-    if enumeration_method:
-        solver_manifest["enumeration_oracle"] = True
+    if args.method == "dbp_lex":
+        solver_manifest["leader_objective"] = "lex_emissions_then_min_tax_index"
 
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
@@ -557,8 +482,8 @@ def build_summary_record(
         "exact": result.exact,
         "termination_reason": result.termination_reason,
         "iterations": result.iterations,
-        "hat_tau": result.incumbent.hat_tau,
-        "effective_tax": result.incumbent.effective_tax,
+        "tax_index": result.incumbent.tax_index,
+        "effective_tax": result.incumbent.tax_rate,
         "cost": result.incumbent.cost,
         "emissions": result.incumbent.emissions,
         "follower_objective": result.incumbent.follower_objective,
@@ -594,13 +519,8 @@ def build_instance_result_payload(
 ) -> dict[str, object]:
     relative_result_dir = "." if not relative_instance_dir.parts else to_posix(relative_instance_dir)
     dbp_trace_rows = build_dbp_trace_rows(result)
-    tau_refinement_trace_rows = build_tau_refinement_trace_rows(result)
-    lexicographic_tiebreak_seconds = round(
-        result.final_refinement.total_seconds if result.final_refinement is not None else 0.0,
-        6,
-    )
     dbp_overhead_seconds = round(
-        max(0.0, dbp_solve_seconds - result.dbp_timing.total_subproblem_seconds - lexicographic_tiebreak_seconds),
+        max(0.0, dbp_solve_seconds - result.dbp_timing.total_subproblem_seconds),
         6,
     )
     return {
@@ -621,8 +541,8 @@ def build_instance_result_payload(
         },
         "phase_summary": build_phase_summary(result),
         "leader": {
-            "hat_tau": result.incumbent.hat_tau,
-            "effective_tax": result.incumbent.effective_tax,
+            "tax_index": result.incumbent.tax_index,
+            "effective_tax": result.incumbent.tax_rate,
         },
         "follower": {
             "cost": result.incumbent.cost,
@@ -647,11 +567,9 @@ def build_instance_result_payload(
             "solve_seconds": solve_seconds,
             "dbp_seconds": dbp_solve_seconds,
             "validation_seconds": validation_seconds,
-            "lexicographic": lexicographic_tiebreak_seconds,
             "dbp_overhead_seconds": dbp_overhead_seconds,
             "phase_seconds": {
                 "dbp_subproblems": result.dbp_timing.total_subproblem_seconds,
-                "lexicographic_tiebreak": lexicographic_tiebreak_seconds,
                 "dbp_overhead": dbp_overhead_seconds,
                 "validation": validation_seconds,
             },
@@ -682,120 +600,39 @@ def build_instance_result_payload(
                 ],
             },
         },
-        "lexicographic_tiebreak": build_lexicographic_tiebreak_payload(
-            result=result,
-            trace_rows=tau_refinement_trace_rows,
-        ),
         "files": {
             "solution_file": "solution.json",
             "enumeration_solutions_file": "enumeration_solutions.json" if result.enumeration_solutions else None,
-            "lex_trace_file": "lex_trace.csv" if tau_refinement_trace_rows else None,
             "diagnostics_file": None,
         },
     }
 
 
 def build_phase_summary(result) -> dict[str, object]:
-    refinement = getattr(result, "final_refinement", None)
-    phase_1_selected_hat_tau = refinement.initial_hat_tau if refinement is not None else result.incumbent.hat_tau
-    phase_2_selected_hat_tau = refinement.selected_hat_tau if refinement is not None else None
-    phase_2_iterations = refinement.attempt_count if refinement is not None else 0
-
+    # The leader's full lexicographic objective (min emissions, then min
+    # tax_index) is resolved inside the DBP loop itself -- see
+    # solve_dbp_relaxation_lexicographic -- so there is only one phase.
     return {
-        "phase_1_dbp_iterations": len(result.iteration_records),
-        "phase_2_lexicographic_iterations": phase_2_iterations,
-        "phase_1_selected_hat_tau": phase_1_selected_hat_tau,
-        "phase_2_selected_hat_tau": phase_2_selected_hat_tau,
-        "final_hat_tau": result.incumbent.hat_tau,
+        "dbp_iterations": len(result.iteration_records),
+        "final_tax_index": result.incumbent.tax_index,
     }
-
-
-def build_lexicographic_tiebreak_payload(
-    *,
-    result,
-    trace_rows: list[dict[str, object]],
-) -> dict[str, object] | None:
-    refinement = getattr(result, "final_refinement", None)
-    if refinement is None:
-        return None
-
-    payload = {
-        "trace_file": "lex_trace.csv",
-        "trace_rows": len(trace_rows),
-        "initial_hat_tau": refinement.initial_hat_tau,
-        "selected_hat_tau": refinement.selected_hat_tau,
-        "lower_hat_tau": refinement.lower_hat_tau,
-        "seconds": refinement.total_seconds,
-        "attempt_count": refinement.attempt_count,
-        "changed_incumbent": refinement.changed_incumbent,
-        "attempts": [
-            {
-                "hat_tau": attempt.hat_tau,
-                "solve_seconds": attempt.solve_seconds,
-                "emissions": attempt.emissions,
-                "follower_objective": attempt.follower_objective,
-                "matched_incumbent_emissions": attempt.matched_incumbent_emissions,
-            }
-            for attempt in refinement.attempts
-        ],
-    }
-    if refinement.termination_reason is not None:
-        payload["termination_reason"] = refinement.termination_reason
-    if refinement.exact is not None:
-        payload["exact"] = refinement.exact
-    if refinement.lower_bound is not None:
-        payload["lower_bound"] = refinement.lower_bound
-    if refinement.upper_bound is not None:
-        payload["upper_bound"] = refinement.upper_bound
-    if refinement.emissions_target is not None:
-        payload["emissions_target"] = refinement.emissions_target
-    if refinement.emissions_cap is not None:
-        payload["emissions_cap"] = refinement.emissions_cap
-    return payload
 
 
 def build_dbp_trace_rows(result) -> list[dict[str, object]]:
     return [build_dbp_trace_row(record) for record in result.iteration_records]
 
 
-def build_tau_refinement_trace_rows(result) -> list[dict[str, object]]:
-    refinement = getattr(result, "final_refinement", None)
-    if refinement is None:
-        return []
-    selected_hat_tau = refinement.selected_hat_tau
-    return [
-        build_tau_refinement_trace_row(
-            iteration=index,
-            attempt=attempt,
-            selected=attempt.hat_tau == selected_hat_tau,
-        )
-        for index, attempt in enumerate(refinement.attempts, start=1)
-    ]
-
-
 def build_dbp_trace_row(record) -> dict[str, object]:
     return {
         "iteration": record.iteration,
-        "relaxation_hat_tau": record.relaxation_hat_tau,
+        "relaxation_tax_index": record.relaxation_tax_index,
         "relaxation_lower_bound": record.relaxation_lower_bound,
         "follower_seconds": record.follower_seconds,
         "follower_objective": record.follower_objective,
         "incumbent_emissions": record.incumbent_emissions,
         "relaxation_seconds": record.relaxation_seconds,
-        "next_relaxation_hat_tau": record.next_relaxation_hat_tau,
+        "next_relaxation_tax_index": record.next_relaxation_tax_index,
         "next_relaxation_lower_bound": record.next_relaxation_lower_bound,
-    }
-
-
-def build_tau_refinement_trace_row(*, iteration: int, attempt, selected: bool) -> dict[str, object]:
-    return {
-        "iteration": iteration,
-        "tested_hat_tau": attempt.hat_tau,
-        "solve_seconds": attempt.solve_seconds,
-        "emissions": attempt.emissions,
-        "follower_objective": attempt.follower_objective,
-        "matched_incumbent_emissions": attempt.matched_incumbent_emissions,
-        "selected": selected,
     }
 
 
@@ -812,8 +649,8 @@ def build_solution_payload(
         raise RuntimeError(f"Cached optimistic incumbent solution for {instance.name} has no variable values")
 
     leader_variables = {
-        "hat_tau": result.incumbent.hat_tau,
-        "effective_tax": result.incumbent.effective_tax,
+        "tax_index": result.incumbent.tax_index,
+        "effective_tax": result.incumbent.tax_rate,
     }
     follower_variables = optimistic.variable_values
 
@@ -837,58 +674,6 @@ def build_solution_payload(
     }
 
 
-def build_enumeration_solutions_payload(
-    *,
-    instance: InstanceData,
-    result,
-) -> dict[str, object] | None:
-    if not result.enumeration_solutions:
-        return None
-
-    selected_hat_tau = result.incumbent.hat_tau
-    selected_emissions = result.incumbent.emissions
-    tolerance = max(DEFAULT.eps, DEFAULT.eps * abs(selected_emissions))
-    return {
-        "schema_version": RESULT_SCHEMA_VERSION,
-        "instance": instance.name,
-        "selected_hat_tau": selected_hat_tau,
-        "tax_solutions": [
-            {
-                "iteration": snapshot.iteration,
-                "leader": {
-                    "hat_tau": snapshot.hat_tau,
-                    "effective_tax": snapshot.effective_tax,
-                },
-                "objectives": {
-                    "cost": snapshot.cost,
-                    "emissions": snapshot.emissions,
-                    "follower_objective": snapshot.follower_objective,
-                    "objective_value": snapshot.objective_value,
-                },
-                "runtime": {
-                    "solve_seconds": snapshot.solve_seconds,
-                },
-                "gaps": {
-                    "mip_gap": snapshot.mip_gap,
-                    "lex_primary_mip_gap": snapshot.lex_primary_mip_gap,
-                    "lex_secondary_mip_gap": snapshot.lex_secondary_mip_gap,
-                },
-                "selected_incumbent": snapshot.hat_tau == selected_hat_tau
-                and abs(snapshot.emissions - selected_emissions) <= tolerance,
-                "decision_variables": {
-                    "leader": {
-                        "hat_tau": snapshot.hat_tau,
-                        "effective_tax": snapshot.effective_tax,
-                    },
-                    "follower": snapshot.variable_values,
-                },
-                "variables": snapshot.variable_values,
-            }
-            for snapshot in result.enumeration_solutions
-        ],
-    }
-
-
 def canonicalize_result_solution(*, instance: InstanceData, result):
     optimistic = result.incumbent_solution
     if optimistic is None or not optimistic.has_solution or optimistic.variable_values is None:
@@ -896,7 +681,7 @@ def canonicalize_result_solution(*, instance: InstanceData, result):
 
     recomputed = validate_fixed_tax_solution(
         instance,
-        hat_tau=result.incumbent.hat_tau,
+        tax_index=result.incumbent.tax_index,
         variable_values=optimistic.variable_values,
     )
     if (
@@ -921,7 +706,7 @@ def canonicalize_result_solution(*, instance: InstanceData, result):
             optimistic = repaired
             recomputed = validate_fixed_tax_solution(
                 instance,
-                hat_tau=result.incumbent.hat_tau,
+                tax_index=result.incumbent.tax_index,
                 variable_values=optimistic.variable_values or {},
             )
     if not recomputed.has_solution or recomputed.status_name != "OPTIMAL":
@@ -975,7 +760,7 @@ def rebuild_lexicographic_solution_with_fixed_discrete_values(*, instance: Insta
 
     return solve_fixed_tax_lexicographic(
         follower_master,
-        result.incumbent.hat_tau,
+        result.incumbent.tax_index,
         output_flag=False,
         time_limit=None,
         capture_solution=True,
@@ -993,7 +778,7 @@ def validate_result_solution(*, instance: InstanceData, result) -> dict[str, obj
 
     recomputed = validate_fixed_tax_solution(
         instance,
-        hat_tau=result.incumbent.hat_tau,
+        tax_index=result.incumbent.tax_index,
         variable_values=optimistic.variable_values,
     )
     if not recomputed.has_solution or recomputed.status_name != "OPTIMAL":
@@ -1040,7 +825,7 @@ def build_failure_summary_record(
         "exact": False,
         "termination_reason": "failed",
         "iterations": None,
-        "hat_tau": None,
+        "tax_index": None,
         "effective_tax": None,
         "cost": None,
         "emissions": None,
@@ -1102,11 +887,9 @@ def build_failure_result_payload(
             "trace_file": "dbp_trace.csv" if trace_rows else None,
             "trace_rows": len(trace_rows),
         },
-        "lexicographic_tiebreak": None,
         "files": {
             "solution_file": None,
             "enumeration_solutions_file": None,
-            "lex_trace_file": None,
             "diagnostics_file": "diagnostics.json",
         },
     }

@@ -84,17 +84,25 @@ against the closest related work in \Cref{sec:lit:gap}:
         capacity decisions remain integer.
   \item We develop a \DBP that exploits the leader's
         finite tax grid directly, combining valid lower bounds from a
-        parametric \LP relaxation of the follower with valid upper
-        bounds from exact follower responses at sampled tax levels,
-        with proved finite-time convergence to a global
-        $\epsilon$-optimal solution.
-  \item Runs
-        on generated benchmark instances show that the optimal tax is
-        strongly instance-specific, that the emissions response
-        saturates beyond a threshold --- an over-taxation pathology
-        for a purely emissions-minimising regulator --- and that
-        cleaner production/remanufacturing technology, not
-        transport-mode choice, is the binding abatement lever.
+        cutting-plane relaxation master over the follower's own
+        mixed-integer feasible region with valid upper bounds from
+        exact follower responses at sampled tax levels, with proved
+        finite-time convergence to a global $\epsilon$-optimal
+        solution.
+  % TODO(v2): finalise against the Family A--E campaign results before
+  % submission; wording below is drafted to be defensible under the
+  % current v1 evidence and to need only tightening, not reversal, once
+  % v2 lands (frontier shape, non-identification, factorial screening).
+  \item Using generated benchmark instances, we characterise the
+        cost--emissions frontier induced by the tax and show that the
+        emissions-minimising tax is frequently \emph{non-identified}
+        --- attained over a wide, near-flat band rather than at a
+        single point --- once the supply chain's discrete response
+        saturates, an over-taxation pathology for a purely
+        emissions-minimising regulator; screening the design space
+        further shows that cleaner production/remanufacturing
+        technology, not transport-mode choice, is the binding
+        abatement lever.
 \end{enumerate}
 
 \subsection{Paper organisation}

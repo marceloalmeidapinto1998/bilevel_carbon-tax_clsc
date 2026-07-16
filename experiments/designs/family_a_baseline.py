@@ -20,25 +20,28 @@ BASE_INSTANCES: tuple[str, ...] = (
     "STD_I17_M4_T12",  # tractability probe, RQ7
 )
 
-# Doubled from the plan's original 7200s/25200s (Phase 3.5 pre-flight check, 2026-06-26):
-# STD_I25_M8_T6 hit the original 7200s cap at mip_gap~0.0001 (essentially converged, just
-# needed more time) and 2 other classes ran 2-3x slower than the v1 historical baseline under
-# the regenerated/bug-fixed instances.
-PER_SUBPROBLEM_TIME_LIMIT_SECONDS = 14400.0
-PER_RUN_WALL_CLOCK_CAP_SECONDS = 50400.0
+# Two-tier time-limit scheme (2026-07-01), replacing the ad-hoc per-family caps grown in
+# response to individual censored runs. Standard tier mirrors Tautenhain et al. (2021)'s stated
+# CPLEX cap for a single mono-objective MILP (3,600 s / 1 h); hard tier mirrors their exceptional
+# cap for their computationally harder case study (10,800 s / 3 h). Wall-clock caps keep this
+# project's existing ~8x per-subproblem multiplier. Applied to STD_I25_M8_T6 (largest I/M/T
+# combination in the campaign) and the T12 tractability probe (most periods), both of which are
+# expected to need the full budget; every other class gets the standard tier.
+STANDARD_SUBPROBLEM_SECONDS = 3600.0
+STANDARD_WALL_CLOCK_SECONDS = 28800.0
+HARD_SUBPROBLEM_SECONDS = 10800.0
+HARD_WALL_CLOCK_SECONDS = 50400.0
 
-# T12 is expected intractable (per the v1 paper finding); the goal is documenting where it
-# stalls, not forcing convergence, so it gets one single hard cap instead of the regular
-# Family A per-subproblem/wall-clock pair (plan §5b, "G ... incl. T12 probe").
-T12_PROBE_HARD_CAP_SECONDS = 21600.0
+HARD_TIER_INSTANCES: frozenset[str] = frozenset({"STD_I25_M8_T6", "STD_I17_M4_T12"})
 
 
 def build_design_matrix() -> list[DesignPoint]:
     points = []
     for index, instance_id in enumerate(BASE_INSTANCES, start=1):
+        is_hard = instance_id in HARD_TIER_INSTANCES
         is_t12_probe = instance_id.endswith("_T12")
-        cap = T12_PROBE_HARD_CAP_SECONDS if is_t12_probe else PER_SUBPROBLEM_TIME_LIMIT_SECONDS
-        wall_clock_cap = T12_PROBE_HARD_CAP_SECONDS if is_t12_probe else PER_RUN_WALL_CLOCK_CAP_SECONDS
+        subproblem_cap = HARD_SUBPROBLEM_SECONDS if is_hard else STANDARD_SUBPROBLEM_SECONDS
+        wall_clock_cap = HARD_WALL_CLOCK_SECONDS if is_hard else STANDARD_WALL_CLOCK_SECONDS
         points.append(
             DesignPoint(
                 family_id=FAMILY_ID,
@@ -46,7 +49,7 @@ def build_design_matrix() -> list[DesignPoint]:
                 run_code="baseline",
                 base_instance_id=instance_id,
                 execution_mode=EXECUTION_MODE,
-                per_subproblem_time_limit_seconds=cap,
+                per_subproblem_time_limit_seconds=subproblem_cap,
                 per_run_wall_clock_cap_seconds=wall_clock_cap,
                 notes="tractability probe" if is_t12_probe else "",
             )

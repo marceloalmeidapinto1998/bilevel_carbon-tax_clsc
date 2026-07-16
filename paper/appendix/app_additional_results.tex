@@ -10,14 +10,14 @@
 \label{app:tax_extended}
 
 \Cref{sec:exp:tradeoff} reports that two base instances place the optimal tax
-at the base ceiling $\taxub=20$ and that the emission--tax response saturates.
+at the base ceiling (200 USD/t) and that the emission--tax response saturates.
 \Cref{tab:app_tax_extended} substantiates this by re-solving the four screened
-base instances with the leader ceiling lifted to $40$ and $80$. Lifting the
-ceiling moves the lexicographic optimum to a much higher tax index on three of
+base instances with the leader ceiling lifted to $400$ and $800$ USD/t. Lifting the
+ceiling moves the lexicographic optimum to a much higher tax rate on three of
 the four instances, yet the corresponding emissions barely change: the largest
 abatement unlocked by quadrupling the admissible tax is $0.07\%$. For
-\texttt{STD\_I17\_M8\_T3} the emissions-minimising index is not even
-point-identified --- it shifts from $14$ to $31$ between the two extended
+\texttt{STD\_I17\_M8\_T3} the emissions-minimising rate is not even
+point-identified --- it shifts from $140$ to $310$ USD/t between the two extended
 ranges while emissions stay flat to within solver tolerance.
 
 \begin{table}[ht]
@@ -30,18 +30,19 @@ ranges while emissions stay flat to within solver tolerance.
   \begin{tabular}{@{}lrrrr@{}}
     \toprule
     \textbf{Instance}
-      & \makecell[r]{\textbf{Base}\\$\hat\tau\,(E^{\star})$}
-      & \makecell[r]{$\taxub{=}40$\\$\hat\tau\,(E)$}
-      & \makecell[r]{$\taxub{=}80$\\$\hat\tau\,(E)$}
+      & \makecell[r]{\textbf{Base (ceiling 200 USD/t)}\\$\tau\,(E^{\star})$}
+      & \makecell[r]{\textbf{Ceiling 400 USD/t}\\$\tau\,(E)$}
+      & \makecell[r]{\textbf{Ceiling 800 USD/t}\\$\tau\,(E)$}
       & \makecell[r]{\textbf{Extra}\\\textbf{abate.}} \\
     \midrule
-    STD\_I17\_M4\_T3 &  4\,(32{,}231)  &  4\,(32{,}231)  & 61\,(32{,}209)  & \textminus0.07\% \\
-    STD\_I17\_M8\_T3 & 20\,(119{,}257) & 14\,(119{,}258) & 31\,(119{,}257) & $<$0.01\% \\
-    STD\_I25\_M4\_T3 & 15\,(15{,}898)  & 31\,(15{,}896)  & 31\,(15{,}896)  & \textminus0.02\% \\
-    STD\_I25\_M8\_T3 &  2\,(130{,}002) & 36\,(129{,}949) & 36\,(129{,}949) & \textminus0.04\% \\
+    STD\_I17\_M4\_T3 &  40\,(32{,}231)  &  40\,(32{,}231)  & 610\,(32{,}209)  & \textminus0.07\% \\
+    STD\_I17\_M8\_T3 & 200\,(119{,}257) & 140\,(119{,}258) & 310\,(119{,}257) & $<$0.01\% \\
+    STD\_I25\_M4\_T3 & 150\,(15{,}898)  & 310\,(15{,}896)  & 310\,(15{,}896)  & \textminus0.02\% \\
+    STD\_I25\_M8\_T3 &  20\,(130{,}002) & 360\,(129{,}949) & 360\,(129{,}949) & \textminus0.04\% \\
     \bottomrule
     \multicolumn{5}{@{}p{0.92\linewidth}@{}}{\footnotesize
-      Notes: $\hat\tau$ is the optimal integer tax index and $E$ the induced
+      Notes: $\tau$ is the optimal effective tax rate (USD/t\,CO\textsubscript{2}e)
+      and $E$ the induced
       emissions (10\textsuperscript{3} kg\,CO\textsubscript{2}e); the last
       column is the emissions reduction relative to the base-ceiling optimum.
       Source: \path{results/runs/.../oat/<base>/tax_range_max040} and

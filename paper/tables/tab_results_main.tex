@@ -17,14 +17,14 @@
     & \textbf{Rel. gap}
     & \textbf{Time (s)} \\
   \midrule
-  STD\_I17\_M4\_T3 & 0.04 &  32{,}231 &   632 & 2 & 8.68e-09 &    36.7 \\
-  STD\_I17\_M4\_T6 & 0.03 &  99{,}044 & 1{,}544 & 2 & 7.56e-10 &    51.8 \\
-  STD\_I17\_M8\_T3 & 0.20 & 119{,}257 &   635 & 3 & 1.05e-06 &   127.0 \\
-  STD\_I17\_M8\_T6 & 0.20 & 224{,}362 & 2{,}237 & 2 & 8.31e-10 & 1{,}936.0 \\
-  STD\_I25\_M4\_T3 & 0.15 &  15{,}898 &   431 & 3 & 8.85e-12 &    37.6 \\
-  STD\_I25\_M4\_T6 & 0.02 &  31{,}533 &   910 & 2 & 1.61e-09 &   138.0 \\
-  STD\_I25\_M8\_T3 & 0.02 & 130{,}002 &   982 & 2 & 8.02e-16 &   152.6 \\
-  STD\_I25\_M8\_T6 & 0.07 & 144{,}754 & 2{,}118 & 2 & 7.17e-10 & 2{,}367.0 \\
+  STD\_I17\_M4\_T3 &  40 &  32{,}231 &   632 & 2 & 8.68e-09 &    36.7 \\
+  STD\_I17\_M4\_T6 &  30 &  99{,}044 & 1{,}544 & 2 & 7.56e-10 &    51.8 \\
+  STD\_I17\_M8\_T3 & 200 & 119{,}257 &   635 & 3 & 1.05e-06 &   127.0 \\
+  STD\_I17\_M8\_T6 & 200 & 224{,}362 & 2{,}237 & 2 & 8.31e-10 & 1{,}936.0 \\
+  STD\_I25\_M4\_T3 & 150 &  15{,}898 &   431 & 3 & 8.85e-12 &    37.6 \\
+  STD\_I25\_M4\_T6 &  20 &  31{,}533 &   910 & 2 & 1.61e-09 &   138.0 \\
+  STD\_I25\_M8\_T3 &  20 & 130{,}002 &   982 & 2 & 8.02e-16 &   152.6 \\
+  STD\_I25\_M8\_T6 &  70 & 144{,}754 & 2{,}118 & 2 & 7.17e-10 & 2{,}367.0 \\
   \bottomrule
   \multicolumn{7}{@{}p{0.95\linewidth}@{}}{\footnotesize
     Notes: the eight solved base instances, method
@@ -32,9 +32,9 @@
     \path{results/runs/base/*/lf_lex_exact}. All rows have
     \texttt{success=True}, are \texttt{validated}, and terminate on the
     relative-gap criterion with gap $\le10^{-4}$. $\tau^{\star}$ is in
-    USD/kg\,CO\textsubscript{2}e; $E^{\star}$ in 10\textsuperscript{3}
+    USD/t\,CO\textsubscript{2}e; $E^{\star}$ in 10\textsuperscript{3}
     kg\,CO\textsubscript{2}e and $C^{\star}$ in 10\textsuperscript{3}
-    monetary units. The two M8\,T3/T6 rows with $\tau^{\star}=0.20$ sit
-    at the base tax ceiling $\taxub=20$ and are re-examined under extended
+    monetary units. The two M8\,T3/T6 rows with $\tau^{\star}=200$ USD/t sit
+    at the base tax ceiling (200 USD/t) and are re-examined under extended
     ranges in \Cref{sec:exp:tradeoff}.}\\
 \end{tabular}

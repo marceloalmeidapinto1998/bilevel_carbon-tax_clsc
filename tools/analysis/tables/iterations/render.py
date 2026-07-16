@@ -12,17 +12,11 @@ from .units import (
     render_tax_bounds,
 )
 
-_PHASE_HEADING_COLS = 7
-
-
-def _phase_heading(text: str) -> str:
-    return rf"\multicolumn{{{_PHASE_HEADING_COLS}}}{{@{{}}l}}{{{text}}} \\"
-
 
 def _render_iteration_row(row: IterationRow) -> str:
     cells = (
         row.step_label,
-        latex_num(fmt_tax(row.hat_tau)),
+        latex_num(fmt_tax(row.tax_index)),
         render_tax_bounds(row.tax_bounds_lo, row.tax_bounds_hi),
         latex_num(fmt_emissions(row.lb_emissions)),
         latex_num(fmt_emissions(row.ub_emissions)),
@@ -37,7 +31,7 @@ def _render_final_row(final: FinalRow) -> str:
     gap_cell = "--" if gap_value is None else latex_bold_num(f"{gap_value:.2f}")
     cells = (
         r"\textbf{Final}",
-        latex_bold_num(fmt_tax(final.hat_tau)),
+        latex_bold_num(fmt_tax(final.tax_index)),
         "--",
         latex_bold_num(fmt_emissions(final.lb_emissions)),
         latex_bold_num(fmt_emissions(final.ub_emissions)),
@@ -49,19 +43,11 @@ def _render_final_row(final: FinalRow) -> str:
 
 def _build_body(
     *,
-    phase1_rows: list[IterationRow],
-    phase2_rows: list[IterationRow],
+    iteration_rows: list[IterationRow],
     final_row: FinalRow,
 ) -> str:
     lines: list[str] = []
-    lines.append(_phase_heading("Phase 1 --- DBP"))
-    lines.append(r"\addlinespace[0.15em]")
-    lines.extend(_render_iteration_row(row) for row in phase1_rows)
-    if phase2_rows:
-        lines.append(r"\addlinespace[0.45em]")
-        lines.append(_phase_heading("Phase 2 --- Lexicographic bisection on carbon tax"))
-        lines.append(r"\addlinespace[0.15em]")
-        lines.extend(_render_iteration_row(row) for row in phase2_rows)
+    lines.extend(_render_iteration_row(row) for row in iteration_rows)
     lines.append(r"\midrule")
     lines.append(_render_final_row(final_row))
     return "\n".join(lines)
@@ -70,18 +56,16 @@ def _build_body(
 def render_instance_table(
     *,
     instance: str,
-    phase1_rows: list[IterationRow],
-    phase2_rows: list[IterationRow],
+    iteration_rows: list[IterationRow],
     final_row: FinalRow,
 ) -> str:
     body = _build_body(
-        phase1_rows=phase1_rows,
-        phase2_rows=phase2_rows,
+        iteration_rows=iteration_rows,
         final_row=final_row,
     )
     escaped_instance = latex_escape(instance)
-    caption = rf"LF-Lex iteration log for instance \textsc{{{escaped_instance}}}."
-    label = f"tab:lflex-path-{instance.lower().replace('_', '-')}"
+    caption = rf"Lexicographic DBP iteration log for instance \textsc{{{escaped_instance}}}."
+    label = f"tab:lexdbp-path-{instance.lower().replace('_', '-')}"
     return rf"""\documentclass[11pt]{{article}}
 \usepackage[landscape,margin=0.35in]{{geometry}}
 \usepackage{{array}}
@@ -120,8 +104,8 @@ def render_instance_table(
  & \multicolumn{{3}}{{c}}{{Leader}} & \multicolumn{{2}}{{c}}{{Follower}} & \multicolumn{{1}}{{c}}{{Convergence}} \\
 \cmidrule(lr){{2-4}}\cmidrule(lr){{5-6}}\cmidrule(lr){{7-7}}
 Step
- & \shortstack{{Carbon tax\\(USD/kgCO\textsubscript{{2}}e)}}
- & \shortstack{{Tax bounds\\(USD/kgCO\textsubscript{{2}}e)}}
+ & \shortstack{{Carbon tax\\(USD/tCO\textsubscript{{2}}e)}}
+ & \shortstack{{Tax bounds\\(USD/tCO\textsubscript{{2}}e)}}
  & \shortstack{{LB\\(kgCO\textsubscript{{2}}e)}}
  & \shortstack{{UB\\(kgCO\textsubscript{{2}}e)}}
  & \shortstack{{Objective\\(USD)}}

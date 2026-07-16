@@ -11,7 +11,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from data.generator import GeneratedInstance, write_instance
-from src.models.instance_loader import InstanceData
+from src.models.instance import InstanceData
 from tools.experiments.scenarios.common.paths import BASE_INSTANCE_DIR, SCENARIO_INSTANCE_DIR
 from tools.experiments.scenarios.technology.generate import (
     _append_production_technologies,

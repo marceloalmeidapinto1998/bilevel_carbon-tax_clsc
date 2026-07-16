@@ -1,0 +1,142 @@
+% !TeX root = ../main.tex
+% ============================================================
+%  appendix/app_implementation_notes.tex
+% ============================================================
+
+\section{Implementation Notes}
+\label{app:impl_notes}
+
+This appendix collects implementation-level details that refine five
+points of the model and solution methodology
+(\Cref{sec:model:follower,sec:methodology}) without affecting their
+correctness: a tightened big-$M$ bound, a fallback for degenerate
+transport-mode data, a fallback for outsourced modes without a
+configured contracted capacity, the equation and counterexample behind
+an excluded candidate valid inequality, and the exact \MILP
+linearisation of the tax-index/emissions product in the relaxation
+master's cut~\eqref{eq:cut}.
+
+\subsection{Big-\textit{M} tightening in (C7)}
+\label{app:impl_notes:bigm}
+
+$M^{\mathrm{trip}}_m$ in~\eqref{eq:trip_link} (\Cref{sec:model:c7}) is
+stated in the main text as a single constant per mode, for notational
+economy. The implementation instead derives a tightened, arc- and
+node-specific bound from each arc's transport-capacity and
+node-throughput parameters; any value at least as large as the true
+bound preserves correctness, so a tighter, context-specific value is
+always admissible. An optional per-(node, mode) override, absent from
+the main-text notation, may be supplied through instance data to
+further tighten this bound when known a priori.
+
+\subsection{Degenerate transport-mode data in (C8)}
+\label{app:impl_notes:degenerate}
+
+Equation~\eqref{eq:vehicle_hours} (\Cref{sec:model:c8}) presumes a
+positive mode speed $v_m$ and a positive driving-hour allowance
+$H_m$. The implementation substitutes a trip-count bound (via the
+big-$M$ of \Cref{app:impl_notes:bigm}) whenever a mode's speed or
+driving-hour parameter is non-positive. This degenerate case cannot
+occur for any mode populated by the data generator
+(\Cref{sec:method:implementation}) but guards against
+division-by-zero on hand-edited or future instance data.
+
+\subsection{Uncontracted outsourced modes in (C7)--(C8)}
+\label{app:impl_notes:uncontracted}
+
+Equations~\eqref{eq:contracted_active_cap} and~\eqref{eq:contracted_cap}
+(\Cref{sec:model:c7,sec:model:c8}) gate an outsourced mode's shipped
+weight by a contracted capacity $\overline{B}_m$ and a period-level
+contract $\kappa_{mt}$. Both presume the mode has a positive contracted
+capacity. The implementation falls back to the generic mode-capacity
+bound $\overline{W}_m$ in place of $\overline{B}_m$, with no
+$\kappa_{mt}$ linkage, for any outsourced mode whose contracted
+capacity is non-positive. This degenerate case cannot occur for any
+mode populated by the data generator
+(\Cref{sec:method:implementation}), which assigns every air and sea
+mode a positive contracted capacity, but guards against the same class
+of hand-edited or future instance data as
+\Cref{app:impl_notes:degenerate}.
+
+\subsection{Excluded capacity-covers-demand inequality}
+\label{app:impl_notes:capdemand}
+
+\Cref{sec:model:c10} notes that a further candidate inequality for
+(C10) would require aggregate installed capacity to cover aggregate
+demand in every period,
+\begin{equation}
+\sum_{f\in\setF}\Biggl(
+   \sum_{g:(p,g)\in\Omega^{\mathrm{p}}}
+      \overline{Q}^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg}
+ + \sum_{\ell:(p,\ell)\in\Omega^{\mathrm{r}}}
+      \overline{Q}^{\mathrm{r}}_{\ell}\,\lambda^{\mathrm{r}}_{f\ell}
+\Biggr)
+\ge \sum_{r\in\setR} d_{rpt},
+\qquad \forall p\in\setP,\,t\in\setT,
+\label{eq:vi_capacity_demand}
+\end{equation}
+but, unlike~\eqref{eq:vi_tech_demand}, this is \emph{not} a valid
+inequality and is not part of the implemented formulation.
+
+Constraint~\eqref{eq:vi_capacity_demand} is not logically implied by
+(C1)--(C9) in general, because it ignores inventory banking:
+$\lambda^{\mathrm{p}}_{fg}$ and $\lambda^{\mathrm{r}}_{f\ell}$ are
+time-invariant, but a network can install less capacity than a single
+period's peak demand and still satisfy that peak by overproducing in
+earlier, low-demand periods and drawing down $s^{\mathrm{inv}}_{pwt}$
+at warehouses (\Cref{eq:bal_warehouse}) when demand spikes, as long as
+the inventory bounds~\eqref{eq:inv_bounds} permit it. Any instance
+with a non-flat demand profile $d_{rpt}$ and sufficient inventory
+headroom can have an optimal solution that
+violates~\eqref{eq:vi_capacity_demand} at the peak period while
+remaining feasible and cost/emissions-optimal under (C1)--(C9). Adding
+it as a hard constraint would therefore risk excluding genuinely
+optimal solutions rather than merely tightening the relaxation, so it
+is deliberately \emph{not} included in the implemented formulation.
+
+\subsection{Unary binarisation of the tax-index/emissions product in
+the relaxation master}
+\label{app:impl_notes:unary}
+
+The relaxation master of \Cref{sec:method:lb} optimises jointly over
+$\taxindex\in\mathcal{T}^{\tau}$ and $\bz\in\setX$, so the tax-index term
+$\taxindex\,\Emis(\bz)$ in cut~\eqref{eq:cut} and in the definition of
+$\LB^{(k)}$~\eqref{eq:lb_def} is a genuine product of two of the
+master's own decision variables -- $\taxindex$ integer, $\Emis(\bz)$
+continuous -- rather than a fixed coefficient, and is not directly
+representable in a linear \MILP.
+
+The implementation linearises this product exactly with a \emph{unary}
+binarisation of $\taxindex$ \citep{vielma2015, dashgunlukhildebrand2018}:
+a binary $\delta_{t}$ is introduced for every
+$t\in\mathcal{T}^{\tau}=\{\taxindexlb,\ldots,\taxindexub\}$, constrained by
+$\sum_{t}\delta_{t}=1$ and $\taxindex=\sum_{t}t\,\delta_{t}$, so that
+$\delta_{t}=1$ if and only if $\taxindex=t$. This reduces the master's
+single integer-times-continuous product to $\taxindexub-\taxindexlb+1$
+\emph{binary}-times-continuous products
+$\delta_{t}\,\Emis(\bz)$, each linearised exactly by the standard
+McCormick envelope specialised to a binary factor
+\citep{mccormick1976} -- the same specialisation Soares et~al.
+(2021) use for the analogous $\text{price}\times\text{binary}$
+products in their own \DBP-based tariff model. Unlike the general
+bilinear case, this specialisation introduces no relaxation gap: for
+every integer-feasible point exactly one $\delta_{t}$ is $1$ and the
+corresponding auxiliary variable is forced to equal $\Emis(\bz)$
+exactly, while every other auxiliary variable is forced to $0$. An
+\texttt{SOS1} constraint on $\{\delta_{t}\}_{t\in\mathcal{T}^{\tau}}$
+is added redundantly (it does not change the feasible region, already
+pinned down by $\sum_{t}\delta_{t}=1$) purely to expose this structure
+to the solver's native special-ordered-set branching.
+
+For tax grids beyond a moderate cardinality, the $\bigl(\taxindexub-\taxindexlb
++1\bigr)$ binaries and $3(\taxindexub-\taxindexlb+1)$ auxiliary constraints of
+the unary binarisation become large relative to a \emph{logarithmic}
+binarisation of the same integer variable, which uses
+$\bigl\lceil\log_{2}(\taxindexub-\taxindexlb+1)\bigr\rceil$ binaries at the cost
+of a weaker \LP relaxation; the implementation switches to the
+logarithmic encoding above such a threshold. Both are standard
+integer-binarisation techniques for \MILP formulation: \citet{vielma2015}
+surveys their relative formulation strength and size, and
+\citet{dashgunlukhildebrand2018} independently corroborate the same
+unary-versus-logarithmic trade-off in their study of binary extended
+formulations of polyhedral mixed-integer sets.

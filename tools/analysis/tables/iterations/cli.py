@@ -1,4 +1,4 @@
-"""Command-line interface for LF-Lex iteration publication tables."""
+"""Command-line interface for lexicographic-DBP iteration publication tables."""
 
 from __future__ import annotations
 
@@ -10,30 +10,23 @@ from pathlib import Path
 from .io import (
     load_dbp_trace,
     load_instance_bounds,
-    load_lex_trace,
     load_result,
     load_summary,
 )
 from .render import render_instance_table
-from .rows import (
-    build_final_row,
-    build_phase1_rows,
-    build_phase2_rows,
-    phase1_final_lb,
-)
-from .units import to_int
+from .rows import build_final_row, build_phase1_rows
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m tools.analysis.tables.iterations",
-        description="Create publication-style LF-Lex iteration path tables for base instances.",
+        description="Create publication-style lexicographic-DBP iteration path tables for base instances.",
     )
     p.add_argument("--results-base", type=Path, default=Path("results/runs/base"),
                    help="Directory containing base result folders.")
     p.add_argument("--output-dir", type=Path, default=None,
                    help="Optional legacy output directory. By default each table is "
-                        "written under <instance>/lf_lex_exact/analysis.")
+                        "written under <instance>/f_lex_exact/analysis.")
     p.add_argument("--no-pdf", action="store_true",
                    help="Write only .tex files and skip PDF compilation.")
     p.add_argument("--keep-latex-build-files", action="store_true",
@@ -48,29 +41,19 @@ def write_instance_table(
     compile_pdf: bool,
     keep_latex_build_files: bool,
 ) -> tuple[Path, Path | None]:
-    method_dir = instance_dir / "lf_lex_exact"
+    method_dir = instance_dir / "f_lex_exact"
     if not (method_dir / "dbp_trace.csv").exists():
-        raise FileNotFoundError(f"Missing LF-Lex result files under {method_dir}")
+        raise FileNotFoundError(f"Missing lexicographic-DBP result files under {method_dir}")
 
     detailed = load_result(method_dir)
     summary = load_summary(method_dir)
     dbp_rows = load_dbp_trace(method_dir)
-    lex_rows = load_lex_trace(method_dir)
-    lower_hat_tau, upper_hat_tau = load_instance_bounds(instance_dir, detailed, summary)
+    lower_tax_index, upper_tax_index = load_instance_bounds(instance_dir, detailed, summary)
 
-    phase_summary = detailed.get("phase_summary", {})
-    phase_1_hat_tau = to_int(phase_summary.get("phase_1_selected_hat_tau")) or upper_hat_tau
-
-    phase1_rows = build_phase1_rows(
+    iteration_rows = build_phase1_rows(
         dbp_rows=dbp_rows,
-        lower_hat_tau=lower_hat_tau,
-        upper_hat_tau=upper_hat_tau,
-    )
-    phase2_rows = build_phase2_rows(
-        lex_rows=lex_rows,
-        lower_hat_tau=lower_hat_tau,
-        phase_1_hat_tau=phase_1_hat_tau,
-        phase_1_final_lb=phase1_final_lb(phase1_rows),
+        lower_tax_index=lower_tax_index,
+        upper_tax_index=upper_tax_index,
     )
     final_row = build_final_row(detailed=detailed, summary=summary)
 
@@ -81,8 +64,7 @@ def write_instance_table(
     tex_path.write_text(
         render_instance_table(
             instance=instance_dir.name,
-            phase1_rows=phase1_rows,
-            phase2_rows=phase2_rows,
+            iteration_rows=iteration_rows,
             final_row=final_row,
         ),
         encoding="utf-8",
@@ -130,10 +112,10 @@ def main(argv: list[str] | None = None) -> int:
 
     instance_dirs = sorted(
         path for path in args.results_base.iterdir()
-        if (path / "lf_lex_exact").is_dir()
+        if (path / "f_lex_exact").is_dir()
     )
     if not instance_dirs:
-        raise SystemExit(f"No lf_lex_exact result folders found under {args.results_base}")
+        raise SystemExit(f"No f_lex_exact result folders found under {args.results_base}")
 
     tex_count = 0
     pdf_count = 0
@@ -148,10 +130,10 @@ def main(argv: list[str] | None = None) -> int:
         if pdf_path is not None:
             pdf_count += 1
 
-    destination = args.output_dir if args.output_dir is not None else "each lf_lex_exact/analysis directory"
-    print(f"Wrote {tex_count} LF-Lex LaTeX table(s) under {destination}")
+    destination = args.output_dir if args.output_dir is not None else "each f_lex_exact/analysis directory"
+    print(f"Wrote {tex_count} lexicographic-DBP LaTeX table(s) under {destination}")
     if compile_pdf:
-        print(f"Wrote {pdf_count} LF-Lex PDF table(s) under {destination}")
+        print(f"Wrote {pdf_count} lexicographic-DBP PDF table(s) under {destination}")
     return 0
 
 

@@ -12,7 +12,7 @@ Two orthogonal probes on the 4 T3 classes (fast enough to afford replication):
 from __future__ import annotations
 
 from experiments.designs._common import DesignPoint
-from tools.experiments.v2.design.robustness import TOLERANCE_SETTINGS, seed_grid
+from tools.experiments.doe_campaign_01.design.robustness import TOLERANCE_SETTINGS, seed_grid
 
 FAMILY_ID = "F"
 EXECUTION_MODE = "bilevel"

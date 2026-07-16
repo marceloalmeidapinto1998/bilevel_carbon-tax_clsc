@@ -6,14 +6,14 @@ import re
 
 RUN_COLS = [
     "instance", "input_path", "success", "exact", "termination_reason",
-    "iterations", "hat_tau", "effective_tax", "cost", "emissions",
+    "iterations", "tax_index", "effective_tax", "cost", "emissions",
     "follower_objective", "lower_bound", "upper_bound", "relative_gap",
     "validation_status", "failure_stage", "error_type", "error_message",
     "gurobi_status", "objective_bound", "iis_constraints", "solve_seconds",
 ]
 
 NET_COLS = [
-    "hat_tau", "effective_tax", "cost", "emissions", "follower_objective",
+    "tax_index", "effective_tax", "cost", "emissions", "follower_objective",
     "objective_value", "solve_seconds", "mip_gap", "lex_primary_mip_gap",
     "lex_secondary_mip_gap", "num_suppliers_open", "num_factories_open",
     "num_warehouses_open", "num_hubs_open", "num_prod_tech_installed",
@@ -27,7 +27,7 @@ NET_COLS = [
 ]
 
 NUM_RUN = [
-    "iterations", "hat_tau", "effective_tax", "cost", "emissions",
+    "iterations", "tax_index", "effective_tax", "cost", "emissions",
     "follower_objective", "lower_bound", "upper_bound", "relative_gap",
     "iis_constraints", "solve_seconds",
 ]

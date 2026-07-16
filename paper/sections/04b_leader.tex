@@ -7,25 +7,23 @@
 \subsection{Bilevel Programme}
 \label{sec:model:bilevel}
 
-The \CLSC design problem with the carbon tax as a leader decision
-variable is modelled as
-the following bilevel programme. The leader announces a carbon-tax index
-$\taxhat$; the follower observes $\taxhat$ and selects the
-cost-minimising supply chain design and operations. Denoting the
-follower's optimal-response correspondence by $\Sol{\taxhat}$ and its
+The leader announces a carbon-tax index $\taxindex$; the follower
+observes $\taxindex$ and selects the cost-minimising supply chain design
+and operations. Denoting the
+follower's optimal-response correspondence by $\Sol{\taxindex}$ and its
 feasible region by $\setX$ (defined in \Cref{sec:model:follower}), the
 complete programme is
 \begin{subequations}\label{eq:leader}
 \begin{alignat}{2}
 \textup{(BL)}\quad
-\lexmin_{\taxhat,\,\bz}\quad
-  & \bigl(\Emis(\bz),\ \taxhat\bigr) \label{eq:leader_obj}\\
+\lexmin_{\taxindex,\,\bz}\quad
+  & \bigl(\Emis(\bz),\ \taxindex\bigr) \label{eq:leader_obj}\\
 \text{s.t.}\quad
-  & \taxhat\in\mathcal{T}^{\tau}, \label{eq:leader_tax}\\
-  & \bz\in\Sol{\taxhat}, \label{eq:leader_react}
+  & \taxindex\in\mathcal{T}^{\tau}, \label{eq:leader_tax}\\
+  & \bz\in\Sol{\taxindex}, \label{eq:leader_react}
 \end{alignat}
 \end{subequations}
-where $\Sol{\taxhat}$ is defined in~\eqref{eq:reaction_set} once the
+where $\Sol{\taxindex}$ is defined in~\eqref{eq:reaction_set} once the
 follower's objective has been introduced in \Cref{sec:model:follower_obj}.
 \Cref{sec:model:leader,sec:model:follower} present the two levels in
 detail.
@@ -33,7 +31,7 @@ detail.
 Bilevel programmes with integer lower-level variables are NP-hard in
 general \citep{moore1990, jeroslow1985}; problem~\eqref{eq:leader}
 inherits this hardness, since the follower's problem~\eqref{eq:follower}
-is itself a \MILP for every fixed $\taxhat$.
+is itself a \MILP for every fixed $\taxindex$.
 
 %-----------------------------------------------------------------
 \subsection{Regulator's Problem}

@@ -7,7 +7,7 @@
 \subsection{Supply Chain Operator's Problem}
 \label{sec:model:follower}
 
-Given the tax index $\taxhat\in\mathcal{T}^{\tau}$ announced by the
+Given the tax index $\taxindex\in\mathcal{T}^{\tau}$ announced by the
 regulator, the supply chain operator solves a mixed-integer programme
 whose feasible region $\setX$ is defined by constraints (C1)--(C10) in
 \Cref{sec:model:c1,sec:model:c2,sec:model:c3,sec:model:c4,%
@@ -19,19 +19,19 @@ combines total cost and carbon-tax payment.
 \subsubsection{Objective function}
 \label{sec:model:follower_obj}
 
-Given $\taxhat$, the operator minimises the sum of its total cost
+Given $\taxindex$, the operator minimises the sum of its total cost
 $\Cost(\bz)$ and carbon-tax payment:
 \begin{equation}
 \textup{(FL)}\quad
 \min_{\bz\in\setX}\;
-\Cost(\bz) + \tfrac{\taxhat}{100}\,\Emis(\bz),
+\Cost(\bz) + \tfrac{\taxindex}{100}\,\Emis(\bz),
 \label{eq:follower}
 \end{equation}
 with optimal-response correspondence
 \begin{equation}
-\Sol{\taxhat} \defeq
+\Sol{\taxindex} \defeq
 \argmin_{\bz\in\setX}\;\Bigl\{\Cost(\bz) +
-\tfrac{\taxhat}{100}\,\Emis(\bz)\Bigr\}.
+\tfrac{\taxindex}{100}\,\Emis(\bz)\Bigr\}.
 \label{eq:reaction_set}
 \end{equation}
 
@@ -375,17 +375,9 @@ may operate on any arc in any period:
 \end{alignat}
 \end{subequations}
 
-\begin{remark}[Big-$M$ implementation]\label{rem:trip_big_m}
-$M^{\mathrm{trip}}_m$ in~\eqref{eq:trip_link} is presented above as a
-single constant per mode for notational economy. The implementation
-instead derives a tightened, arc- and node-specific bound from each
-arc's transport-capacity and node-throughput parameters (any value at
-least as large as the true bound preserves correctness, so a tighter,
-context-specific value is always admissible). An optional
-per-(node, mode) override, absent from the notation above, may be
-supplied through instance data to further tighten this bound when
-known a priori; see \Cref{sec:method:implementation}.
-\end{remark}
+$M^{\mathrm{trip}}_m$ is stated above as a single constant per mode for
+notational economy; the implementation derives a tightened,
+arc- and node-specific bound instead (\Cref{app:impl_notes:bigm}).
 
 %- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsubsection{(C8)~~Fleet management and node activation}
@@ -432,15 +424,10 @@ K_{im} &\le M^{\mathrm{trip}}_m
 \end{alignat}
 \end{subequations}
 
-\begin{remark}[Degenerate transport-mode data]\label{rem:vehicle_hours_fallback}
-Equation~\eqref{eq:vehicle_hours} presumes a positive mode speed $v_m$
-and a positive driving-hour allowance $H_m$. The implementation
-substitutes a trip-count bound (via the big-$M$ of
-\Cref{rem:trip_big_m}) whenever a mode's speed or driving-hour
-parameter is non-positive, which cannot occur for any mode populated
-by the data generator of \Cref{sec:method:implementation} but guards
-against division-by-zero on hand-edited or future instance data.
-\end{remark}
+Equation~\eqref{eq:vehicle_hours} presumes a positive mode speed
+$v_m$ and a positive driving-hour allowance $H_m$; the
+implementation's fallback for degenerate (non-positive) values is
+given in \Cref{app:impl_notes:degenerate}.
 
 %- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsubsection{(C9)~~Intermodal hub routing}
@@ -483,31 +470,20 @@ y_f \le \sum_{g\in\setG}\lambda^{\mathrm{p}}_{fg}
 \qquad \forall f\in\setF,
 \label{eq:vi_tech_demand}
 \end{equation}
-A further candidate inequality would require aggregate installed
-capacity to cover aggregate demand in every period,
-\begin{equation}
-\sum_{f\in\setF}\Biggl(
-   \sum_{g:(p,g)\in\Omega^{\mathrm{p}}}
-      \overline{Q}^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg}
- + \sum_{\ell:(p,\ell)\in\Omega^{\mathrm{r}}}
-      \overline{Q}^{\mathrm{r}}_{\ell}\,\lambda^{\mathrm{r}}_{f\ell}
-\Biggr)
-\ge \sum_{r\in\setR} d_{rpt},
-\qquad \forall p\in\setP,\,t\in\setT,
-\label{eq:vi_capacity_demand}
-\end{equation}
-but, unlike~\eqref{eq:vi_tech_demand}, this is \emph{not} a valid
-inequality and is not part of the implemented formulation; see
-\Cref{rem:valid_ineq}.
+which is implied whenever the flow topology never routes finished
+product \emph{into} a factory --- only the outbound arcs $\setA_{fw}$
+exist for $p\in\setP$ (the standard convention for a greenfield
+network-design instance, and the one used throughout
+\Cref{sec:experiments}). A second candidate inequality, requiring
+aggregate installed capacity to cover aggregate demand in every
+period, is \emph{not} valid under inventory banking and is
+deliberately excluded; \Cref{app:impl_notes:capdemand} gives the
+equation and the counterexample.
 
 \begin{remark}[Valid inequalities]\label{rem:valid_ineq}
-Constraint~\eqref{eq:vi_tech_demand} is implied whenever the flow
-topology never routes finished product \emph{into} a factory --- only
-the outbound arcs $\setA_{fw}$ exist for $p\in\setP$ (the standard
-convention for a greenfield network-design instance, and the one used
-throughout \Cref{sec:experiments}). Under that convention,
-$X^{\mathrm{in}}_{pft}=0$ structurally, so the flow-balance
-equation~\eqref{eq:bal_factory} collapses to
+Under the greenfield convention, $X^{\mathrm{in}}_{pft}=0$
+structurally, so the flow-balance equation~\eqref{eq:bal_factory}
+collapses to
 $q^{\mathrm{p}}_{pfgt}+q^{\mathrm{r}}_{pf\ell t}=X^{\mathrm{out}}_{pft}$.
 A factory installing neither technology therefore has
 $X^{\mathrm{out}}_{pft}=0$ directly, and the raw-material and
@@ -524,22 +500,6 @@ because it is not redundant in the \LP relaxation; it tightens the
 linear-programming bound and reduces the enumeration effort when the
 \DBP solves the fixed-tax follower subproblems in
 \Cref{sec:methodology}.
-
-Constraint~\eqref{eq:vi_capacity_demand}, by contrast, is \emph{not}
-logically implied by (C1)--(C9) in general, because it ignores
-inventory banking: $\lambda^{\mathrm{p}}_{fg}$ and $\lambda^{\mathrm{r}}_{f\ell}$
-are time-invariant, but a network can install less capacity than a
-single period's peak demand and still satisfy that peak by
-overproducing in earlier, low-demand periods and drawing down
-$s^{\mathrm{inv}}_{pwt}$ at warehouses (\Cref{eq:bal_warehouse}) when
-demand spikes, as long as the inventory bounds~\eqref{eq:inv_bounds}
-permit it. Any instance with a non-flat demand profile $d_{rpt}$ and
-sufficient inventory headroom can have an optimal solution that
-violates~\eqref{eq:vi_capacity_demand} at the peak period while
-remaining feasible and cost/emissions-optimal under (C1)--(C9). Adding
-it as a hard constraint would therefore risk excluding genuinely
-optimal solutions rather than merely tightening the relaxation, so it
-is deliberately \emph{not} included in the implemented formulation.
 \end{remark}
 
 %- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

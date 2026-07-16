@@ -8,24 +8,26 @@
 \caption{Deterministic Bounding Procedure (\DBP)}
 \label{alg:dbp}
 
-\KwIn{Tax bounds $[\taxlb,\taxub]$; tolerance $\epsilon>0$.}
-\KwOut{Tax index $\taxhat^{\dagger}$ and bilevel-feasible response
+\KwIn{Tax bounds $[\taxindexlb,\taxindexub]$; tolerance $\epsilon>0$.}
+\KwOut{Tax index $\taxindex^{\dagger}$ and bilevel-feasible response
   $\bz^{\dagger}$ with $\gap\le\epsilon$.}
 
 \BlankLine
 \tcp{Initialisation. The relaxation master optimises over the same
   feasible region $\setX$ as the follower (\Cref{sec:model:follower}),
-  which does \emph{not} depend on $\taxhat$ -- only the follower's
+  which does \emph{not} depend on $\taxindex$ -- only the follower's
   objective~\eqref{eq:follower} does. This is what lets a cut generated
   at one tax index remain valid at every other (\Cref{lem:lb_validity}).}
 $\LB\leftarrow-\infty$; $\UB\leftarrow+\infty$; $\mathcal{C}\leftarrow\emptyset$\;
-$\bigl(\taxhat^{(0)},\,\cdot\bigr)\leftarrow
-  \displaystyle\argmin_{\taxhat\in\mathcal{T}^{\tau},\,\bz\in\setX}\Emis(\bz)$\;
+$\taxindex^{(0)}\leftarrow$ Stage~1/Stage~2 selection of
+  \Cref{sec:method:tiebreak} applied to $\mathcal{C}=\emptyset$: the
+  smallest tax index attaining
+  $\min_{\taxindex\in\mathcal{T}^{\tau},\,\bz\in\setX}\Emis(\bz)$\;
 $k\leftarrow 0$\;
 
 \BlankLine
 \While{$\UB-\LB > \epsilon\cdot\UB$}{%
-  \tcp{---- Upper bound: exact follower evaluation at $\taxhat^{(k)}$ ----}
+  \tcp{---- Upper bound: exact follower evaluation at $\taxindex^{(k)}$ ----}
   \input{algorithms/alg_upper_bound}\;
   \BlankLine
   \tcp{---- Lower bound: re-solve the relaxation master with the new cut ----}
@@ -35,5 +37,5 @@ $k\leftarrow 0$\;
   $k\leftarrow k+1$\;
 }
 \BlankLine
-\Return $\taxhat^{\dagger},\,\bz^{\dagger},\,\gap$\;
+\Return $\taxindex^{\dagger},\,\bz^{\dagger},\,\gap$\;
 \end{algorithm}

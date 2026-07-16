@@ -86,7 +86,7 @@ $F^{\mathrm{m}}_m$ & Vehicle investment cost, road mode $m\in\setMrd$ & USD \\
 \label{tab:capacity_params}
 \footnotesize
 \renewcommand{\arraystretch}{1.15}
-\begin{tabular}{@{}llr@{}}
+\begin{tabularx}{\textwidth}{@{}lXr@{}}
 \toprule
 Parameter & Description & Units \\
 \midrule
@@ -111,7 +111,7 @@ $\overline{V}$ & Max. total investment in company-owned vehicles & USD \\
 $apu_q$ & Storage area per unit of item $q\in\setQ$ held in end-of-period inventory; only $q\in\setP$ at warehouses carries nonzero stock~\eqref{eq:YCT}, since raw materials $\setU$ and recovered items $\setK$ hold no on-site inventory state anywhere & m$^2$/unit \\
 $apur_p$ & Handling area per unit of period throughput of finished product $p\in\setP$, entering the flow-based component of~\eqref{eq:YCT} at both factories and warehouses & m$^2$/(unit/period) \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 %--------------------------------------------------------------
@@ -153,7 +153,7 @@ $e^{\mathrm{o,f}}_i$ & Opening emission intensity for facility $i\in\setF\cup\se
 $e^{\mathrm{p}}_g,\;e^{\mathrm{r}}_{\ell}$ & Emission intensity per kg produced/remanufactured & kg\,CO$_2$e/kg \\
 $e^{\mathrm{u}}_{su}$ & Emission intensity of raw material $u$ from supplier $s$ & kg\,CO$_2$e/kg \\
 $e^{\mathrm{tr}}_m$ & Transport emission intensity of mode $m$ & kg\,CO$_2$e/(kg$\cdot$km) \\
-$\taxlb,\taxub$ & Lower/upper bounds on the leader's carbon-tax index & -- \\
+$\taxindexlb,\taxindexub$ & Lower/upper bounds on the leader's carbon-tax index & -- \\
 \bottomrule
 \end{tabular}
 \end{table}

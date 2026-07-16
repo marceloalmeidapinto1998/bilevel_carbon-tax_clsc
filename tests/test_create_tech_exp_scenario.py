@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from data.generator import build_base_benchmark_specs, generate_instance, write_instance
-from src.models.instance_loader import InstanceData
+from src.models.instance import InstanceData
 from tools.experiments.scenarios.technology import (
     DEFAULT_SCENARIO_NAME,
     create_technology_scenario,

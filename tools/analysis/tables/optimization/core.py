@@ -12,19 +12,13 @@ from typing import Any
 INSTANCE_RE = re.compile(r"^STD_I(?P<I>\d+)_M(?P<M>\d+)_T(?P<T>\d+)$")
 
 METHOD_LABELS = {
-    "certified": "Certified",
-    "enum_lf_lex_exact": "Enum | LF-Lex",
     "exact": "Exact",
-    "f_lex_exact": "F-Lex Exact",
-    "lf_lex_exact": "LF-Lex Exact",
+    "lex": "F-Lex Exact",
 }
 
 METHOD_ORDER = {
     "exact": 0,
-    "certified": 1,
-    "f_lex_exact": 2,
-    "lf_lex_exact": 3,
-    "enum_lf_lex_exact": 4,
+    "lex": 1,
 }
 
 
@@ -70,6 +64,15 @@ def load_rows(results_base: Path) -> list[ResultRow]:
                 continue
             instance = str(record.get("instance") or summary_path.parent.parent.name)
             I, M, T = parse_instance_code(instance)
+            effective_tax_usd_per_kg = _to_float(record.get("effective_tax"))
+            # effective_tax is stored USD/kg CO2e; report the economically meaningful
+            # USD/t rate (x1000), never the raw tax_index index -- see
+            # paper/appendix/app_data.tex Sec. "Carbon-Tax Range Justification".
+            tau_star_usd_per_tonne = (
+                effective_tax_usd_per_kg * 1000.0
+                if effective_tax_usd_per_kg is not None
+                else None
+            )
             rows.append(
                 ResultRow(
                     instance=instance,
@@ -77,7 +80,7 @@ def load_rows(results_base: Path) -> list[ResultRow]:
                     M=M,
                     T=T,
                     method=method,
-                    tau_star=_to_float(record.get("effective_tax")),
+                    tau_star=tau_star_usd_per_tonne,
                     cost_star=_to_float(record.get("cost")),
                     emissions_star=_to_float(record.get("emissions")),
                     follower_objective=_to_float(record.get("follower_objective")),
@@ -135,7 +138,7 @@ def render_all_methods_table(rows: list[ResultRow]) -> str:
         r"\textbf{Product}",
         r"\textbf{Period}",
         r"\textbf{Solution Method}",
-        r"\textbf{\mbox{Tax (USD/kg CO$_2$e)}}",
+        r"\textbf{\mbox{Tax (USD/t CO$_2$e)}}",
         r"\textbf{\mbox{Emissions (kg CO$_2$e)}}",
         r"\textbf{\mbox{Total Cost (USD)}}",
         r"\textbf{\mbox{CPU Time (s)}}",
@@ -175,7 +178,7 @@ def render_all_methods_table(rows: list[ResultRow]) -> str:
             fmt_int(row.M),
             fmt_int(row.T),
             latex_escape(method_label(row.method)),
-            latex_num(fmt_float(row.tau_star, digits=2)),
+            latex_num(fmt_float(row.tau_star, digits=1)),
             latex_num(fmt_scientific_reader(row.emissions_star)),
             latex_num(fmt_scientific_reader(row.follower_objective)),
             latex_num(fmt_float(row.solve_seconds, digits=2)),

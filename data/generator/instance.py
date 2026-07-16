@@ -11,9 +11,9 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - only needed for optional YAML output
     yaml = None
 
-from .config import GeneratorConfig, _tax_rate_to_hat_tau
+from .config import GeneratorConfig, _tax_rate_to_tax_index
 from .models import GeneratedInstance
-from .geometry import _build_item_flow_tuples, _build_product_technology_pairs, _complete_cross_arcs, _connect_layers, _distances_for_arcs, _labels, _nested_arc_parameter, _products_by_technology, _sample_coordinates, _unique_arcs
+from .geometry import _build_item_flow_tuples, _build_product_technology_pairs, _complete_cross_arcs, _connect_layers, _labels, _nested_arc_parameter, _products_by_technology, _sample_coordinates, _unique_arcs
 from .sampling import _sample_bom_and_product_profiles, _sample_demand, _sum_product_demand_by_period
 from . import tautenhain_data as taut
 
@@ -166,9 +166,29 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
     )
     transport_arcs = _unique_arcs(raw_arcs, final_product_arcs, recovered_product_arcs)
     # Tautenhain et al. use a generalized tuple system for feasible item flows.
-    # We keep that structure here through FLOW_* sets and assign every feasible
-    # transport arc an independently sampled Tautenhain-style distance.
-    dist_transport = _distances_for_arcs(transport_arcs, coordinates)
+    # We keep that structure through the FLOW_* sets and assign every feasible
+    # transport arc a distance sampled from Tautenhain's uniform range
+    # (dist_ij ~ U[DISTANCE_RANGE], generator supp. Table 3) -- NOT the Euclidean
+    # distance between the sampled coordinates. Euclidean distances obey the triangle
+    # inequality, which makes every intermodal hub route (A -> hub -> hub -> B)
+    # provably >= the direct truck arc A -> B and so leaves the air/sea modes
+    # structurally unusable (the follower, minimising cost, never routes through a
+    # hub); Tautenhain's uniform distances do not obey it, so hub routing can win.
+    # Coordinates are kept solely to decide which arcs exist (nearest-neighbour
+    # layering in _connect_layers above), not for arc distance. A dedicated RNG
+    # keeps every other sampled parameter byte-identical to the coordinate-based
+    # generator, isolating the distance change. Distances are symmetric per
+    # unordered node pair (a physical distance), matching Mota et al.'s table.
+    distance_rng = random.Random(f"{config.seed}:transport-distance")
+    _pair_distance_km: dict[frozenset[str], float] = {}
+    dist_transport: dict[tuple[str, str], float] = {}
+    for origin, destination in transport_arcs:
+        pair_key = frozenset((origin, destination))
+        if pair_key not in _pair_distance_km:
+            _pair_distance_km[pair_key] = taut.sample_distance_km(
+                distance_rng, lower=taut.DISTANCE_RANGE[0], upper=taut.DISTANCE_RANGE[1]
+            )
+        dist_transport[(origin, destination)] = _pair_distance_km[pair_key]
     demand, return_min_rate, return_max_rate = _sample_demand(rng, retailers, products, periods)
     return_lag = {
         product: taut.sample_return_lag_period(rng, planning_periods=len(periods))
@@ -453,8 +473,8 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         },
         "carbon_tax_units": {
             "underline_tau_overline_tau": "USD/kg CO2e",
-            "hat_tau_step": "0.01 USD/kg CO2e",
-            "tau_formula_usd_per_kg_co2e": "0.01 * hat_tau",
+            "tax_index_step": "0.01 USD/kg CO2e",
+            "tau_formula_usd_per_kg_co2e": "0.01 * tax_index",
         },
     }
 
@@ -570,8 +590,8 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         "e_ship_m": transport_emission,
         "underline_tau": config.tax_lower,
         "overline_tau": config.tax_upper,
-        "underline_hat_tau": _tax_rate_to_hat_tau(config.tax_lower),
-        "overline_hat_tau": _tax_rate_to_hat_tau(config.tax_upper),
+        "underline_tax_index": _tax_rate_to_tax_index(config.tax_lower),
+        "overline_tax_index": _tax_rate_to_tax_index(config.tax_upper),
         "d_i_j": _nested_arc_parameter(transport_arcs, dist_transport),
     }
 

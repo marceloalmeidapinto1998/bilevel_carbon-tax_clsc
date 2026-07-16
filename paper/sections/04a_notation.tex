@@ -21,8 +21,9 @@ the problem they govern.
 \item \refstepcounter{assumption}\label{as:lin}%
   \textbf{\theassumption.}\enspace
   All unit economic costs (production, remanufacturing, transport,
-  inventory holding, and material acquisition) are constant across
-  periods and scale linearly with quantities.
+  inventory holding, material acquisition, and facility construction)
+  are constant across periods and scale linearly with their driving
+  quantities.
 \item \refstepcounter{assumption}\label{as:emis}%
   \textbf{\theassumption.}\enspace
   All emission factors are constant and technology- or mode-specific;
@@ -30,7 +31,11 @@ the problem they govern.
   and distance.
 \item \refstepcounter{assumption}\label{as:lead}%
   \textbf{\theassumption.}\enspace
-  Transportation lead times are absorbed within a single planning period.
+  Transportation lead times are absorbed within a single planning
+  period, so every shipment departs and arrives in the same period.
+  This is distinct from the multi-period return lag of
+  \Cref{as:retlag}, which governs when sold products become available
+  as recoverable items.
 \end{itemize}
 
 \medskip
@@ -40,6 +45,13 @@ the problem they govern.
   \textbf{\theassumption.}\enspace
   Every market demand is met exactly in each period; no inventory is
   held at markets.
+\item \refstepcounter{assumption}\label{as:retlag}%
+  \textbf{\theassumption.}\enspace
+  Products sold at a market become available as recoverable items a
+  fixed, product-specific number of periods later; the volume returned
+  in each period lies within the return-rate bounds
+  $[\underline{\eta}_{rpt},\overline{\eta}_{rpt}]$ applied to that
+  lagged demand.
 \item \refstepcounter{assumption}\label{as:hub}%
   \textbf{\theassumption.}\enspace
   Hub terminals operate as pure cross-docking facilities: all items
@@ -48,22 +60,22 @@ the problem they govern.
   outsourced terminal-access points; selecting a hub incurs fixed access
   costs and flow-dependent handling costs, but no facility-construction
   or opening emissions.
-\item \refstepcounter{assumption}\label{as:feas}%
-  \textbf{\theassumption.}\enspace
-  For every admissible index $\taxhat\in\{\taxlb,\ldots,\taxub\}$,
-  the follower's feasible region $\setX$ is non-empty. This can be
-  verified a priori by checking that the network has sufficient
-  installed capacity to cover maximum aggregate demand.
 \end{itemize}
 
 \medskip
 \noindent\textit{Bilevel game structure.}
 \begin{itemize}[leftmargin=2.8em, label={}, itemsep=0.55em]
+\item \refstepcounter{assumption}\label{as:feas}%
+  \textbf{\theassumption.}\enspace
+  For every admissible index $\taxindex\in\{\taxindexlb,\ldots,\taxindexub\}$,
+  the follower's feasible region $\setX$ is non-empty. This can be
+  verified a priori by checking that the network has sufficient
+  installed capacity to cover maximum aggregate demand.
 \item \refstepcounter{assumption}\label{as:stackelberg}%
   \textbf{\theassumption.}\enspace
-  The regulator announces the carbon-tax index $\taxhat$ before the
+  The regulator announces the carbon-tax index $\taxindex$ before the
   supply chain operator makes any facility, technology, or operational
-  decision; the operator observes $\taxhat$ with certainty and responds
+  decision; the operator observes $\taxindex$ with certainty and responds
   rationally (\emph{open-loop Stackelberg game}).
 \item \refstepcounter{assumption}\label{as:fixednet}%
   \textbf{\theassumption.}\enspace
@@ -108,10 +120,6 @@ inventory of their own (\Cref{sec:model:c1}), so finished-product
 stock is held only at warehouses.
 Transport partition as $\setM=\setMrd\cup\setMout$, where
 $\setMout=\setMa\cup\setMs$ collects the outsourced non-road modes.
-Instance files additionally carry a set labelled $I$, kept equal to
-$\setN$ for backward compatibility with an earlier node-indexing
-convention; it is validated against $\setN$ on load but is not an
-independent model object, and the implementation reads only $\setN$.
 
 %- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 \subsubsection{Parameters}
@@ -147,17 +155,25 @@ $\Omega^{\mathrm{r}}\subseteq\setP\times\setL$ (remanufacturing).
 \paragraph{Leader decision variable.}
 The regulator's sole decision is the integer carbon-tax index
 \begin{equation}
-\taxhat\in\mathcal{T}^{\tau}\defeq
-\{\taxlb,\taxlb+1,\ldots,\taxub\}\subset\Z,
+\taxindex\in\mathcal{T}^{\tau}\defeq
+\{\taxindexlb,\taxindexlb+1,\ldots,\taxindexub\}\subset\Z,
 \label{eq:leader_domain}
 \end{equation}
-which induces the carbon-tax rate $\tau=\taxhat/100$ (USD/kg\,CO$_2$e).
-We work with the index $\taxhat$ rather than the rate $\tau$ directly
-because it keeps the leader's domain finite and discrete, enabling 
-the exact DBP of \Cref{sec:methodology}.
+which induces the carbon-tax rate $\tau=10\,\taxindex$ (USD/t\,CO$_2$e).
+We work with the index $\taxindex$, rather than the economically
+meaningful rate $\tau$ directly, \emph{only} in the leader's
+formulation~\eqref{eq:leader} and the \DBP of \Cref{sec:methodology}:
+restricting the leader to a finite, evenly spaced grid is what makes
+the domain enumerable and keeps the exact DBP's bounding argument
+finite. This is a modelling device, not a substantive restriction ---
+the grid step (10 USD/t) is fine relative to the policy range under
+study (\Cref{app:data:tax_range}) --- and it is confined to the
+algorithmic machinery: every reported result, table, and discussion in
+\Cref{sec:experiments,sec:discussion} is expressed in the rate $\tau$
+(USD/t\,CO$_2$e), not the index $\taxindex$.
 
 \paragraph{Follower decision variables.}
-Given $\taxhat$, the follower chooses the vector
+Given $\taxindex$, the follower chooses the vector
 \begin{equation*}
 \bz=\bigl(y,\,YC,\,\lambda^{\mathrm{p}},\,\lambda^{\mathrm{r}},\,a,\,
 \sigma,\,\zeta,\,\kappa,\,Q,\,K,\,q^{\mathrm{p}},\,q^{\mathrm{r}},\,

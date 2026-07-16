@@ -15,7 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from data.generator import tautenhain_data as taut
 from data.generator import GeneratedInstance, write_instance
-from src.models.instance_loader import InstanceData
+from src.models.instance import InstanceData
 from tools.experiments.scenarios.common.paths import BASE_INSTANCE_DIR, SCENARIO_INSTANCE_DIR
 
 
@@ -157,7 +157,17 @@ def create_technology_scenario_instance(
     payload: dict[str, Any],
     *,
     scenario_name: str = DEFAULT_SCENARIO_NAME,
+    include_production: bool = True,
+    include_remanufacturing: bool = True,
 ) -> GeneratedInstance:
+    """Append the expanded technology profiles to `payload`.
+
+    `include_production`/`include_remanufacturing` (added for doe_campaign_02's
+    `production_technology_menu`/`remanufacturing_technology_menu` structural-factor split,
+    EXPERIMENTAL_PLAN.md §5.2) let a caller expand only one technology type at a time. Both
+    default to True, reproducing the original (pre-split) behaviour exactly for existing callers
+    (doe_campaign_01's single `technology_menu` factor).
+    """
     scenario_payload = copy.deepcopy(payload)
     source_name = str(scenario_payload["name"])
     sets = scenario_payload["sets"]
@@ -169,21 +179,28 @@ def create_technology_scenario_instance(
     production_technologies = list(sets["G"])
     remanufacturing_technologies = list(sets["L"])
 
-    _reject_existing_added_technologies(production_technologies, remanufacturing_technologies)
+    _reject_existing_added_technologies(
+        production_technologies,
+        remanufacturing_technologies,
+        check_production=include_production,
+        check_remanufacturing=include_remanufacturing,
+    )
 
-    _append_production_technologies(
-        sets=sets,
-        params=params,
-        products=products,
-        raw_materials=raw_materials,
-        existing_technologies=production_technologies,
-    )
-    _append_remanufacturing_technologies(
-        sets=sets,
-        params=params,
-        products=products,
-        existing_technologies=remanufacturing_technologies,
-    )
+    if include_production:
+        _append_production_technologies(
+            sets=sets,
+            params=params,
+            products=products,
+            raw_materials=raw_materials,
+            existing_technologies=production_technologies,
+        )
+    if include_remanufacturing:
+        _append_remanufacturing_technologies(
+            sets=sets,
+            params=params,
+            products=products,
+            existing_technologies=remanufacturing_technologies,
+        )
     _update_metadata(
         metadata=metadata,
         scenario_name=scenario_name,
@@ -191,6 +208,8 @@ def create_technology_scenario_instance(
         scenario_instance_name=_technology_instance_name(source_name, sets),
         source_production_technologies=production_technologies,
         source_remanufacturing_technologies=remanufacturing_technologies,
+        added_production_profiles=PRODUCTION_PROFILES if include_production else (),
+        added_remanufacturing_profiles=REMANUFACTURING_PROFILES if include_remanufacturing else (),
     )
 
     scenario = GeneratedInstance(
@@ -337,11 +356,13 @@ def _update_metadata(
     scenario_instance_name: str,
     source_production_technologies: list[str],
     source_remanufacturing_technologies: list[str],
+    added_production_profiles: tuple[ProductionTechnologyProfile, ...] = PRODUCTION_PROFILES,
+    added_remanufacturing_profiles: tuple[RemanufacturingTechnologyProfile, ...] = REMANUFACTURING_PROFILES,
 ) -> None:
     config = metadata.setdefault("config", {})
     config["instance_name"] = scenario_instance_name
-    config["production_technologies"] = len(source_production_technologies) + len(PRODUCTION_PROFILES)
-    config["remanufacturing_technologies"] = len(source_remanufacturing_technologies) + len(REMANUFACTURING_PROFILES)
+    config["production_technologies"] = len(source_production_technologies) + len(added_production_profiles)
+    config["remanufacturing_technologies"] = len(source_remanufacturing_technologies) + len(added_remanufacturing_profiles)
 
     source_benchmark = copy.deepcopy(metadata.get("benchmark", {}))
     metadata["benchmark"] = {
@@ -358,12 +379,12 @@ def _update_metadata(
             "remanufacturing": source_remanufacturing_technologies,
         },
         "added_technologies": {
-            "production": [profile.technology for profile in PRODUCTION_PROFILES],
-            "remanufacturing": [profile.technology for profile in REMANUFACTURING_PROFILES],
+            "production": [profile.technology for profile in added_production_profiles],
+            "remanufacturing": [profile.technology for profile in added_remanufacturing_profiles],
         },
         "compatibility_rule": "Each added production and remanufacturing technology is compatible with all final products.",
-        "production_profiles": [asdict(profile) for profile in PRODUCTION_PROFILES],
-        "remanufacturing_profiles": [asdict(profile) for profile in REMANUFACTURING_PROFILES],
+        "production_profiles": [asdict(profile) for profile in added_production_profiles],
+        "remanufacturing_profiles": [asdict(profile) for profile in added_remanufacturing_profiles],
     }
 
 
@@ -374,13 +395,25 @@ def _technology_instance_name(source_name: str, sets: dict[str, Any]) -> str:
 def _reject_existing_added_technologies(
     production_technologies: list[str],
     remanufacturing_technologies: list[str],
+    *,
+    check_production: bool = True,
+    check_remanufacturing: bool = True,
 ) -> None:
+    # Only the technology types being added in THIS call are checked. Under doe_campaign_02's
+    # per-type split, production and remanufacturing menus are expanded via separate sequential
+    # calls (apply_structural_levels_v2); after the production call the instance already contains
+    # g4/g5/g6, so an unconditional check would wrongly reject the subsequent remanufacturing call.
+    # doe_campaign_01's single all-types call leaves both flags True, preserving its behaviour.
     existing_production = set(production_technologies)
     existing_remanufacturing = set(remanufacturing_technologies)
-    duplicate_production = [profile.technology for profile in PRODUCTION_PROFILES if profile.technology in existing_production]
-    duplicate_remanufacturing = [
-        profile.technology for profile in REMANUFACTURING_PROFILES if profile.technology in existing_remanufacturing
-    ]
+    duplicate_production = (
+        [profile.technology for profile in PRODUCTION_PROFILES if profile.technology in existing_production]
+        if check_production else []
+    )
+    duplicate_remanufacturing = (
+        [profile.technology for profile in REMANUFACTURING_PROFILES if profile.technology in existing_remanufacturing]
+        if check_remanufacturing else []
+    )
     if duplicate_production or duplicate_remanufacturing:
         raise ValueError(
             "Source instance already contains scenario technologies: "

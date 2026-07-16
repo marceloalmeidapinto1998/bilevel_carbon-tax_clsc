@@ -7,178 +7,193 @@
 \label{sec:problem}
 
 We study the tactical design of a multi-echelon, multi-period \CLSC
-operating under an external carbon-tax policy. The resulting decision
-problem is hierarchical: a regulator sets the tax rate, and a supply
-chain operator designs and operates the network under that rate. \Cref{sec:prob:overview}
-formalizes the physical network and admissible flows;
-\Cref{sec:prob:hierarchy} states the Stackelberg interaction that
-underpins the bilevel model of \Cref{sec:model}.
+under an external carbon-tax policy. The decision problem is
+hierarchical: a regulator sets a carbon-tax rate, and a supply chain
+operator designs and operates the network in response.
+\Cref{sec:prob:overview} describes the physical network and its
+admissible flows. \Cref{sec:prob:hierarchy} states the Stackelberg
+interaction formalized as a \BLMIP in \Cref{sec:model}.
 
 %-----------------------------------------------------------------
 \subsection{Network and flows}
 \label{sec:prob:overview}
 
-The planning horizon comprises $T$ discrete periods. The physical network
-consists of five node classes: suppliers ($\setS$), factories ($\setF$),
-warehouses ($\setW$), hub terminals $\setH=\setHa\cup\setHs$ (airports and
-seaports), and markets ($\setR$). Suppliers, factories, warehouses, and
-hub terminals are \emph{openable}. Opening a factory or warehouse incurs
-a construction cost and an emission, both proportional to its
-installed area -- there is no fixed cost or emission for opening a
-factory or warehouse beyond what its installed area requires.
-Suppliers and hub terminals are not constructed but
-\emph{selected}: selecting a supplier incurs a fixed cost, reflecting
-the footprint of qualifying a new sourcing relationship rather than
-building a facility, but no emission of its own -- a supplier's
-emission footprint is captured entirely by the raw-material
-acquisition emission charged on what is actually shipped from it --
-whereas selecting a hub incurs a fixed access cost but no construction
-emission, since hub terminals are modeled as outsourced terminal
-access points. Markets face
-demand given as a model parameter and act as collection points for
-end-of-use items.
+The planning horizon spans $T$ discrete periods. The network has five
+node classes: suppliers ($\setS$), factories ($\setF$), warehouses
+($\setW$), hub terminals $\setH=\setHa\cup\setHs$ (airports and
+seaports), and markets ($\setR$). Markets are fixed; they carry demand
+as a parameter and collect end-of-use items. The remaining four classes
+are decision nodes.
 
-Three item families circulate in the network. Raw materials ($\setU$)
-are procured from suppliers and consumed at factories. Finished products
-($\setP$) are manufactured or remanufactured at factories and delivered
-to markets through warehouses, hubs, or direct links. Recoverable items
-($\setK$) are collected at markets and returned upstream for
-remanufacturing, closing the material loop. Forward and reverse flows
+Factories and warehouses are opened. Each carries a construction cost
+and an emission, both proportional to installed floor area, with no
+separate fixed term. Suppliers and hubs are selected rather than built.
+Selecting a supplier incurs a fixed qualification cost and no emission
+of its own; its emissions attach instead to the raw material shipped
+from it. Selecting a hub incurs a fixed access cost and no construction
+emission, since hubs are outsourced cross-docking points rather than
+owned infrastructure \citep{mota2018}.
+
+Three item families circulate. Raw materials ($\setU$) are procured
+from suppliers and consumed at factories. Finished products ($\setP$)
+are manufactured or remanufactured at factories and delivered to markets
+through warehouses, hubs, or direct links. Recoverable items ($\setK$)
+are collected at markets and returned to factories for remanufacturing,
+closing the loop with a product-specific lag. Forward and reverse flows
 share the same transportation infrastructure.
 
-Transportation combines a heterogeneous modal portfolio. Road movement
-uses company-owned truck alternatives, so the model can choose among
-truck types with different capacities, fixed costs, trip costs, and
-emission intensities. Long-haul inter-hub transfers use outsourced
-airplane and boat alternatives, represented by carrier contracts with per-period
-capacity, variable kg--km costs, and terminal handling costs. Hub
-terminals operate as intermodal cross-docking facilities: ground inflows
-are matched by air or sea outflows of the same tonnage, and vice versa.
+Transportation uses a heterogeneous modal portfolio. Road legs use
+company-owned trucks; the model selects among truck types differing in
+capacity, fixed cost, trip cost, and emission intensity. Long-haul
+inter-hub transfers use outsourced air and sea carriers, each contracted
+per period with a capacity limit, a variable kg--km cost, and a handling
+cost. Hubs cross-dock without storage: within a period, item inflow is
+matched by item outflow.
 
-Production and remanufacturing at each factory rely on a catalogue of
-technologies ($\setG$ and $\setL$, respectively), each characterized by
-unit cost, throughput bounds, emission factor, and a set of compatible
-products. Finished-product inventories are held at factories and
-warehouses subject to opening-conditional capacity limits; markets
-satisfy demand exactly with no carry-over. Returned items enter the
-reverse channel with a product-specific lag and must be absorbed by
-remanufacturing at a factory.
+Each factory operates a catalogue of production ($\setG$) and
+remanufacturing ($\setL$) technologies. Each technology has a unit cost,
+throughput bounds, an emission factor, and a compatible-product set.
+Inventory is held only at warehouses, under opening-conditional capacity
+limits. Factories are pure flow-through nodes and hold no inventory;
+markets satisfy demand exactly with no carry-over.
 
-\Cref{fig:network_structure} depicts the admissible arc families.
-Solid arcs denote forward flows (direct and warehouse-mediated), dashed
-arcs denote reverse flows, and grey arcs denote intermodal routes
-through the hub layer. The two hub nodes in the figure represent the
-same set $\setH$ in its origin and destination roles along an
-intermodal path. Demand and return-rate bounds are deterministic and
-known at planning time, consistent with the tactical scope of the
-problem.
+\Cref{fig:network} shows the admissible arc families. Solid
+arcs are forward flows (direct and warehouse-mediated), dashed arcs are
+reverse flows, and dotted arcs are intermodal routes through the hub
+layer. The two hub nodes depict the same set $\setH$ in its origin and
+destination roles along one intermodal path.
 
-\begin{figure}[htbp]
+\begin{figure}[tbp]
   \centering
   \begin{tikzpicture}[
       >=Latex,
-      node distance=2.8cm,
-      every node/.style={align=center, font=\small},
-      % --- node styles: grayscale-friendly, tonal differentiation via fill ---
-      facility/.style={
-        draw=black!75, line width=0.7pt, fill=black!4,
-        rectangle, rounded corners=3pt,
-        minimum width=1.45cm, minimum height=0.85cm
-      },
-      hub/.style={
-        draw=black!75, line width=0.7pt, fill=black!12,
-        ellipse, minimum width=1.8cm, minimum height=0.95cm
-      },
-      % --- arc styles: three line types, one colour, print-safe ---
-      fwd/.style ={-{Latex[length=2.0mm]}, line width=0.9pt, draw=black!85},
-      rev/.style ={-{Latex[length=2.0mm]}, line width=0.9pt, draw=black!85,
-                   dashed},
-      imod/.style={-{Latex[length=1.6mm]}, line width=0.55pt, draw=black!45,
+      font=\small,
+      % ---- node classes -------------------------------------------------
+      % openable (F, W): thick SOLID border
+      openable/.style={draw=black, line width=1.1pt, rectangle, rounded corners=2pt,
+                       fill=black!3, minimum width=1.5cm, minimum height=0.9cm},
+      % selectable (S, H): thin DASHED border
+      selectable/.style={draw=black!70, dash pattern=on 2pt off 2pt, line width=0.5pt,
+                         rectangle, rounded corners=2pt, fill=none,
+                         minimum width=1.5cm, minimum height=0.9cm},
+      % markets (R): fixed -> neutral thin solid border
+      market/.style={draw=black!75, line width=0.7pt, rectangle, rounded corners=2pt,
+                     fill=none, minimum width=1.5cm, minimum height=0.9cm},
+      % hubs (selectable): light-gray dashed ellipse, subdivided H^a U H^s
+      hub/.style={draw=black!70, dash pattern=on 2pt off 2pt, line width=0.5pt,
+                  ellipse, fill=black!10, align=center,
+                  minimum width=2.1cm, minimum height=1.25cm},
+      % ---- arc styles ---------------------------------------------------
+      fwd/.style={-{Latex[length=2.2mm]}, line width=0.9pt, draw=black},
+      rev/.style={-{Latex[length=2.2mm]}, line width=0.9pt, draw=black!55,
+                  dash pattern=on 3pt off 2pt},
+      imod/.style={-{Latex[open, length=1.9mm]}, line width=0.6pt, draw=black!45,
                    densely dotted},
-      % --- label styles ---
-      flab/.style={font=\small, fill=white, inner sep=1.3pt},
-      role/.style={font=\footnotesize\itshape, text=black!55}
+      % ---- label styles -------------------------------------------------
+      flab/.style={font=\footnotesize, fill=white, inner sep=1.6pt},
+      role/.style={font=\scriptsize\itshape, text=black!55},
+      note/.style={font=\scriptsize, text=black!60, align=center},
+      lgd/.style={font=\footnotesize, anchor=west}
     ]
-    % ================= Main chain =================
-    \node[facility]             (S) {$\setS$};
-    \node[facility, right=of S] (F) {$\setF$};
-    \node[facility, right=of F] (W) {$\setW$};
-    \node[facility, right=of W] (R) {$\setR$};
-    % ================= Hub layer (two routing roles) ==
-    \node[hub, above=2.7cm of F, xshift=-0.35cm] (Ho) {$\setH$};
-    \node[hub, above=2.7cm of W, xshift=0.35cm]  (Hd) {$\setH$};
+
+    % ================= Base echelon: S -> F -> W -> R =================
+    % Absolute coordinates on a wide canvas: generous gaps so every arc
+    % label clears the node boxes without white-fill overlap.
+    \node[selectable] (S) at ( 0.0,0) {$\setS$};
+    \node[openable]   (F) at ( 4.6,0) {$\setF$};
+    \node[openable]   (W) at ( 7.9,0) {$\setW$};
+    \node[market]     (R) at (11.2,0) {$\setR$};
+
+    % ================= Hub layer (two routing roles of the same set H) =
+    % Placed high and far apart: room vertically (no page-width limit) is
+    % what buys space for the intermodal labels and the cross-dock note.
+    \node[hub] (Ho) at (3.5,5.0) {\scriptsize$\setHa\!\cup\setHs$};
+    \node[hub] (Hd) at (9.1,5.0) {\scriptsize$\setHa\!\cup\setHs$};
     \node[role, above=2pt of Ho] {origin role};
     \node[role, above=2pt of Hd] {destination role};
-    % ================= Forward flows (solid, above chain) =====
-    \draw[fwd] (S) -- node[flab, above] {raw materials} (F);
-    \draw[fwd] (F) -- node[flab, above] {products}      (W);
-    \draw[fwd] (W) -- node[flab, above] {delivery}      (R);
-    \draw[fwd] (F) to[bend left=14]
-               node[flab, pos=0.42, above=2pt] {direct delivery} (R);
-    % ================= Reverse flows (dashed, below chain) =====
-    \draw[rev] (W) to[bend left=16]
-               node[flab, pos=0.38, below=1pt] {recovered items}  (F);
-    \draw[rev] (R) to[bend left=16]
-               node[flab, pos=0.62, below=1pt] {returns}          (W);
-    \draw[rev] (R) to[bend left=38]
-               node[flab, pos=0.5, below=3pt] {direct returns} (F);
-    % ================= Intermodal: into origin-role hub (S, F, W, R) =====
-    \draw[imod] (S.north) to[out=85,  in=210] (Ho.south west);
-    \draw[imod] (F.north) to[out=95,  in=255] (Ho.south);
-    \draw[imod] (W.north) .. controls ($(W)+(-0.25,1.6)$)
-                          and ($(Ho)+(0.95,-0.75)$) .. (Ho.east);
-    \draw[imod] (R.north) .. controls ($(R)+(-0.5,1.9)$)
-                          and ($(Ho)+(0.85,-0.9)$) .. (Ho.south east);
-    % ================= Intermodal: out of destination-role hub (F, W, R) =
-    \draw[imod] (Hd.south west) .. controls ($(Hd)+(-0.85,-0.9)$)
-                                and ($(F)+(0.15,1.9)$) .. (F.north);
-    \draw[imod] (Hd.south) -- (W.north);
-    \draw[imod] (Hd.south east) to[out=290, in=85] (R.north);
-    % ================= Hub transfer =============================
-    \draw[imod] (Ho) -- node[flab, above]     {air / sea transfer}
-                        node[role, below=5pt] {(same set $\setH$)} (Hd);
-    % ================= Legend =========================
-    \begin{scope}[shift={([yshift=-2.2cm]S.south west)}]
-      \draw[fwd]  (0,0)   -- ++(0.9,0)
-        node[right, font=\small, inner sep=3pt] {forward flow};
-      \draw[rev]  (3.0,0) -- ++(0.9,0)
-        node[right, font=\small, inner sep=3pt] {reverse flow};
-      \draw[imod] (6.0,0) -- ++(0.9,0)
-        node[right, font=\small, inner sep=3pt] {intermodal routing};
+
+    % ================= Forward flows (solid, filled head) =============
+    \draw[fwd] (S) -- node[flab]{$\setU$ -- raw materials} (F);
+    \draw[fwd] (F) to[bend left=16] node[flab]{$\setP$ -- products} (W);
+    \draw[fwd] (W) to[bend left=16] node[flab]{$\setP$ -- delivery} (R);
+    \draw[fwd] (F) to[bend left=26]
+        node[flab, pos=0.5]{$\setP$ -- direct delivery} (R);
+
+    % ================= Reverse flows (dark-gray dashed, filled head) ===
+    \draw[rev] (W) to[bend left=16] node[flab]{$\setK$ -- recovered items} (F);
+    \draw[rev] (R) to[bend left=16] node[flab]{$\setK$ -- returns} (W);
+    \draw[rev] (R) to[bend left=26]
+        node[flab, pos=0.5]{$\setK$ -- direct returns} (F);
+
+    % ================= Intermodal product path F -> H -> H -> R ========
+    % Long arcs on the tall canvas: one horizontal label each, on the line.
+    \draw[imod] (F) -- node[flab, pos=0.55]{$\setP$ (via hub)} (Ho);
+    \draw[imod] (Ho) -- node[flab]{air\,/\,sea transfer} (Hd);
+    \draw[imod] (Hd) -- (R);
+
+    % Cross-dock note anchored under the hub transfer (where it happens),
+    % centred in the open corridor between the two intermodal down-arcs.
+    \node[role] (samh) at ($(Ho)!0.5!(Hd)+(0,-0.65)$) {(same set $\setH$)};
+    \node[note, below=2pt of samh] {cross-dock: matched tonnage};
+
+    % ================= Annotations ====================================
+    \node[note, text width=2.2cm, anchor=west] at ($(R.east)+(0.15,0)$)
+        {demand \emph{and} collection point (end-of-use items)};
+
+    % ================= Legend (two rows) ==============================
+    \begin{scope}[shift={($(S.south west)+(0,-2.7)$)}]
+      % row 1 -- flow type
+      \draw[fwd]  (0,0)   -- ++(0.75,0);  \node[lgd] at (0.85,0) {forward flow};
+      \draw[rev]  (3.4,0) -- ++(0.75,0);  \node[lgd] at (4.25,0) {reverse flow};
+      \draw[imod] (6.8,0) -- ++(0.75,0);  \node[lgd] at (7.65,0) {intermodal routing};
+      % row 2 -- node type: each entry on its own row, >=2cm glyph-label gap,
+      % >=1cm gap between the two entries
+      \node[openable, minimum width=0.8cm, minimum height=0.45cm] at (0.4,-0.9) {};
+      \node[lgd] at (2.8,-0.9)
+        {openable ($\setF,\setW$): thick solid border};
+      \node[selectable, minimum width=0.8cm, minimum height=0.45cm] at (0.4,-1.9) {};
+      \node[lgd] at (2.8,-1.9)
+        {selectable ($\setS,\setH$): thin dashed border};
     \end{scope}
+
   \end{tikzpicture}
-  \caption{Forward (solid), reverse (dashed), and intermodal (dotted)
-    flows in the \CLSC network, connecting suppliers ($\setS$),
-    factories ($\setF$), warehouses ($\setW$), and markets ($\setR$).
-    Intermodal routes pass through the hub layer $\setH$, shown twice
-    to distinguish its origin and destination roles.}
-  \label{fig:network_structure}
+  \caption[Closed-loop supply chain network structure]{Physical structure of
+    the \CLSC network. Forward (solid), reverse (dashed), and intermodal
+    (dotted) flows connect suppliers $\setS$, factories $\setF$, warehouses
+    $\setW$, and markets $\setR$. Intermodal product routing passes through
+    the hub layer $\setH=\setHa\cup\setHs$ (airports and seaports), drawn
+    twice to show its origin and destination roles along a single path; hubs
+    cross-dock without on-site storage. Node borders encode the design
+    decision: factories and warehouses are \emph{openable} (thick solid
+    border; construction cost and emission proportional to installed area, no
+    fixed term), whereas suppliers and hubs are \emph{selectable} (thin
+    dashed border; fixed selection cost, no construction emission). Markets
+    are fixed demand and end-of-use collection points.}
+  \label{fig:network}
 \end{figure}
 
 %-----------------------------------------------------------------
 \subsection{Bilevel structure}
 \label{sec:prob:hierarchy}
 
-Network design and operation are governed by a Stackelberg game between
-a regulator and a supply chain operator: the regulator commits to a
-carbon tax before the operator observes it and responds.
+Design and operation are governed by an open-loop Stackelberg game
+between the regulator (leader) and the operator (follower). The leader
+commits to a carbon-tax rate before the follower acts; the follower
+observes the rate and responds. The leader chooses the rate from a
+finite, discrete grid. This finiteness makes the decomposition-based
+bounding procedure of \Cref{sec:methodology} exact and finite.
 
-\subsubsection{Leader (regulator)}
-\label{sec:prob:leader}
-
-The regulator chooses the carbon tax
-from a finite, discrete grid of rates, which enables the exact
-decomposition of \Cref{sec:methodology}. The regulator's objective is
-\emph{lexicographic}: first minimize the supply chain's total
-emissions, and, among all tax rates that attain that minimum, levy
-the lowest one.
-
-\subsubsection{Follower (supply chain operator)}
-\label{sec:prob:follower}
-
-Given the announced tax
-rate, the operator minimizes total operating cost plus tax payments
-by jointly deciding
-facility opening and installed capacity, technology installation,
-transportation modes and fleet, forward and reverse product flows,
-production, remanufacturing, and inventory.
+The leader's objective is lexicographic: it first minimizes the total
+emissions its tax induces, then, among all rates achieving that minimum,
+selects the lowest rate. The follower is a single, centrally coordinated
+operator that minimizes operating cost plus tax payment. Given the
+announced rate, it jointly decides facility opening and installed
+capacity, technology installation, transport mode and fleet, forward and
+reverse flows, production, remanufacturing, and inventory. Facility
+opening, supplier and hub selection, and technology installation are
+fixed at the start of the horizon and are not reconfigured; flow,
+production, and inventory decisions are period-specific. Demand and
+return-rate bounds are deterministic and known over the full horizon,
+consistent with the tactical scope. When the follower's optimum is not
+unique, the leader evaluates its objective under the optimistic
+convention.

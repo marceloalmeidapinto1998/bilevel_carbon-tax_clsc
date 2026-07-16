@@ -32,8 +32,8 @@ FEASIBILITY_CHECK_TIME_LIMIT_SECONDS = 60.0
 def _is_relaxation_feasible(instance: GeneratedInstance) -> bool:
     from gurobipy import GRB
 
-    from src.models.instance_loader import InstanceData
-    from src.models.shared_models import build_dbp_relaxation_master
+    from src.models.instance import InstanceData
+    from src.models.subproblems import build_dbp_relaxation_master
 
     instance_data = InstanceData.from_dict(instance.to_dict())
     master = build_dbp_relaxation_master(instance_data)

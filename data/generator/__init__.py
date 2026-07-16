@@ -33,7 +33,7 @@ from .cli import (
     main_instance,
 )
 from .config import (
-    CARBON_TAX_RATE_STEP,
+    SCALE_FACTOR,
     DEFAULT_AIRPLANES,
     DEFAULT_BOATS,
     DEFAULT_TRANSPORT_MODES,
@@ -48,7 +48,7 @@ __all__ = [
     "ArcConnectivityConfig",
     "BenchmarkSpec",
     "BenchmarkSummary",
-    "CARBON_TAX_RATE_STEP",
+    "SCALE_FACTOR",
     "DEFAULT_AIRPLANES",
     "DEFAULT_BOATS",
     "DEFAULT_TRANSPORT_MODES",

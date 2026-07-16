@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-CARBON_TAX_RATE_STEP = 0.01
+# Mirrors src.models.instance.SCALE_FACTOR; duplicated here (rather than
+# imported) since the generator package is kept independent of the model
+# layer. Keep both values in sync if this is ever changed.
+SCALE_FACTOR = 0.01
 
 
 DEFAULT_TRUCKS = 2
@@ -90,15 +93,15 @@ class GeneratorConfig:
             raise ValueError("tax bounds must be nonnegative")
         if self.tax_upper < self.tax_lower:
             raise ValueError("tax_upper must be at least tax_lower")
-        _tax_rate_to_hat_tau(self.tax_lower)
-        _tax_rate_to_hat_tau(self.tax_upper)
+        _tax_rate_to_tax_index(self.tax_lower)
+        _tax_rate_to_tax_index(self.tax_upper)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def _tax_rate_to_hat_tau(rate: float) -> int:
-    scaled = round(float(rate) / CARBON_TAX_RATE_STEP)
-    if abs(float(rate) - scaled * CARBON_TAX_RATE_STEP) > 1e-9:
+def _tax_rate_to_tax_index(rate: float) -> int:
+    scaled = round(float(rate) / SCALE_FACTOR)
+    if abs(float(rate) - scaled * SCALE_FACTOR) > 1e-9:
         raise ValueError("tax bounds must be multiples of 0.01 USD/kg CO2e to match the scaled tax index")
     return int(scaled)

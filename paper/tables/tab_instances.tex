@@ -24,9 +24,11 @@
       following Tautenhain et al. The road modes ($\setMrd$) are
       company-owned truck alternatives; the air ($\setMa$) and sea
       ($\setMs$) modes are outsourced carrier alternatives. \\
-  $\taxhat$ & 0,\ldots,20
-    & Discrete tax index. The effective tax is
-      $\tau=0.01\,\taxhat$ USD/kg\,CO\textsubscript{2}e, so the
-      implemented domain is $[0.00,0.20]$. \\
+  $\taxindex$ & 0,\ldots,20
+    & Discrete tax index, used only in the leader's formulation and the
+      \DBP (\Cref{sec:model:variables}). The economically meaningful
+      rate is $\tau=10\,\taxindex$ USD/t\,CO\textsubscript{2}e, so the
+      implemented domain is $[0,200]$ USD/t (justified in
+      \Cref{app:data:tax_range}); all reported results use $\tau$. \\
   \bottomrule
 \end{tabular}

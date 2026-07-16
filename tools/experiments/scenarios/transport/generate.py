@@ -16,7 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from data.generator import tautenhain_data as taut
 from data.generator import GeneratedInstance, write_instance
-from src.models.instance_loader import InstanceData
+from src.models.instance import InstanceData
 from tools.experiments.scenarios.common.paths import BASE_INSTANCE_DIR, SCENARIO_INSTANCE_DIR
 
 
@@ -160,7 +160,16 @@ def create_transport_scenario_instance(
     payload: dict[str, Any],
     *,
     scenario_name: str = DEFAULT_SCENARIO_NAME,
+    include_families: frozenset[str] | None = None,
 ) -> GeneratedInstance:
+    """Append the expanded transport-mode profiles to `payload`.
+
+    `include_families` (added for doe_campaign_02's per-family `road_menu`/`sea_menu`/`air_menu`
+    structural-factor split, EXPERIMENTAL_PLAN.md §5.2) restricts which mode families ("truck",
+    "air", "sea") get expanded. `None` (the default) expands all three, reproducing the original
+    (pre-split) behaviour exactly for existing callers (doe_campaign_01's single `transport_menu`
+    factor).
+    """
     scenario_payload = copy.deepcopy(payload)
     source_name = str(scenario_payload["name"])
     sets = scenario_payload["sets"]
@@ -173,13 +182,19 @@ def create_transport_scenario_instance(
         "sea": list(sets["M_S"]),
     }
     source_all_modes = list(sets["M"])
+    included_profiles = tuple(
+        profile
+        for profile in TRANSPORT_PROFILES
+        if include_families is None or profile.family in include_families
+    )
 
-    _reject_existing_added_modes(source_all_modes)
+    _reject_existing_added_modes(source_all_modes, included_profiles)
     _append_transport_modes(
         sets=sets,
         params=params,
         metadata=metadata,
         source_modes_by_family=source_modes_by_family,
+        profiles=included_profiles,
     )
     _update_metadata(
         metadata=metadata,
@@ -187,6 +202,7 @@ def create_transport_scenario_instance(
         source_instance_name=source_name,
         scenario_instance_name=_transport_instance_name(source_name, sets),
         source_modes_by_family=source_modes_by_family,
+        included_profiles=included_profiles,
     )
 
     scenario = GeneratedInstance(
@@ -237,6 +253,7 @@ def _append_transport_modes(
     params: dict[str, Any],
     metadata: dict[str, Any],
     source_modes_by_family: dict[str, list[str]],
+    profiles: tuple[TransportModeProfile, ...] = TRANSPORT_PROFILES,
 ) -> None:
     capacity_map = _require_parameter_map(params, "bar_X_m")
     minimum_capacity_map = _require_parameter_map(params, "ctmin_m")
@@ -253,7 +270,7 @@ def _append_transport_modes(
     emission_map = _require_parameter_map(params, "e_ship_m")
     metadata_family_map = metadata.setdefault("transport_mode_family", {})
 
-    for profile in TRANSPORT_PROFILES:
+    for profile in profiles:
         source_modes = source_modes_by_family[profile.family]
         source_capacity = _values_for_keys(capacity_map, source_modes)
         source_variable_cost = _values_for_keys(variable_cost_map, source_modes)
@@ -293,11 +310,12 @@ def _update_metadata(
     source_instance_name: str,
     scenario_instance_name: str,
     source_modes_by_family: dict[str, list[str]],
+    included_profiles: tuple[TransportModeProfile, ...] = TRANSPORT_PROFILES,
 ) -> None:
     added_modes_by_family = {
-        "truck": [profile.mode for profile in TRANSPORT_PROFILES if profile.family == "truck"],
-        "air": [profile.mode for profile in TRANSPORT_PROFILES if profile.family == "air"],
-        "sea": [profile.mode for profile in TRANSPORT_PROFILES if profile.family == "sea"],
+        "truck": [profile.mode for profile in included_profiles if profile.family == "truck"],
+        "air": [profile.mode for profile in included_profiles if profile.family == "air"],
+        "sea": [profile.mode for profile in included_profiles if profile.family == "sea"],
     }
 
     config = metadata.setdefault("config", {})
@@ -327,7 +345,7 @@ def _update_metadata(
             "sea": added_modes_by_family["sea"],
         },
         "mode_rule": "Each added mode belongs to its family-specific transport set and is available on arcs requiring that family.",
-        "transport_profiles": [asdict(profile) for profile in TRANSPORT_PROFILES],
+        "transport_profiles": [asdict(profile) for profile in included_profiles],
     }
 
 
@@ -335,9 +353,18 @@ def _transport_instance_name(source_name: str, sets: dict[str, Any]) -> str:
     return f"{source_name}_TM{len(sets['M'])}"
 
 
-def _reject_existing_added_modes(source_modes: list[str]) -> None:
+def _reject_existing_added_modes(
+    source_modes: list[str],
+    profiles: tuple[TransportModeProfile, ...] = TRANSPORT_PROFILES,
+) -> None:
+    # Only the profiles being added in THIS call are checked -- not the whole TRANSPORT_PROFILES set.
+    # Under doe_campaign_02's per-family split, road/sea/air menus are expanded via separate
+    # sequential calls (apply_structural_levels_v2); after the road call the instance already
+    # contains mrd3/mrd4, so a full-set check would wrongly reject the subsequent sea/air calls.
+    # Scoping to `profiles` (defaulting to the full set for doe_campaign_01's single all-families
+    # call) still catches a genuine double-add of the same family.
     existing_modes = set(source_modes)
-    duplicate_modes = [profile.mode for profile in TRANSPORT_PROFILES if profile.mode in existing_modes]
+    duplicate_modes = [profile.mode for profile in profiles if profile.mode in existing_modes]
     if duplicate_modes:
         raise ValueError(f"Source instance already contains scenario transport modes: {duplicate_modes}")
 
