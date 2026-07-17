@@ -4,7 +4,7 @@
   run        materialize instances + solve one or all design points in a family
 
 Execution modes (per design point, set by the family spec):
-  bilevel     -> materialize an instance variant, shell out to `tools.solver.solve_batch`
+  bilevel     -> materialize an instance variant, shell out to `clsc.solver_cli.solve_batch`
                  (the existing, unmodified DBP batch solver) with a per-run results-root.
   fixed_tax   -> no instance mutation; call `solve_fixed_tax_follower` directly in-process
                  (Family B: solves the follower MILP at a fixed tax, no leader optimization).
@@ -165,7 +165,7 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
         scratch_root = Path(tempfile.mkdtemp(prefix="doe_campaign_01_"))
         try:
             cmd = [
-                sys.executable, "-m", "tools.solver.solve_batch", str(instance_path),
+                sys.executable, "-m", "clsc.solver_cli.solve_batch", str(instance_path),
                 "--method", BILEVEL_METHOD,
                 "--time-limit", str(point.per_subproblem_time_limit_seconds),
                 "--results-root", str(scratch_root),
@@ -191,7 +191,7 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
             shutil.rmtree(scratch_root, ignore_errors=True)
         summary_paths = list(out_dir.glob("summary.json"))
     summary_payload = json.loads(summary_paths[0].read_text(encoding="utf-8"))
-    # tools.solver.batch writes summary.json as a list of per-instance records (batch format),
+    # clsc.solver_cli writes summary.json as a list of per-instance records (batch format),
     # even for a single-instance invocation.
     summary = summary_payload[0] if isinstance(summary_payload, list) else summary_payload
     summary["_summary_path"] = str(summary_paths[0].relative_to(REPO_ROOT))

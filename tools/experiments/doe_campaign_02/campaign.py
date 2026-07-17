@@ -28,7 +28,7 @@ Commands:
   run        materialize instances + solve one or all design points in a family
 
 Execution modes (per design point, set by the family spec):
-  bilevel            -> materialize an instance variant, shell out to `tools.solver.solve_batch`
+  bilevel            -> materialize an instance variant, shell out to `clsc.solver_cli.solve_batch`
                          (the existing, unmodified DBP batch solver) with a per-run results-root.
   fixed_tax          -> no instance mutation; call `solve_fixed_tax_follower` directly in-process
                          (follower MILP at a fixed tax, no leader optimization).
@@ -325,7 +325,7 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
         scratch_root = Path(tempfile.mkdtemp(prefix=f"{CAMPAIGN_ID}_"))
         try:
             cmd = [
-                sys.executable, "-m", "tools.solver.solve_batch", str(instance_path),
+                sys.executable, "-m", "clsc.solver_cli.solve_batch", str(instance_path),
                 "--method", BILEVEL_METHOD,
                 "--time-limit", str(point.per_subproblem_time_limit_seconds),
                 "--results-root", str(scratch_root),

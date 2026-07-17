@@ -26,16 +26,16 @@ from clsc.solvers.dbp_lex import solve_bilevel_dbp_lex
 def _load_solve_instances_module():
     """Return the batch runner's canonical module namespace.
 
-    Previously this loaded ``tools/solver/solve_batch.py`` via importlib (the
+    Previously this loaded ``clsc/solver_cli/solve_batch.py`` via importlib (the
     exec-wrapper era, when each load produced its own copy of the runner's
     functions). ``solve_batch.py`` is now a thin re-export of
-    ``tools.solver.batch.core``, which is the single source of truth, so return
+    ``clsc.solver_cli.core``, which is the single source of truth, so return
     ``core`` directly. Tests that ``monkeypatch.setattr`` a runner function on the
     returned module now patch the name the runner's own cross-function calls
     actually resolve against (e.g. canonicalize_result_solution ->
     validate_fixed_tax_solution).
     """
-    from tools.solver.batch import core
+    from clsc.solver_cli import core
 
     return core
 
@@ -83,7 +83,7 @@ def test_solve_instances_writes_structured_results(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(input_root),
             "--recursive",
             "--method",
@@ -213,7 +213,7 @@ def test_solve_single_base_instance_preserves_base_folder(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -272,7 +272,7 @@ def test_solve_single_non_base_instance_preserves_scenarios_folder(tmp_path) -> 
     completed = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -331,7 +331,7 @@ def test_solve_single_scenario_scope_writes_method_dir(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--results-root",
             str(results_root),
@@ -400,7 +400,7 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
     first_run = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -421,7 +421,7 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
     second_run = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -476,7 +476,7 @@ def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) ->
     first_run = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -497,7 +497,7 @@ def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) ->
     second_run = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -601,7 +601,7 @@ def test_solve_instances_continues_after_failed_instance_and_writes_diagnostics(
     completed = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(input_root),
             "--recursive",
             "--results-root",
@@ -711,7 +711,7 @@ def test_solve_instances_supports_dbp_lex_method(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "tools/solver/solve_batch.py",
+            "clsc/solver_cli/solve_batch.py",
             str(instance_path),
             "--results-root",
             str(results_root),

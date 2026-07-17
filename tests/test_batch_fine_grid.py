@@ -1,4 +1,4 @@
-"""Unit tests for the batch runner's fine-grid / Phase-2 wiring (tools/solver/batch/core.py).
+"""Unit tests for the batch runner's fine-grid / Phase-2 wiring (clsc/solver_cli/core.py).
 
 These exercise the campaign-config plumbing added for doe_campaign_02 -- the --scale-factor
 fine-grid override and the --no-refine-min-tax Phase-2 toggle -- WITHOUT invoking Gurobi, so they
@@ -8,7 +8,6 @@ override recomputes the index bounds correctly while preserving the instance's r
 """
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
 
 import pytest
@@ -21,12 +20,10 @@ BASE_INSTANCE = REPO_ROOT / "data" / "instances" / "base" / "STD_I17_M4_T3.json"
 
 
 def _load_solve_batch_module():
-    module_path = REPO_ROOT / "tools" / "solver" / "solve_batch.py"
-    spec = importlib.util.spec_from_file_location("solve_batch_tool", module_path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    """The batch runner's canonical module namespace (clsc.solver_cli.core)."""
+    from clsc.solver_cli import core
+
+    return core
 
 
 def test_parser_defaults_leave_grid_and_phase2_at_stored_settings():
