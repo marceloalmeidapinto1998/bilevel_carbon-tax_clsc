@@ -1,4 +1,4 @@
-"""Generic, instance-agnostic DOE construction primitives used by `experiments/designs/`.
+"""Generic, instance-agnostic DOE construction primitives used by `clsc/campaign/designs/`.
 
   full_factorial.py        full 2^k design (Family D)
   fractional_factorial.py  resolution->=IV fractional factorial via fold-over (Family C)

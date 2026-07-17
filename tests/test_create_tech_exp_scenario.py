@@ -4,7 +4,7 @@ import pytest
 
 from data.generator import build_base_benchmark_specs, generate_instance, write_instance
 from clsc.models.instance import InstanceData
-from tools.experiments.scenarios.technology import (
+from clsc.campaign.scenarios.technology import (
     DEFAULT_SCENARIO_NAME,
     create_technology_scenario,
     create_technology_scenario_instance,

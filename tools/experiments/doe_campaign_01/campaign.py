@@ -1,6 +1,6 @@
 """doe_campaign_01 campaign orchestrator: `python -m tools.experiments.doe_campaign_01.campaign <command>`.
 
-  generate   build design_matrix.csv for one or all families (experiments/manifests/<family>/)
+  generate   build design_matrix.csv for one or all families (manifests/<family>/)
   run        materialize instances + solve one or all design points in a family
 
 Execution modes (per design point, set by the family spec):
@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from experiments.designs import (
+from clsc.campaign.designs import (
     family_a_baseline,
     family_b_tax_frontier,
     family_c_screening_factorial,
@@ -37,10 +37,10 @@ from experiments.designs import (
     family_f_robustness,
     family_g_performance,
 )
-from experiments.designs._common import DesignPoint, rows_to_csv_dicts
+from clsc.campaign.designs._common import DesignPoint, rows_to_csv_dicts
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-MANIFESTS_ROOT = REPO_ROOT / "experiments" / "manifests"
+MANIFESTS_ROOT = REPO_ROOT / "manifests"
 INSTANCES_ROOT = REPO_ROOT / "data" / "instances" / "campaigns" / "doe_campaign_01"
 RESULTS_ROOT = REPO_ROOT / "results" / "runs" / "doe_campaign_01"
 HEARTBEAT_LOG = RESULTS_ROOT / "_heartbeat.log"
@@ -296,7 +296,7 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
         json.dumps({**manifest, "solve_status": "running"}, indent=2, default=str), encoding="utf-8"
     )
     try:
-        from tools.experiments.doe_campaign_01.instances import materialize
+        from clsc.campaign.instances import materialize
 
         instance_path = materialize(point, output_root=INSTANCES_ROOT)
         manifest["input_instance_path"] = str(instance_path)

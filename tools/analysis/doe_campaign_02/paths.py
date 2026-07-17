@@ -1,5 +1,5 @@
 """Canonical filesystem locations for the doe_campaign_02 campaign (solver-config replication of
-doe_campaign_01 -- see tools.experiments.doe_campaign_02.campaign for what changed and why).
+doe_campaign_01 -- see clsc.campaign.orchestrator for what changed and why).
 
 Unlike doe_campaign_01's paths.py, MANIFESTS is namespaced under the campaign id so this
 campaign's design_matrix.csv files never collide with doe_campaign_01's."""
@@ -17,7 +17,7 @@ FIGURES = ANALYSIS_OUT / "figures"
 REPORTS = ANALYSIS_OUT / "reports"
 
 INSTANCES = REPO / "data" / "instances" / "campaigns" / "doe_campaign_02"
-MANIFESTS = REPO / "experiments" / "manifests" / "doe_campaign_02"
+MANIFESTS = REPO / "manifests" / "doe_campaign_02"
 
 
 def ensure_analysis_dirs() -> None:

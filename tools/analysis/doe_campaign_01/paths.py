@@ -14,7 +14,7 @@ FIGURES = ANALYSIS_OUT / "figures"
 REPORTS = ANALYSIS_OUT / "reports"
 
 INSTANCES = REPO / "data" / "instances" / "campaigns" / "doe_campaign_01"
-MANIFESTS = REPO / "experiments" / "manifests"
+MANIFESTS = REPO / "manifests"
 
 
 def ensure_analysis_dirs() -> None:

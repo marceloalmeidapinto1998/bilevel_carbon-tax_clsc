@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from tools.experiments.doe_campaign_01.design.fractional_factorial import fractional_factorial_signs
-from tools.experiments.doe_campaign_01.design.full_factorial import full_factorial_signs
-from tools.experiments.doe_campaign_01.design.frontier_sweep import tax_grid
-from tools.experiments.doe_campaign_01.design.response_surface import dense_levels
-from tools.experiments.doe_campaign_01.design.robustness import TOLERANCE_SETTINGS, seed_grid
+from clsc.campaign.doe.fractional_factorial import fractional_factorial_signs
+from clsc.campaign.doe.full_factorial import full_factorial_signs
+from clsc.campaign.doe.frontier_sweep import tax_grid
+from clsc.campaign.doe.response_surface import dense_levels
+from clsc.campaign.doe.robustness import TOLERANCE_SETTINGS, seed_grid
 
 
 # ---------------------------------------------------------------------------

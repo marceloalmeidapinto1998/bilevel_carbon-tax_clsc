@@ -18,7 +18,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from clsc.models.subproblems import SolveResult
-from tools.experiments.doe_campaign_02 import campaign
+from clsc.campaign import orchestrator as campaign
 
 
 def _make_result(*, variable_values: dict[str, float] | None) -> SolveResult:

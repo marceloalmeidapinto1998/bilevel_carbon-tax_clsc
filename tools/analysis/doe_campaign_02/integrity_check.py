@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 from tools.analysis.doe_campaign_02.paths import INSTANCES, MANIFESTS, RUNS
-from tools.experiments.doe_campaign_02.campaign import FAMILY_DIR_NAMES
+from clsc.campaign.orchestrator import FAMILY_DIR_NAMES
 
 
 def check_json_files_parse(root: Path) -> list[str]:

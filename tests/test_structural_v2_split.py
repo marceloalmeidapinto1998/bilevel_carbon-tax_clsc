@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from data.generator import build_base_benchmark_specs, generate_instance
 from clsc.models.instance import InstanceData
-from tools.experiments.doe_campaign_01.design.structural import apply_structural_levels_v2
+from clsc.campaign.structural import apply_structural_levels_v2
 
 
 def _base_payload() -> dict:

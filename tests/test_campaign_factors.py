@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from tools.experiments.doe_campaign_01.factors import (
+from clsc.campaign.factors import (
     CAMPAIGN_02_CONTINUOUS_FACTORS,
     CORE_CONTINUOUS_FACTORS,
     FACTOR_REGISTRY,
