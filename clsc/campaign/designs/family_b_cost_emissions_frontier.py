@@ -64,7 +64,7 @@ def _time_limit(instance_id: str) -> float:
 # shifting when Phase 2 (epsilon_anchors supplied) regenerates the design matrix: run identity for
 # resumability is keyed off (instance, run_code) -> output path (see campaign.py's
 # `_run_output_dir`), but design_point_id is still recorded inside each manifest and must match the
-# regenerated design_matrix.csv row for `tools.analysis.doe_campaign_02.integrity_check` to pass.
+# regenerated design_matrix.csv row for `clsc.analysis.doe_campaign_02.integrity_check` to pass.
 IDS_PER_INSTANCE_BLOCK = 30
 
 

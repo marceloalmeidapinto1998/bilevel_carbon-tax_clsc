@@ -1,5 +1,5 @@
 """Canonical filesystem locations for the doe_campaign_01 campaign (separate from the v1 RUN_ID-based tree
-in `tools.analysis.common.paths`, since doe_campaign_01 results are organized by family, not by date)."""
+in `clsc.analysis.common.paths`, since doe_campaign_01 results are organized by family, not by date)."""
 from __future__ import annotations
 
 from pathlib import Path

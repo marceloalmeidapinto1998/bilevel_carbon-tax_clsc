@@ -11,7 +11,7 @@ from .core import load_rows, write_all_methods_outputs
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="python -m tools.analysis.tables.optimization",
+        prog="python -m clsc.analysis.tables.optimization",
         description="Create the aggregate policy-result LaTeX and PDF table "
                     "from results/runs/base/*/*/summary.json.",
     )

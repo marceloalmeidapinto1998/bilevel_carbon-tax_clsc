@@ -19,7 +19,7 @@ from .rows import build_final_row, build_phase1_rows
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="python -m tools.analysis.tables.iterations",
+        prog="python -m clsc.analysis.tables.iterations",
         description="Create publication-style lexicographic-DBP iteration path tables for base instances.",
     )
     p.add_argument("--results-base", type=Path, default=Path("results/runs/base"),

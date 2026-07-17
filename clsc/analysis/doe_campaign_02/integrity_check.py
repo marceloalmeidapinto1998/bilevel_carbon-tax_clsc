@@ -5,7 +5,7 @@ Read-only check, run after a family (or the full campaign) completes: every JSON
 campaign's output trees must parse cleanly, and every design point in a family's
 design_matrix.csv must have a corresponding campaign_manifest.json.
 
-Usage: `python -m tools.analysis.doe_campaign_02.integrity_check [--family A]`
+Usage: `python -m clsc.analysis.doe_campaign_02.integrity_check [--family A]`
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import argparse
 import json
 from pathlib import Path
 
-from tools.analysis.doe_campaign_02.paths import INSTANCES, MANIFESTS, RUNS
+from clsc.analysis.doe_campaign_02.paths import INSTANCES, MANIFESTS, RUNS
 from clsc.campaign.orchestrator import FAMILY_DIR_NAMES
 
 

@@ -12,7 +12,7 @@ import json
 import pandas as pd
 
 from clsc.models.instance import SCALE_FACTOR
-from tools.analysis.common.schemas import imt
+from clsc.analysis.common.schemas import imt
 from tools.analysis.doe_campaign_01.paths import RUNS, TABLES, ensure_analysis_dirs
 
 # USD/t per integer tax_index step: SCALE_FACTOR is USD/kg per step (single source of
