@@ -1,7 +1,6 @@
 ﻿from __future__ import annotations
 
 import csv
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -25,13 +24,20 @@ from src.solvers.dbp_lex import solve_bilevel_dbp_lex
 
 
 def _load_solve_instances_module():
-    module_path = Path(__file__).resolve().parents[1] / "tools" / "solver" / "solve_batch.py"
-    spec = importlib.util.spec_from_file_location("solve_instances_tool", module_path)
-    assert spec is not None
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
+    """Return the batch runner's canonical module namespace.
+
+    Previously this loaded ``tools/solver/solve_batch.py`` via importlib (the
+    exec-wrapper era, when each load produced its own copy of the runner's
+    functions). ``solve_batch.py`` is now a thin re-export of
+    ``tools.solver.batch.core``, which is the single source of truth, so return
+    ``core`` directly. Tests that ``monkeypatch.setattr`` a runner function on the
+    returned module now patch the name the runner's own cross-function calls
+    actually resolve against (e.g. canonicalize_result_solution ->
+    validate_fixed_tax_solution).
+    """
+    from tools.solver.batch import core
+
+    return core
 
 
 def method_results_dir(method: str, mode: str) -> str:
