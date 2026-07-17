@@ -8,7 +8,7 @@ campaign) completes: every JSON file under the campaign's output trees must pars
 and every design point in a family's design_matrix.csv must have a corresponding
 campaign_manifest.json.
 
-Usage: `python -m tools.analysis.doe_campaign_01.integrity_check [--family A]`
+Usage: `python -m archive.campaign_01.analysis.integrity_check [--family A]`
 """
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ import argparse
 import json
 from pathlib import Path
 
-from tools.analysis.doe_campaign_01.paths import INSTANCES, MANIFESTS, RUNS
-from tools.experiments.doe_campaign_01.campaign import FAMILY_DIR_NAMES
+from archive.campaign_01.analysis.paths import INSTANCES, MANIFESTS, RUNS
+from archive.campaign_01.campaign import FAMILY_DIR_NAMES
 
 
 def check_json_files_parse(root: Path) -> list[str]:

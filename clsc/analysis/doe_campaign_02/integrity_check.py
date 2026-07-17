@@ -1,4 +1,4 @@
-"""Post-campaign integrity pass for doe_campaign_02 (mirrors tools.analysis.doe_campaign_01.integrity_check,
+"""Post-campaign integrity pass for doe_campaign_02 (mirrors archive.campaign_01.analysis.integrity_check,
 including the Family-A single-run-layout fallback fixed there on 2026-07-06).
 
 Read-only check, run after a family (or the full campaign) completes: every JSON file under the

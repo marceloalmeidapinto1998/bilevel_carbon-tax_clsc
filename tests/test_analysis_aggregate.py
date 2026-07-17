@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.analysis.doe_campaign_01.aggregate import _flatten
+from archive.campaign_01.analysis.aggregate import _flatten
 
 
 def _synthetic_manifest(
@@ -124,7 +124,7 @@ def test_aggregate_reads_manifests_and_returns_dataframe(
     tables_dir = tmp_path / "tables"
     tables_dir.mkdir()
 
-    import tools.analysis.doe_campaign_01.aggregate as agg_mod
+    import archive.campaign_01.analysis.aggregate as agg_mod
 
     monkeypatch.setattr(agg_mod, "RUNS", tmp_path / "runs")
     monkeypatch.setattr(agg_mod, "TABLES", tables_dir)

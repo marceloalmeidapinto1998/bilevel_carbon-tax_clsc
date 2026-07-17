@@ -1,6 +1,6 @@
 """Read-only aggregation of doe_campaign_02 runs into results/analysis/doe_campaign_02/tables/master_runs_doe_campaign_02.csv.
 
-Identical logic to doe_campaign_01's aggregator (tools.analysis.doe_campaign_01.aggregate) --
+Identical logic to doe_campaign_01's aggregator (archive.campaign_01.analysis.aggregate) --
 every field is already explicit in each run's campaign_manifest.json, so this is a straight
 walk-and-flatten -- pointed at doe_campaign_02's own RUNS/TABLES roots.
 """

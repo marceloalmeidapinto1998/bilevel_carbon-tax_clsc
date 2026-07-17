@@ -1,4 +1,4 @@
-"""doe_campaign_01 campaign orchestrator: `python -m tools.experiments.doe_campaign_01.campaign <command>`.
+"""doe_campaign_01 campaign orchestrator: `python -m archive.campaign_01.campaign <command>`.
 
   generate   build design_matrix.csv for one or all families (manifests/<family>/)
   run        materialize instances + solve one or all design points in a family
@@ -39,8 +39,8 @@ from clsc.campaign.designs import (
 )
 from clsc.campaign.designs._common import DesignPoint, rows_to_csv_dicts
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-MANIFESTS_ROOT = REPO_ROOT / "manifests"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MANIFESTS_ROOT = REPO_ROOT / "manifests" / "doe_campaign_01"
 INSTANCES_ROOT = REPO_ROOT / "data" / "instances" / "campaigns" / "doe_campaign_01"
 RESULTS_ROOT = REPO_ROOT / "results" / "runs" / "doe_campaign_01"
 HEARTBEAT_LOG = RESULTS_ROOT / "_heartbeat.log"
@@ -375,7 +375,7 @@ def _resolve_family_ids(family_arg: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m tools.experiments.doe_campaign_01.campaign")
+    parser = argparse.ArgumentParser(prog="python -m archive.campaign_01.campaign")
     sub = parser.add_subparsers(dest="command", required=True)
 
     gen = sub.add_parser("generate", help="Build design_matrix.csv for one or all families.")

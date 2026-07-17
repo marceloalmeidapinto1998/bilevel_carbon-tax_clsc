@@ -6,9 +6,9 @@ orchestrator's ``run_point(overwrite=True)``. Reads the pre-existing manifest fi
 is logged before -> after. Read/run only; touches no WIP files.
 
 Usage:
-  python -m tools.experiments.doe_campaign_01.resolve_phase1 --dry-run
-  python -m tools.experiments.doe_campaign_01.resolve_phase1 --targets A-07,D-02-seed2,...
-  python -m tools.experiments.doe_campaign_01.resolve_phase1            # all 13, cheap->expensive
+  python -m archive.campaign_01.resolve_phase1 --dry-run
+  python -m archive.campaign_01.resolve_phase1 --targets A-07,D-02-seed2,...
+  python -m archive.campaign_01.resolve_phase1            # all 13, cheap->expensive
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from tools.experiments.doe_campaign_01.campaign import (
+from archive.campaign_01.campaign import (
     REPO_ROOT,
     build_design_matrix,
     run_point,

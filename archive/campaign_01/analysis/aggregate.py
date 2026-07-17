@@ -3,7 +3,7 @@
 Unlike the v1 aggregator (`tools.analysis.aggregate.core`), this does not need to parse
 directory-name conventions to recover instance class/scenario/factor information: every field
 is already explicit in each run's `campaign_manifest.json` (written by
-`tools.experiments.doe_campaign_01.campaign`), so this module is a straight walk-and-flatten.
+`archive.campaign_01.campaign`), so this module is a straight walk-and-flatten.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pandas as pd
 
 from clsc.models.instance import SCALE_FACTOR
 from clsc.analysis.common.schemas import imt
-from tools.analysis.doe_campaign_01.paths import RUNS, TABLES, ensure_analysis_dirs
+from archive.campaign_01.analysis.paths import RUNS, TABLES, ensure_analysis_dirs
 
 # USD/t per integer tax_index step: SCALE_FACTOR is USD/kg per step (single source of
 # truth in clsc.models.instance); x1000 converts kg -> t.

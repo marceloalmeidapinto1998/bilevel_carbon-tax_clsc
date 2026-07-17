@@ -4,7 +4,7 @@ Interactive Streamlit app showing how the supply chain network changes
 with the carbon tax level τ̂ as determined by the bilevel leader.
 
 Run from the project root:
-    streamlit run app/scn_dashboard.py
+    streamlit run archive/scn_dashboard.py
 """
 
 from __future__ import annotations
