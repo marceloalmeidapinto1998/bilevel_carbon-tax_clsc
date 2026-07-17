@@ -277,7 +277,7 @@ def main() -> int:
         try:
             instance = InstanceData.from_file(instance_path)
             if args.scale_factor is not None:
-                apply_tax_grid_resolution(instance, args.scale_factor)
+                instance = instance.with_tax_grid_step(args.scale_factor)
             solve_started_at = time.perf_counter()
             if args.method == "dbp_lex":
                 result = solve_bilevel_dbp_lex(
@@ -394,39 +394,6 @@ def collect_instance_paths(path: Path, *, pattern: str, recursive: bool) -> list
 
     paths = path.rglob(pattern) if recursive else path.glob(pattern)
     return sorted(candidate for candidate in paths if candidate.is_file())
-
-
-def apply_tax_grid_resolution(instance: InstanceData, scale_factor: float) -> InstanceData:
-    """Refine an in-memory instance's carbon-tax grid to resolution ``scale_factor``
-    (theta, USD/kg CO2e per integer tax_index step), PRESERVING its real tax range.
-
-    The stored campaign instances carry a coarse grid (index {0..20}, theta = 0.01).
-    To solve on a finer grid we only need more index values over the SAME real tax
-    span: the index bounds are recomputed from the instance's own tau bounds as
-    ``round(tau / theta)`` (so overline_tau = 0.2 with theta = 0.0001 gives
-    overline_tax_index = 2000), while ``underline_tau``/``overline_tau`` are left
-    untouched. ``InstanceData.scale_factor`` then derives theta back from the widened
-    grid. Mutates ``instance.parameters`` in place -- the dataclass is frozen only at
-    the attribute level, and the on-disk file is never modified. No re-validation is
-    triggered (``validate`` runs only in ``from_file``); its tau/index consistency
-    check hard-codes the 0.01 module constant and would reject the widened grid, which
-    is exactly why the override is applied post-load. Returns the same instance for
-    convenience.
-    """
-    if scale_factor <= 0.0:
-        raise ValueError(f"--scale-factor must be positive, got {scale_factor}")
-    underline_tau = float(instance.parameters["underline_tau"])
-    overline_tau = float(instance.parameters["overline_tau"])
-    lower_index = round(underline_tau / scale_factor)
-    upper_index = round(overline_tau / scale_factor)
-    if upper_index <= lower_index:
-        raise ValueError(
-            f"--scale-factor {scale_factor} collapses the tax grid of {instance.name} "
-            f"(tau range [{underline_tau}, {overline_tau}] -> index [{lower_index}, {upper_index}])"
-        )
-    instance.parameters["underline_tax_index"] = lower_index
-    instance.parameters["overline_tax_index"] = upper_index
-    return instance
 
 
 def prepare_run_root(

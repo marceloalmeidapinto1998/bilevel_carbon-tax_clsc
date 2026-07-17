@@ -17,7 +17,7 @@ from src.config.gap_tol import DEFAULT
 from src.models.instance import InstanceData
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-BASE_INSTANCE = REPO_ROOT / "data" / "instances" / "campaigns" / "doe_campaign_01" / "base" / "STD_I17_M4_T3.json"
+BASE_INSTANCE = REPO_ROOT / "data" / "instances" / "base" / "STD_I17_M4_T3.json"
 
 
 def _load_solve_batch_module():
@@ -47,8 +47,7 @@ def test_parser_accepts_fine_grid_and_phase2_toggle():
     assert args.refine_min_tax is False
 
 
-def test_apply_tax_grid_resolution_refines_index_and_preserves_tax_range():
-    core = _load_solve_batch_module()
+def test_with_tax_grid_step_refines_index_and_preserves_tax_range():
     instance = InstanceData.from_file(BASE_INSTANCE)
     # Sanity: the stored instance is the coarse campaign grid.
     assert instance.upper_tax_index == 20
@@ -56,28 +55,30 @@ def test_apply_tax_grid_resolution_refines_index_and_preserves_tax_range():
     stored_underline_tau = float(instance.parameters["underline_tau"])
     stored_overline_tau = float(instance.parameters["overline_tau"])
 
-    returned = core.apply_tax_grid_resolution(instance, 1e-4)
+    refined = instance.with_tax_grid_step(1e-4)
 
-    # Mutates in place and returns the same object for convenience.
-    assert returned is instance
-    # Index bounds recomputed from the instance's own tau range: 0.2 / 1e-4 = 2000.
-    assert instance.lower_tax_index == 0
-    assert instance.upper_tax_index == 2000
-    # The DERIVED scale_factor is now the requested theta.
-    assert instance.scale_factor == pytest.approx(1e-4)
+    # Immutable: a NEW instance is returned; the original stays on the coarse grid
+    # and its stored parameters are never rewritten.
+    assert refined is not instance
+    assert instance.tax_grid_step is None
+    assert instance.upper_tax_index == 20
+    assert refined.parameters["overline_tax_index"] == 20
+    # Index bounds DERIVED from the instance's own tau range: 0.2 / 1e-4 = 2000.
+    assert refined.lower_tax_index == 0
+    assert refined.upper_tax_index == 2000
+    # The scale_factor is now exactly the requested theta.
+    assert refined.scale_factor == pytest.approx(1e-4)
     # The real tax RANGE is untouched -- only the resolution changed.
-    assert float(instance.parameters["underline_tau"]) == pytest.approx(stored_underline_tau)
-    assert float(instance.parameters["overline_tau"]) == pytest.approx(stored_overline_tau)
+    assert float(refined.parameters["underline_tau"]) == pytest.approx(stored_underline_tau)
+    assert float(refined.parameters["overline_tau"]) == pytest.approx(stored_overline_tau)
     # And an interior fine-grid index maps to the expected real rate (index 102 -> 0.0102 USD/kg).
-    assert instance.tax_rate(102) == pytest.approx(0.0102)
+    assert refined.tax_rate(102) == pytest.approx(0.0102)
 
 
-def test_apply_tax_grid_resolution_rejects_nonpositive_and_collapsing_theta():
-    core = _load_solve_batch_module()
+def test_with_tax_grid_step_rejects_nonpositive_and_collapsing_theta():
     instance = InstanceData.from_file(BASE_INSTANCE)
     with pytest.raises(ValueError):
-        core.apply_tax_grid_resolution(instance, 0.0)
+        instance.with_tax_grid_step(0.0)
     # A theta coarser than the whole tax span would collapse the grid to a single point.
-    fresh = InstanceData.from_file(BASE_INSTANCE)
     with pytest.raises(ValueError):
-        core.apply_tax_grid_resolution(fresh, 1.0)
+        instance.with_tax_grid_step(1.0)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +118,11 @@ class InstanceData:
     sets: dict[str, Any]
     parameters: dict[str, Any]
     source_path: Path | None = None
+    # Optional fine-grid override (theta, USD/kg CO2e per integer tax_index step). When None the
+    # tax grid is read from the stored parameters (coarse step 0.01, index {0..20}); when set, the
+    # index bounds and scale_factor are DERIVED from it over the same real tau range, without
+    # touching `parameters`. Set only via with_tax_grid_step(); see that method for the rationale.
+    tax_grid_step: float | None = None
 
     @classmethod
     def from_file(cls, path: str | Path) -> "InstanceData":
@@ -212,10 +217,14 @@ class InstanceData:
 
     @property
     def lower_tax_index(self) -> int:
+        if self.tax_grid_step is not None:
+            return round(float(self.parameters["underline_tau"]) / self.tax_grid_step)
         return int(self.parameters["underline_tax_index"])
 
     @property
     def upper_tax_index(self) -> int:
+        if self.tax_grid_step is not None:
+            return round(float(self.parameters["overline_tau"]) / self.tax_grid_step)
         return int(self.parameters["overline_tax_index"])
 
     def iter_tax_index(self) -> range:
@@ -223,20 +232,52 @@ class InstanceData:
 
     @property
     def scale_factor(self) -> float:
-        """USD/kg CO2e per integer tax_index step, DERIVED from this instance's
-        own grid (``overline_tau``/``overline_tax_index``) rather than read from
-        the module constant. This lets a solve run on a FINER grid -- more index
-        values, smaller step -- purely by overriding ``overline_tax_index`` (and
-        the matching ``overline_tau``) on the in-memory instance, with no global
-        constant to change and no instance file to touch. Stored files
-        (overline_tau=0.2, overline_tax_index=20) yield 0.2/20 = 0.01 = the
-        module SCALE_FACTOR, so existing behaviour is unchanged. Falls back to
-        the module constant for a degenerate single-point grid."""
+        """USD/kg CO2e per integer tax_index step. When a fine-grid override is in
+        effect (see :meth:`with_tax_grid_step`) the override step is returned
+        directly, exactly. Otherwise it is DERIVED from this instance's own stored
+        grid (``overline_tau``/``overline_tax_index``) rather than the module
+        constant, so stored files (overline_tau=0.2, overline_tax_index=20) yield
+        0.2/20 = 0.01 = the module SCALE_FACTOR and existing behaviour is
+        unchanged. Falls back to the module constant for a degenerate single-point
+        grid."""
+        if self.tax_grid_step is not None:
+            return self.tax_grid_step
         span_index = self.upper_tax_index - self.lower_tax_index
         if span_index <= 0:
             return SCALE_FACTOR
         span_rate = float(self.parameters["overline_tau"]) - float(self.parameters["underline_tau"])
         return span_rate / span_index
+
+    def with_tax_grid_step(self, scale_factor: float) -> "InstanceData":
+        """Return a NEW instance whose carbon-tax grid is refined to resolution
+        ``scale_factor`` (theta, USD/kg CO2e per integer tax_index step), while
+        PRESERVING the real tax range ``[underline_tau, overline_tau]``.
+
+        This is the immutable, first-class replacement for mutating the stored
+        ``*_tax_index`` parameters in place. The refined index bounds are DERIVED
+        (``round(tau / theta)``) from the step rather than stored, so overline_tau
+        = 0.2 with theta = 0.0001 exposes ``upper_tax_index = 2000`` (index
+        {0..2000}, 0.1 USD/t over the same 0-200 USD/t span). ``parameters`` and
+        the on-disk file are untouched.
+
+        No re-validation is run: ``validate()``'s tau/index consistency check
+        assumes the stored coarse step (0.01) and is only meaningful for the grid
+        as loaded; the refined view is a derived projection of an already-validated
+        instance, so re-validating it would spuriously reject the widened index.
+        """
+        if scale_factor <= 0.0:
+            raise ValueError(f"tax grid step must be positive, got {scale_factor}")
+        underline_tau = float(self.parameters["underline_tau"])
+        overline_tau = float(self.parameters["overline_tau"])
+        lower_index = round(underline_tau / scale_factor)
+        upper_index = round(overline_tau / scale_factor)
+        if upper_index <= lower_index:
+            raise ValueError(
+                f"tax grid step {scale_factor} collapses the grid of {self.name} "
+                f"(tau range [{underline_tau}, {overline_tau}] -> index "
+                f"[{lower_index}, {upper_index}])"
+            )
+        return replace(self, tax_grid_step=scale_factor)
 
     def arcs(self, arc_type: str) -> tuple[tuple[str, str], ...]:
         return self.sets[f"A_{arc_type}"]
