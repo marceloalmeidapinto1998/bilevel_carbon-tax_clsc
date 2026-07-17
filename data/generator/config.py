@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-# Mirrors src.models.instance.SCALE_FACTOR; duplicated here (rather than
+# Mirrors clsc.models.instance.SCALE_FACTOR; duplicated here (rather than
 # imported) since the generator package is kept independent of the model
 # layer. Keep both values in sync if this is ever changed.
 SCALE_FACTOR = 0.01

@@ -375,7 +375,7 @@ def _write_follower_result(
     """Shared summary/solution.json-writing tail for the three in-process follower solves
     (fixed_tax, min_emissions, epsilon_constraint) -- all of them a single MILP, no DBP outer loop.
     """
-    from src.solvers.dbp_lex import relative_optimality_gap
+    from clsc.solvers.dbp_lex import relative_optimality_gap
 
     termination_reason = "optimal" if result.status_name == "OPTIMAL" else result.status_name.lower()
     relative_gap = None
@@ -430,8 +430,8 @@ def _write_follower_result(
 
 
 def _solve_fixed_tax(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
-    from src.models.instance import InstanceData
-    from src.models.subproblems import solve_fixed_tax_follower
+    from clsc.models.instance import InstanceData
+    from clsc.models.subproblems import solve_fixed_tax_follower
 
     instance = InstanceData.from_file(instance_path)
     start = time.perf_counter()
@@ -449,8 +449,8 @@ def _solve_fixed_tax(point: DesignPoint, instance_path: Path, out_dir: Path) -> 
 
 
 def _solve_min_emissions(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
-    from src.models.instance import InstanceData
-    from src.models.subproblems import solve_fixed_tax_min_emissions
+    from clsc.models.instance import InstanceData
+    from clsc.models.subproblems import solve_fixed_tax_min_emissions
 
     instance = InstanceData.from_file(instance_path)
     start = time.perf_counter()
@@ -468,8 +468,8 @@ def _solve_min_emissions(point: DesignPoint, instance_path: Path, out_dir: Path)
 
 
 def _solve_epsilon_constraint(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
-    from src.models.instance import InstanceData
-    from src.models.subproblems import solve_epsilon_constraint_follower
+    from clsc.models.instance import InstanceData
+    from clsc.models.subproblems import solve_epsilon_constraint_follower
 
     instance = InstanceData.from_file(instance_path)
     start = time.perf_counter()

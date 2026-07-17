@@ -9,7 +9,7 @@ from typing import Iterable
 import gurobipy as gp
 from gurobipy import GRB
 
-from src.config.gap_tol import DEFAULT
+from clsc.config.gap_tol import DEFAULT
 from .instance import SCALE_FACTOR, InstanceData
 
 
@@ -270,7 +270,7 @@ def solve_fixed_rate_lexicographic(
     Rate-based analogue of :func:`solve_fixed_tax_lexicographic` (which takes an
     integer index): identical follower MILP, only the emissions coefficient is a
     continuous rate rather than ``scale_factor * index``. Used by the breakpoint
-    tracer (``src.solvers.tax_breakpoints``), which probes the follower at
+    tracer (``clsc.solvers.tax_breakpoints``), which probes the follower at
     off-grid tax rates.
     """
     artifacts = master.artifacts

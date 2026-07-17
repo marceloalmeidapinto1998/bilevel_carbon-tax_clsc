@@ -10,7 +10,7 @@ import json
 
 import pandas as pd
 
-from src.models.instance import SCALE_FACTOR
+from clsc.models.instance import SCALE_FACTOR
 from tools.analysis.common.schemas import imt
 from tools.analysis.doe_campaign_02.paths import RUNS, TABLES, ensure_analysis_dirs
 

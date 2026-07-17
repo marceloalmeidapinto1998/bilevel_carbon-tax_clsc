@@ -199,9 +199,9 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
 
 
 def _solve_fixed_tax(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
-    from src.models.instance import InstanceData
-    from src.models.subproblems import solve_fixed_tax_follower
-    from src.solvers.dbp_lex import relative_optimality_gap
+    from clsc.models.instance import InstanceData
+    from clsc.models.subproblems import solve_fixed_tax_follower
+    from clsc.solvers.dbp_lex import relative_optimality_gap
 
     instance = InstanceData.from_file(instance_path)
     start = time.perf_counter()

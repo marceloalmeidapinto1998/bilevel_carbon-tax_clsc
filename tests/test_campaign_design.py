@@ -137,7 +137,7 @@ def test_tolerance_settings_are_ordered_tight_to_loose() -> None:
 
 
 def test_tolerance_settings_include_default_config_values() -> None:
-    from src.config.gap_tol import DEFAULT
+    from clsc.config.gap_tol import DEFAULT
     default_setting = next((s for s in TOLERANCE_SETTINGS if s.label == "default"), None)
     assert default_setting is not None
     assert default_setting.mip_gap == DEFAULT.mip_gap

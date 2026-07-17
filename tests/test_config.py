@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.config.gap_tol import DEFAULT, ToleranceConfig
+from clsc.config.gap_tol import DEFAULT, ToleranceConfig
 
 
 def test_default_tolerance_config_is_self_consistent() -> None:
@@ -22,7 +22,7 @@ def test_tolerance_config_dataclass_is_immutable() -> None:
 
 
 def test_relative_optimality_gap_is_zero_at_convergence() -> None:
-    from src.solvers.dbp_lex import relative_optimality_gap
+    from clsc.solvers.dbp_lex import relative_optimality_gap
 
     assert relative_optimality_gap(upper_bound=100.0, lower_bound=100.0) == 0.0
     assert relative_optimality_gap(upper_bound=1.0, lower_bound=0.5) == pytest.approx(0.5)
@@ -30,7 +30,7 @@ def test_relative_optimality_gap_is_zero_at_convergence() -> None:
 
 
 def test_relative_optimality_gap_is_never_negative() -> None:
-    from src.solvers.dbp_lex import relative_optimality_gap
+    from clsc.solvers.dbp_lex import relative_optimality_gap
 
     # Floating-point noise can make lower_bound slightly exceed upper_bound.
     assert relative_optimality_gap(upper_bound=1.0, lower_bound=1.0 + 1e-12) == 0.0

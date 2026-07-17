@@ -31,9 +31,9 @@ from dataclasses import dataclass
 from pathlib import Path
 import time
 
-from src.config.gap_tol import DEFAULT
-from src.models.instance import InstanceData
-from src.models.subproblems import (
+from clsc.config.gap_tol import DEFAULT
+from clsc.models.instance import InstanceData
+from clsc.models.subproblems import (
     SolveResult,
     build_fixed_tax_follower_master,
     solve_fixed_rate_lexicographic,

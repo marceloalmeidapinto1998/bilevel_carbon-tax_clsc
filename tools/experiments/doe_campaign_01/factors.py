@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from src.models.instance import SCALE_FACTOR
+from clsc.models.instance import SCALE_FACTOR
 
 _ROUND = 6
 

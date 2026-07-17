@@ -11,12 +11,12 @@ import json
 
 import pandas as pd
 
-from src.models.instance import SCALE_FACTOR
+from clsc.models.instance import SCALE_FACTOR
 from tools.analysis.common.schemas import imt
 from tools.analysis.doe_campaign_01.paths import RUNS, TABLES, ensure_analysis_dirs
 
 # USD/t per integer tax_index step: SCALE_FACTOR is USD/kg per step (single source of
-# truth in src.models.instance); x1000 converts kg -> t.
+# truth in clsc.models.instance); x1000 converts kg -> t.
 USD_PER_TONNE_PER_TAX_INDEX = SCALE_FACTOR * 1000.0
 
 

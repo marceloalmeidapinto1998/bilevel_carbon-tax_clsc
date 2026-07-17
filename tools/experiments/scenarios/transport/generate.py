@@ -16,7 +16,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from data.generator import tautenhain_data as taut
 from data.generator import GeneratedInstance, write_instance
-from src.models.instance import InstanceData
+from clsc.models.instance import InstanceData
 from tools.experiments.scenarios.common.paths import BASE_INSTANCE_DIR, SCENARIO_INSTANCE_DIR
 
 

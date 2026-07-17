@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from data.generator import build_base_benchmark_specs, generate_instance
-from src.models.instance import PRODUCT_ROTATION_PER_PERIOD, InstanceData, InstanceValidationError
+from clsc.models.instance import PRODUCT_ROTATION_PER_PERIOD, InstanceData, InstanceValidationError
 
 
 def test_instance_loader_reads_committed_std_base_instance() -> None:

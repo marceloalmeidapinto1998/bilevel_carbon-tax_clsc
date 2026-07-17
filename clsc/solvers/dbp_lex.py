@@ -5,9 +5,9 @@ import math
 from pathlib import Path
 import time
 
-from src.config.gap_tol import DEFAULT
-from src.models.instance import SCALE_FACTOR, InstanceData
-from src.models.subproblems import (
+from clsc.config.gap_tol import DEFAULT
+from clsc.models.instance import SCALE_FACTOR, InstanceData
+from clsc.models.subproblems import (
     DbpFollowerCut,
     FixedTaxFollowerMaster,
     SolveResult,
@@ -500,7 +500,7 @@ def solve_bilevel_dbp_lex(
     incumbent. Set ``refine_min_tax=False`` for the un-refined behaviour.
 
     ``mip_gap``/``threads``/``mip_focus`` override the corresponding
-    :class:`src.config.gap_tol.ToleranceConfig` default (``None`` keeps the
+    :class:`clsc.config.gap_tol.ToleranceConfig` default (``None`` keeps the
     default) for every Gurobi sub-solve. ``dbp_relative_gap`` overrides the
     DBP loop's own outer stopping criterion the same way -- it is unrelated
     to any Gurobi parameter.

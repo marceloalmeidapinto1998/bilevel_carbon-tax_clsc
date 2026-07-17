@@ -1,7 +1,7 @@
 """Generate-and-verify: retry instance generation until the follower's network-flow relaxation
 is actually feasible.
 
-The rest of `data.generator` has no dependency on `src.models`/Gurobi by design (it is pure
+The rest of `data.generator` has no dependency on `clsc.models`/Gurobi by design (it is pure
 sampling/geometry, unit-testable without a license). This module is the one deliberate
 exception: `ret_min_frac_r_p_t` (mandatory minimum return collection) is a hard lower bound on
 the recovered-product flow network, sampled independently per (retailer, product, period) with
@@ -32,8 +32,8 @@ FEASIBILITY_CHECK_TIME_LIMIT_SECONDS = 60.0
 def _is_relaxation_feasible(instance: GeneratedInstance) -> bool:
     from gurobipy import GRB
 
-    from src.models.instance import InstanceData
-    from src.models.subproblems import build_dbp_relaxation_master
+    from clsc.models.instance import InstanceData
+    from clsc.models.subproblems import build_dbp_relaxation_master
 
     instance_data = InstanceData.from_dict(instance.to_dict())
     master = build_dbp_relaxation_master(instance_data)

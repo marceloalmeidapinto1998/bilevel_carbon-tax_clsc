@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from src.config.gap_tol import DEFAULT
-from src.models.instance import InstanceData
+from clsc.config.gap_tol import DEFAULT
+from clsc.models.instance import InstanceData
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BASE_INSTANCE = REPO_ROOT / "data" / "instances" / "base" / "STD_I17_M4_T3.json"

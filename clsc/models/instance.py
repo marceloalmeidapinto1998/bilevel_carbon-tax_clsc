@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from src.config.gap_tol import DEFAULT
+from clsc.config.gap_tol import DEFAULT
 
 
 # Mirrors data.generator.config.SCALE_FACTOR; duplicated here (rather than

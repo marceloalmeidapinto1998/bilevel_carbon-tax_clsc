@@ -14,14 +14,14 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config.gap_tol import DEFAULT
-from src.models.subproblems import (
+from clsc.config.gap_tol import DEFAULT
+from clsc.models.subproblems import (
     build_fixed_tax_follower_master,
     solve_fixed_tax_lexicographic,
     validate_fixed_tax_solution,
 )
-from src.models.instance import InstanceData, InstanceValidationError
-from src.solvers.dbp_lex import (
+from clsc.models.instance import InstanceData, InstanceValidationError
+from clsc.solvers.dbp_lex import (
     BilevelSolveError,
     SubproblemStatusError,
     relative_optimality_gap,
@@ -107,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Override the Gurobi MIPGap target for every follower sub-solve "
-            "(default: src.config.gap_tol.DEFAULT.mip_gap). Only supported with "
+            "(default: clsc.config.gap_tol.DEFAULT.mip_gap). Only supported with "
             "--method dbp_lex."
         ),
     )
@@ -116,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Override the DBP loop's own relative-gap stopping criterion "
-            "(default: src.config.gap_tol.DEFAULT.dbp_relative_gap). This is the "
+            "(default: clsc.config.gap_tol.DEFAULT.dbp_relative_gap). This is the "
             "outer algorithm's stopping tolerance, not a Gurobi parameter. Only "
             "supported with --method dbp_lex."
         ),
@@ -126,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help=(
             "Override Gurobi Threads for every sub-solve (default: "
-            "src.config.gap_tol.DEFAULT.threads). Only supported with --method "
+            "clsc.config.gap_tol.DEFAULT.threads). Only supported with --method "
             "dbp_lex."
         ),
     )
@@ -136,7 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(0, 1, 2, 3),
         help=(
             "Override Gurobi MIPFocus for every sub-solve (default: "
-            "src.config.gap_tol.DEFAULT.mip_focus). Only supported with --method "
+            "clsc.config.gap_tol.DEFAULT.mip_focus). Only supported with --method "
             "dbp_lex."
         ),
     )

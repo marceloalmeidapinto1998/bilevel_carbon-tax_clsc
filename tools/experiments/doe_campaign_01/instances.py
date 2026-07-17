@@ -12,7 +12,7 @@ from pathlib import Path
 from data.generator import GeneratedInstance, write_instance
 from data.generator.benchmark import apply_prefix_override, build_base_benchmark_specs, _set_base_metadata
 from data.generator.feasibility import generate_feasible_instance
-from src.models.instance import InstanceData
+from clsc.models.instance import InstanceData
 
 from experiments.designs._common import DesignPoint
 from tools.experiments.doe_campaign_01.design.structural import apply_structural_levels, apply_structural_levels_v2

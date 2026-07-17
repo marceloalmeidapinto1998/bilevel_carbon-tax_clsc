@@ -10,17 +10,17 @@ import pytest
 from gurobipy import GRB
 
 from data.generator import ArcConnectivityConfig, GeneratorConfig, generate_instance, write_instance
-from src.config.gap_tol import DEFAULT
-from src.models.instance import InstanceData
-from src.models.subproblems import SolveResult
-from src.solvers.dbp_lex import (
+from clsc.config.gap_tol import DEFAULT
+from clsc.models.instance import InstanceData
+from clsc.models.subproblems import SolveResult
+from clsc.solvers.dbp_lex import (
     BilevelSolveResult,
     BoundCertificate,
     DbpTimingSummary,
     IncumbentSolution,
     SubproblemStatusError,
 )
-from src.solvers.dbp_lex import solve_bilevel_dbp_lex
+from clsc.solvers.dbp_lex import solve_bilevel_dbp_lex
 
 
 def _load_solve_instances_module():
@@ -766,7 +766,7 @@ def test_is_better_candidate_treats_large_scale_near_ties_as_ties() -> None:
     violates the leader's least-intervention tie-break (eq:leader_obj):
     never pay a heavier tax than the emissions target requires.
     """
-    from src.solvers.dbp_lex import IncumbentSolution, _is_better_candidate
+    from clsc.solvers.dbp_lex import IncumbentSolution, _is_better_candidate
 
     smaller_tax_incumbent = IncumbentSolution(tax_index=14, cost=1.0, emissions=1.5e8, follower_objective=1.0)
     larger_tax_noise_candidate = IncumbentSolution(

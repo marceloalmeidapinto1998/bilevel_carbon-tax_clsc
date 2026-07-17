@@ -2,7 +2,7 @@
 
 Unlike Families A/C/D/E/F/G, Family B does not run the bilevel leader-follower procedure at
 all — it fixes `tax_index` and solves the follower's MILP once per grid point
-(`src.models.subproblems.solve_fixed_tax_follower`). This sidesteps the carbon-price
+(`clsc.models.subproblems.solve_fixed_tax_follower`). This sidesteps the carbon-price
 non-identification issue entirely: there is no leader optimization to mis-converge, so every
 point on the resulting curve is exact for the given tax (subject to the MILP gap).
 """

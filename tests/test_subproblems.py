@@ -6,10 +6,10 @@ import pytest
 from gurobipy import GRB
 
 from data.generator import ArcConnectivityConfig, GeneratorConfig, generate_instance
-from src.config.gap_tol import DEFAULT
-import src.models.subproblems as subproblems
-from src.models.instance import InstanceData
-from src.models.subproblems import (
+from clsc.config.gap_tol import DEFAULT
+import clsc.models.subproblems as subproblems
+from clsc.models.instance import InstanceData
+from clsc.models.subproblems import (
     DbpFollowerCut,
     build_dbp_relaxation_master,
     build_fixed_tax_follower_master,

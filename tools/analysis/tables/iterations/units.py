@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.models.instance import SCALE_FACTOR
+from clsc.models.instance import SCALE_FACTOR
 
 # USD/t CO2e per integer tax_index step, derived from the single-source-of-truth
 # SCALE_FACTOR (USD/kg) since all reporting uses the economically meaningful

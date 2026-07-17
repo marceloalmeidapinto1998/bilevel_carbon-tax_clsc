@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.models.subproblems import SolveResult
+from clsc.models.subproblems import SolveResult
 from tools.experiments.doe_campaign_02 import campaign
 
 

@@ -4,7 +4,7 @@ import pytest
 
 from data.generator import tautenhain_data as taut
 from data.generator import build_base_benchmark_specs, generate_instance, write_instance
-from src.models.instance import InstanceData
+from clsc.models.instance import InstanceData
 from tools.experiments.scenarios.transport import (
     DEFAULT_SCENARIO_NAME,
     create_transport_scenario,
