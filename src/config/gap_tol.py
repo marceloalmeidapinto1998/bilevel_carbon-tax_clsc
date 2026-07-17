@@ -43,11 +43,19 @@ class ToleranceConfig:
 
     # ----- Primary algorithm knobs (8) -----
     eps: float = 1e-7
-    # Aligned with Tautenhain et al. (2021)'s explicit CPLEX stopping criterion ("GAP between
-    # the upper and lower bounds ... less than or equal to 1%"), 2026-07-01. dbp_relative_gap is
-    # kept equal to mip_gap: the bilevel DBP loop's own convergence bound cannot be more precise
-    # than the per-MILP solves that feed it, so tracking a tighter outer gap would be false
-    # precision.
+    # NEUTRAL / COARSE-GRID FALLBACK, not the campaign setting. These 1% defaults date from the
+    # original coarse tax grid (theta = 0.01, index {0..20}), aligned then with Tautenhain et al.
+    # (2021)'s explicit CPLEX stopping criterion ("GAP ... less than or equal to 1%"). They are
+    # kept as the fallback for coarse-grid solves and the unit-test suite, NOT changed here,
+    # because the production bilevel campaign OVERRIDES them per-run (see
+    # tools/experiments/doe_campaign_02/campaign.py: CAMPAIGN_MIP_GAP = 1e-6,
+    # CAMPAIGN_DBP_RELATIVE_GAP = 1e-4) alongside --scale-factor 0.0001. Under that fine-grid
+    # method the two are DELIBERATELY UNEQUAL: the fine grid's emissions plateau needs an outer
+    # dbp_relative_gap (1e-4) far tighter than 1%, and a still-tighter per-MILP mip_gap (1e-6) so
+    # the follower can certify that outer gap. The earlier "dbp_relative_gap == mip_gap" invariant
+    # therefore holds only for the coarse fallback, not for the campaign. A dbp_lex solve that
+    # forgets --scale-factor silently runs the coarse grid at these 1% tolerances; the run is not
+    # hidden (manifest.json records tax_grid_scale_factor), but it is NOT the campaign method.
     mip_gap: float = 1e-2
     dbp_relative_gap: float = 1e-2
     lex_epsilon_prime: float = 1e-6

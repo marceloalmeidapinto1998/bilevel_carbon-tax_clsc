@@ -10,10 +10,18 @@ family_f_gap_robustness, plus the reused-as-is family_e_response_surface) -- non
 doe_campaign_01's original family modules (family_a_baseline.py, family_b_tax_frontier.py, etc.)
 are imported or modified here, since those are doe_campaign_01's already-executed, archived design.
 
-`mip_gap = dbp_relative_gap = 1e-2` (1%) campaign-wide (`src.config.gap_tol.DEFAULT`), with
-`stagnation_limit = 20`. Family 0's own threads/MIPFocus sweep result gates the `threads`/`mip_focus`
-values (`DEFAULT_THREADS`/`DEFAULT_MIP_FOCUS` below) applied to every other family's design points
-that don't set them explicitly (Family 0's own 9 cells set threads/mip_focus per swept cell).
+Bilevel (leader-optimizing) runs solve on a FINE carbon-tax grid: `--scale-factor 0.0001`
+(`FINE_GRID_SCALE_FACTOR` below) refines each in-memory instance to index {0..2000} / 0.1 USD/t
+resolution over the same 0-200 USD/t span, with no instance file touched; the outer DBP loop uses
+`dbp_relative_gap = 1e-4` (`CAMPAIGN_DBP_RELATIVE_GAP`, tightened from `DEFAULT` = 1e-2 so it climbs
+off the fine grid's flat plateau); and DBP Phase 2 (`REFINE_MIN_TAX = True`) recovers the exact
+least-intervention tax. The per-MILP follower `mip_gap` is tightened to `1e-6` (`CAMPAIGN_MIP_GAP`,
+from `DEFAULT` = 1e-2) to match the validated fine-grid solve and let the outer 1e-4 certify, for
+every point that doesn't set it (Family F sets its own swept values -- it is a follower-`mip_gap`
+probe). `stagnation_limit = 20`.
+Family 0's own threads/MIPFocus sweep result gates the `threads`/`mip_focus` values
+(`DEFAULT_THREADS`/`DEFAULT_MIP_FOCUS` below) applied to every other family's design points that
+don't set them explicitly (Family 0's own 9 cells set threads/mip_focus per swept cell).
 
 Commands:
   generate   build design_matrix.csv for one or all families (experiments/manifests/doe_campaign_02/<family>/)
@@ -66,12 +74,11 @@ from experiments.designs import (
     family_f_gap_robustness,
 )
 from experiments.designs._common import DesignPoint, rows_to_csv_dicts
-# Reused as-is: reads the shared base-instance data under
-# data/instances/campaigns/doe_campaign_01/base/ (deliberately shared directory name -- historical
-# artifact of doe_campaign_01 being the first campaign to use this instance-loading/materialization
-# pipeline; both campaigns draw from the same regenerated 12-instance base set) and writes
-# materialized variants under whatever output_root this module passes in (doe_campaign_02's own
-# tree, below).
+# Reused as-is: reads the authoritative base-instance data under data/instances/base/ (repointed
+# 2026-07-16 from the former data/instances/campaigns/doe_campaign_01/base copy, verified functionally
+# identical -- same seeds/sets/parameters, differing only in a legacy tax-index JSON key name that
+# InstanceData normalizes on load) and writes materialized variants under whatever output_root this
+# module passes in (doe_campaign_02's own tree, below).
 from tools.experiments.doe_campaign_01.instances import materialize
 
 CAMPAIGN_ID = "doe_campaign_02"
@@ -119,6 +126,33 @@ BILEVEL_METHOD = "dbp_lex"
 # explicitly (Family 0's own 9 cells keep their swept per-cell values and are unaffected).
 DEFAULT_THREADS = 4
 DEFAULT_MIP_FOCUS = 2
+
+# Fine carbon-tax grid for the bilevel (leader-optimizing) runs. The stored base instances carry a
+# coarse grid (index {0..20}, theta = 0.01 USD/kg = 10 USD/t per step); the campaign solves on the
+# refined step below WITHOUT touching any instance file -- solve_batch's --scale-factor recomputes
+# each in-memory instance's index bounds from its own tau range (overline_tau/theta), so
+# overline_tax_index becomes 0.2/0.0001 = 2000 (index {0..2000}, 0.1 USD/t resolution over the same
+# 0-200 USD/t span). Only the spatial+integer DBP master (McCormick + NonConvex=2) is used, so the
+# fine grid costs ~log(N), not O(N). Applied to every bilevel solve below.
+FINE_GRID_SCALE_FACTOR = 0.0001
+# Outer DBP loop stopping tolerance for the bilevel runs. Tightened from DEFAULT (1e-2) to 1e-4:
+# on the fine grid the emissions response has a long flat plateau, and only a gap this tight climbs
+# off it to the certified optimum (a 1e-2 gap stops on the plateau). Stamped onto every design point
+# that doesn't set dbp_relative_gap explicitly (Family F sets its own around 1e-4 too -- it is a
+# per-MILP mip_gap probe, not an outer-gap probe).
+CAMPAIGN_DBP_RELATIVE_GAP = 1e-4
+# Per-MILP follower mip_gap for the bilevel runs. Tightened from DEFAULT (1e-2) to 1e-6 to match the
+# validated fine-grid solve (the STD_I25 min-tax validation ran the follower at 1e-6): with the outer
+# loop targeting 1e-4, a 1e-2 follower cannot certify it and would leave the emissions floor loose
+# (the lexicographic freeze band, ~mip_gap wide, lets the cost-minimizing secondary drift emissions
+# by up to a few % at low tax). Stamped onto every point that doesn't set mip_gap explicitly (Family
+# F sets its own swept values -- it deliberately probes LOOSER follower gaps against this tight base).
+CAMPAIGN_MIP_GAP = 1e-6
+# DBP Phase 2 (min-tax bisection): after certifying minimum emissions E*, bisect the follower's
+# monotone emissions(tau) to recover the EXACT least-intervention tax_index (the leader's
+# lexicographic secondary objective). On -> correct + deterministic reported tax at ~2x per-run
+# time; off -> the incumbent's tax (an upper bound), cheaper but over-reported and non-deterministic.
+REFINE_MIN_TAX = True
 
 # Stash root for solve-output files displaced ahead of a fresh/--overwrite solve, kept outside the
 # project tree (never OneDrive-synced). `_solve_bilevel`/`_solve_fixed_tax` below decide whether to
@@ -202,6 +236,8 @@ def build_design_matrix(family_id: str) -> list[DesignPoint]:
             p,
             threads=DEFAULT_THREADS if p.threads is None else p.threads,
             mip_focus=DEFAULT_MIP_FOCUS if p.mip_focus is None else p.mip_focus,
+            dbp_relative_gap=CAMPAIGN_DBP_RELATIVE_GAP if p.dbp_relative_gap is None else p.dbp_relative_gap,
+            mip_gap=CAMPAIGN_MIP_GAP if p.mip_gap is None else p.mip_gap,
         )
         for p in points
     ]
@@ -293,7 +329,12 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
                 "--method", BILEVEL_METHOD,
                 "--time-limit", str(point.per_subproblem_time_limit_seconds),
                 "--results-root", str(scratch_root),
+                # Fine tax grid ({0..2000}) resolved in-memory from each instance's own tau range;
+                # stored files untouched. Campaign-invariant, so injected here rather than per-point.
+                "--scale-factor", str(FINE_GRID_SCALE_FACTOR),
             ]
+            if not REFINE_MIN_TAX:
+                cmd += ["--no-refine-min-tax"]
             if point.mip_gap is not None:
                 cmd += ["--mip-gap", str(point.mip_gap)]
             if point.dbp_relative_gap is not None:
@@ -368,14 +409,14 @@ def _write_follower_result(
         solution_payload = {
             "schema_version": 3,
             "instance": instance.name,
-            "leader": {"tax_index": tax_index_for_report, "effective_tax": effective_tax},
+            "leader": {"tax_index": tax_index_for_report, "effective_tax": tax_rate},
             "objectives": {
                 "cost": result.cost,
                 "emissions": result.emissions,
                 "follower_objective": result.follower_objective,
             },
             "decision_variables": {
-                "leader": {"tax_index": tax_index_for_report, "effective_tax": effective_tax},
+                "leader": {"tax_index": tax_index_for_report, "effective_tax": tax_rate},
                 "follower": result.variable_values,
             },
             "variables": result.variable_values,

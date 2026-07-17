@@ -1,11 +1,13 @@
 """Family F - Solver gap-tolerance robustness (RQ6).
 
-Isolated `mip_gap` sensitivity probe on the 4 T3 classes: does a tighter/looser per-MILP gap
-tolerance change the optimal network structure? `dbp_relative_gap` (the outer bilevel loop's own
-convergence criterion) is held fixed at the campaign-wide 1e-2 in both settings, so any observed
-structural change is attributable specifically to per-MILP solve precision, not the outer loop's
-convergence criterion (EXPERIMENTAL_PLAN.md §4-F). The Family A base-seed, default-tolerance
-point (`mip_gap=1e-2`) is already covered by Family A and is not re-run here.
+Isolated `mip_gap` sensitivity probe on the 4 T3 classes: does a looser per-MILP gap tolerance
+change the optimal network structure? `dbp_relative_gap` (the outer bilevel loop's own convergence
+criterion) is held fixed at the campaign-wide 1e-4 in both settings, so any observed structural
+change is attributable specifically to per-MILP solve precision, not the outer loop's convergence
+criterion (EXPERIMENTAL_PLAN.md §4-F). The tight-baseline point (`mip_gap=1e-6`, the campaign's
+`CAMPAIGN_MIP_GAP`) is already covered by Family A and is not re-run here; both settings below are
+DELIBERATELY LOOSER than that 1e-6 baseline, so "tight"/"loose" here are relative to each other,
+not to Family A.
 
 Time budgets are NOT symmetric between the two settings: the tight setting gets the full standard
 tier (3,600 s / 28,800 s) because achieving a tighter gap generally needs *more* time than the
@@ -25,7 +27,7 @@ INSTANCES: tuple[str, ...] = (
     "STD_I17_M4_T3", "STD_I17_M8_T3", "STD_I25_M4_T3", "STD_I25_M8_T3",
 )
 
-CAMPAIGN_DBP_RELATIVE_GAP = 1e-2  # unchanged in both settings -- isolates mip_gap as the sole lever
+CAMPAIGN_DBP_RELATIVE_GAP = 1e-4  # campaign-wide outer gap; fixed in both settings so mip_gap is the sole lever
 
 TIGHT_MIP_GAP = 1e-3
 TIGHT_SUBPROBLEM_SECONDS = 3600.0

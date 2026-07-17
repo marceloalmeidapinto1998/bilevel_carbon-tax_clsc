@@ -18,7 +18,11 @@ from experiments.designs._common import DesignPoint
 from tools.experiments.doe_campaign_01.design.structural import apply_structural_levels, apply_structural_levels_v2
 from tools.experiments.doe_campaign_01.factors import apply_levels
 
-BASE_DIR = Path("data/instances/campaigns/doe_campaign_01/base")
+# Authoritative base set (regenerated 2026-07-16 with the current generator: diagonal bom_rem).
+# Repointed from the former data/instances/campaigns/doe_campaign_01/base copy, verified functionally
+# identical (same seeds/sets/parameters; they differed only in a legacy tax-index JSON key name that
+# InstanceData normalizes on load) and identical fixed-tax behaviour on the coarse {0..20} grid.
+BASE_DIR = Path("data/instances/base")
 
 # Offset added to the spec's deterministic base seed for each extra-seed run (Family F).
 # Large and prime-ish to avoid colliding with seed_base sweeps elsewhere.
