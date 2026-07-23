@@ -1,7 +1,7 @@
 {
   "name": "STD_I25_M4_T6__B_eps_anchor_min_emissions",
   "metadata": {
-    "generated_at_utc": "2026-07-08T17:26:26.405621+00:00",
+    "generated_at_utc": "2026-07-16T17:47:12.928295+00:00",
     "seed": 3684596684,
     "source_model": "paper/bilevel_model.tex",
     "sampling_rules_module": "data.generator.tautenhain_data",
@@ -158,8 +158,8 @@
     },
     "carbon_tax_units": {
       "underline_tau_overline_tau": "USD/kg CO2e",
-      "hat_tau_step": "0.01 USD/kg CO2e",
-      "tau_formula_usd_per_kg_co2e": "0.01 * hat_tau"
+      "tax_index_step": "0.01 USD/kg CO2e",
+      "tau_formula_usd_per_kg_co2e": "0.01 * tax_index"
     },
     "benchmark": {
       "kind": "base",
@@ -4826,8 +4826,8 @@
     },
     "underline_tau": 0.0,
     "overline_tau": 0.2,
-    "underline_hat_tau": 0,
-    "overline_hat_tau": 20,
+    "underline_tax_index": 0,
+    "overline_tax_index": 20,
     "d_i_j": {
       "air1": {
         "air2": 336.129,

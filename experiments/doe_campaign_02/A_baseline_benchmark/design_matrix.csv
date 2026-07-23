@@ -1,0 +1,13 @@
+family_id,design_point_id,run_code,base_instance_id,execution_mode,per_subproblem_time_limit_seconds,per_run_wall_clock_cap_seconds,technology_menu,transport_menu,production_technology_menu,remanufacturing_technology_menu,road_menu,sea_menu,air_menu,seed_offset,fixed_tax_index,epsilon_emissions,mip_gap,dbp_relative_gap,threads,mip_focus,notes
+A,A-01,baseline,STD_I17_M4_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-02,baseline,STD_I17_M4_T6,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-03,baseline,STD_I17_M4_T12,bilevel,10800.0,50400.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,tractability probe
+A,A-04,baseline,STD_I17_M8_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-05,baseline,STD_I17_M8_T6,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-06,baseline,STD_I17_M8_T12,bilevel,10800.0,50400.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,tractability probe
+A,A-07,baseline,STD_I25_M4_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-08,baseline,STD_I25_M4_T6,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-09,baseline,STD_I25_M4_T12,bilevel,10800.0,50400.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,tractability probe
+A,A-10,baseline,STD_I25_M8_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-11,baseline,STD_I25_M8_T6,bilevel,10800.0,50400.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,
+A,A-12,baseline,STD_I25_M8_T12,bilevel,10800.0,50400.0,base,base,base,base,base,base,base,0,,,1e-06,0.0001,4,2,tractability probe

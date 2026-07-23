@@ -1,0 +1,9 @@
+family_id,design_point_id,run_code,base_instance_id,execution_mode,per_subproblem_time_limit_seconds,per_run_wall_clock_cap_seconds,technology_menu,transport_menu,production_technology_menu,remanufacturing_technology_menu,road_menu,sea_menu,air_menu,seed_offset,fixed_tax_index,epsilon_emissions,mip_gap,dbp_relative_gap,threads,mip_focus,notes
+F,F-01,gap_tight,STD_I17_M4_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,0.001,0.0001,4,2,
+F,F-02,gap_loose,STD_I17_M4_T3,bilevel,1800.0,7200.0,base,base,base,base,base,base,base,0,,,0.1,0.0001,4,2,
+F,F-03,gap_tight,STD_I17_M8_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,0.001,0.0001,4,2,
+F,F-04,gap_loose,STD_I17_M8_T3,bilevel,1800.0,7200.0,base,base,base,base,base,base,base,0,,,0.1,0.0001,4,2,
+F,F-05,gap_tight,STD_I25_M4_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,0.001,0.0001,4,2,
+F,F-06,gap_loose,STD_I25_M4_T3,bilevel,1800.0,7200.0,base,base,base,base,base,base,base,0,,,0.1,0.0001,4,2,
+F,F-07,gap_tight,STD_I25_M8_T3,bilevel,3600.0,28800.0,base,base,base,base,base,base,base,0,,,0.001,0.0001,4,2,
+F,F-08,gap_loose,STD_I25_M8_T3,bilevel,1800.0,7200.0,base,base,base,base,base,base,base,0,,,0.1,0.0001,4,2,

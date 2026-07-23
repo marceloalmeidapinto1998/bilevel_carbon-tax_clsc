@@ -1,7 +1,7 @@
 {
   "name": "STD_I17_M4_T3__C_raw_material_cost_1.0000",
   "metadata": {
-    "generated_at_utc": "2026-07-08T17:26:09.540415+00:00",
+    "generated_at_utc": "2026-07-16T17:46:59.067076+00:00",
     "seed": 1456480296,
     "source_model": "paper/bilevel_model.tex",
     "sampling_rules_module": "data.generator.tautenhain_data",
@@ -126,8 +126,8 @@
     },
     "carbon_tax_units": {
       "underline_tau_overline_tau": "USD/kg CO2e",
-      "hat_tau_step": "0.01 USD/kg CO2e",
-      "tau_formula_usd_per_kg_co2e": "0.01 * hat_tau"
+      "tax_index_step": "0.01 USD/kg CO2e",
+      "tau_formula_usd_per_kg_co2e": "0.01 * tax_index"
     },
     "benchmark": {
       "kind": "base",
@@ -2915,8 +2915,8 @@
     },
     "underline_tau": 0.0,
     "overline_tau": 0.2,
-    "underline_hat_tau": 0,
-    "overline_hat_tau": 20,
+    "underline_tax_index": 0,
+    "overline_tax_index": 20,
     "d_i_j": {
       "air1": {
         "air2": 377.261,
