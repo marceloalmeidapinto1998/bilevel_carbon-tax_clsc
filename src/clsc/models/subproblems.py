@@ -10,7 +10,7 @@ import gurobipy as gp
 from gurobipy import GRB
 
 from clsc.config.gap_tol import DEFAULT
-from .instance import SCALE_FACTOR, InstanceData
+from .instance import InstanceData
 
 
 EMISSIONS_SCALE = 1_000_000.0  # kg to kilotonnes
@@ -119,32 +119,6 @@ def solve_fixed_tax_follower(
     )
 
 
-def solve_fixed_tax_optimistic(
-    instance: InstanceData,
-    tax_index: int,
-    *,
-    follower_objective_upper: float,
-    output_flag: bool = False,
-    time_limit: float | None = None,
-    capture_solution: bool = False,
-    mip_gap: float | None = None,
-) -> SolveResult:
-    artifacts = build_fixed_tax_model(
-        instance,
-        tax_index=tax_index,
-        tie_break=True,
-        follower_objective_upper=follower_objective_upper,
-    )
-    return optimize_model(
-        artifacts,
-        fixed_tax_index=tax_index,
-        output_flag=output_flag,
-        time_limit=time_limit,
-        capture_solution=capture_solution,
-        mip_gap=mip_gap,
-    )
-
-
 def solve_fixed_tax_lexicographic(
     instance_or_master: InstanceData | FixedTaxFollowerMaster,
     tax_index: int,
@@ -156,6 +130,7 @@ def solve_fixed_tax_lexicographic(
     mip_gap: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
+    seed: int | None = None,
 ) -> SolveResult:
     """Explicit two-stage lexicographic solve over the fixed-tax follower.
 
@@ -197,6 +172,7 @@ def solve_fixed_tax_lexicographic(
         mip_gap=mip_gap,
         threads=threads,
         mip_focus=mip_focus,
+        seed=seed,
     )
     if not stage1.has_solution or stage1.status_name != "OPTIMAL":
         return replace(
@@ -225,6 +201,7 @@ def solve_fixed_tax_lexicographic(
         mip_gap=mip_gap,
         threads=threads,
         mip_focus=mip_focus,
+        seed=seed,
     )
     # Remove the freeze constraint so the artifacts can be safely re-used if
     # callers retain a reference to the model.
@@ -400,11 +377,18 @@ def solve_dbp_relaxation_lexicographic(
     mip_gap: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
+    seed: int | None = None,
+    lex_stage2: bool = True,
 ) -> SolveResult:
     """Two-stage lexicographic solve of the DBP relaxation master: minimise
     total emissions (Stage 1, identical to :func:`solve_dbp_relaxation`),
     then minimise ``tax_index`` itself (Stage 2) among master points tied at
     that emissions value.
+
+    ``lex_stage2=False`` runs Stage 1 only (the DBP-ablation variant A2, no
+    lexicographic Stage-2 in the master): the returned ``tax_index`` is then an
+    arbitrary emissions-minimiser, not the smallest tied index, so the surrounding
+    loop must rely on its Phase-2 bisection for tax-minimality.
 
     This replaces a post-hoc tax-tiebreak search (e.g. bisection) over the
     leader's tax grid. Every cut added to the master is valid for *every*
@@ -440,21 +424,33 @@ def solve_dbp_relaxation_lexicographic(
         )
 
     # Stage 1: minimise total (scaled) emissions -- identical to the master's
-    # ordinary single-stage objective.
+    # ordinary single-stage objective. When lex_stage2 is requested (default),
+    # Stage 1 must not capture the solution yet (Stage 2 does); the A2 ablation
+    # (lex_stage2=False) captures here and returns Stage 1 directly.
     model.setObjective(emissions_total_var, GRB.MINIMIZE)
     stage1 = optimize_model(
         artifacts,
         fixed_tax_index=None,
         output_flag=output_flag,
         time_limit=time_limit,
-        capture_solution=False,
+        capture_solution=capture_solution and not lex_stage2,
         mip_gap=mip_gap,
         threads=threads,
         mip_focus=mip_focus,
+        seed=seed,
     )
     if not stage1.has_solution or stage1.status_name != "OPTIMAL":
         model.setObjective(emissions_total_var, GRB.MINIMIZE)
         return stage1
+
+    if not lex_stage2:
+        # A2 ablation: no lexicographic Stage-2 tax minimisation in the master.
+        return replace(
+            stage1,
+            emissions=float(emissions_total_var.X) * EMISSIONS_SCALE,
+            lex_primary_mip_gap=stage1.mip_gap,
+            lex_secondary_mip_gap=None,
+        )
 
     # Freeze Stage 1's optimum (in scaled, kilotonne-ish units, so the
     # absolute eps floor of lex_freeze_tolerance is already a much smaller
@@ -478,6 +474,7 @@ def solve_dbp_relaxation_lexicographic(
         mip_gap=mip_gap,
         threads=threads,
         mip_focus=mip_focus,
+        seed=seed,
     )
     try:
         model.remove(freeze)
@@ -518,7 +515,6 @@ def build_fixed_tax_model(
     *,
     tax_index: int,
     tie_break: bool = False,
-    follower_objective_upper: float | None = None,
 ) -> ModelArtifacts:
     if tax_index not in instance.iter_tax_index():
         raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
@@ -528,12 +524,6 @@ def build_fixed_tax_model(
         common.cost_expr
         + instance.scale_factor * tax_index * common.emissions_expr
     )
-
-    if follower_objective_upper is not None:
-        common.model.addConstr(
-            follower_expr <= follower_objective_upper,
-            name="follower_objective_cap",
-        )
 
     common.model.setObjective(common.emissions_expr if tie_break else follower_expr, GRB.MINIMIZE)
     return ModelArtifacts(
@@ -659,15 +649,6 @@ def _apply_mip_start(model: gp.Model, variable_values: dict[str, float] | None) 
         value = variable_values.get(variable.VarName)
         if value is not None:
             variable.Start = float(value)
-
-
-def build_dbp_relaxation_model(
-    instance: InstanceData,
-    cuts: list[DbpFollowerCut],
-) -> ModelArtifacts:
-    master = build_dbp_relaxation_master(instance)
-    _synchronize_dbp_relaxation_master(master, cuts)
-    return master.artifacts
 
 
 def build_dbp_relaxation_master(
@@ -862,6 +843,7 @@ def optimize_model(
     mip_gap: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
+    seed: int | None = None,
 ) -> SolveResult:
     model = artifacts.model
     model.Params.OutputFlag = 1 if output_flag else 0
@@ -870,6 +852,8 @@ def optimize_model(
     model.Params.MIPGap = DEFAULT.mip_gap if mip_gap is None else mip_gap
     model.Params.Threads = DEFAULT.threads if threads is None else threads
     model.Params.MIPFocus = DEFAULT.mip_focus if mip_focus is None else mip_focus
+    if seed is not None:
+        model.Params.Seed = seed
 
     status_history: list[str] = []
     model.optimize()
@@ -1074,7 +1058,7 @@ def _build_common_model(instance: InstanceData, *, model_name: str) -> _CommonMo
     remanufacturing_technologies = instance.sets["L"]
     periods = instance.sets["T"]
 
-    flow_raw, flow_fp, flow_rp = _flow_sets(instance, products, raw_materials, params)
+    flow_raw, flow_fp, flow_rp = _flow_sets(instance)
     flow_tuples = tuple(dict.fromkeys((*flow_raw, *flow_fp, *flow_rp)))
     transport_arcs = tuple(instance.sets.get("A", tuple(dict.fromkeys((o, d) for _, o, d in flow_tuples))))
     mode_family = params.get("mode_family_m", {})
@@ -1247,7 +1231,7 @@ def _build_common_model(instance: InstanceData, *, model_name: str) -> _CommonMo
     return _CommonModel(model=model, cost_expr=cost_expr, emissions_expr=emissions_expr)
 
 
-def _flow_sets(instance: InstanceData, products: tuple[str, ...], raw_materials: tuple[str, ...], params: dict[str, object]):
+def _flow_sets(instance: InstanceData):
     return (
         tuple(instance.sets["FLOW_RAW"]),
         tuple(instance.sets["FLOW_FP"]),

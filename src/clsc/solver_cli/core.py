@@ -168,6 +168,34 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.set_defaults(refine_min_tax=True)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        help=(
+            "Gurobi Seed parameter for every sub-solve (MIP performance-variability "
+            "probes; Experiment 1/2). Omit for Gurobi's default seed. Only supported "
+            "with --method dbp_lex."
+        ),
+    )
+    parser.add_argument(
+        "--no-warm-start",
+        dest="use_warm_start",
+        action="store_false",
+        help="Ablation A3: disable warm starts between successive follower solves.",
+    )
+    parser.add_argument(
+        "--no-incumbent-cut",
+        dest="use_incumbent_cut",
+        action="store_false",
+        help="Ablation A5: disable the incumbent objective-upper-bound cut in the relaxation master.",
+    )
+    parser.add_argument(
+        "--no-lex-master-stage2",
+        dest="use_lex_master_stage2",
+        action="store_false",
+        help="Ablation A2: disable the relaxation master's lexicographic Stage-2 tax minimisation.",
+    )
+    parser.set_defaults(use_warm_start=True, use_incumbent_cut=True, use_lex_master_stage2=True)
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
     parser.add_argument(
         "--results-root",
@@ -290,6 +318,10 @@ def main() -> int:
                     threads=args.threads,
                     mip_focus=args.mip_focus,
                     refine_min_tax=args.refine_min_tax,
+                    seed=args.seed,
+                    use_warm_start=args.use_warm_start,
+                    use_incumbent_cut=args.use_incumbent_cut,
+                    use_lex_master_stage2=args.use_lex_master_stage2,
                 )
             else:
                 raise ValueError(f"Unsupported solver method {args.method!r}")
@@ -475,6 +507,10 @@ def build_manifest(
         "tolerances": tolerance_config,
         "tax_grid_scale_factor": args.scale_factor,
         "refine_min_tax": bool(args.refine_min_tax),
+        "gurobi_seed": args.seed,
+        "use_warm_start": bool(args.use_warm_start),
+        "use_incumbent_cut": bool(args.use_incumbent_cut),
+        "use_lex_master_stage2": bool(args.use_lex_master_stage2),
         "fail_fast": bool(args.fail_fast),
     }
     if args.method == "dbp_lex":

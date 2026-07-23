@@ -372,6 +372,8 @@ def _bisect_min_tax(
     threads: int | None,
     mip_focus: int | None,
     time_limit: float | None,
+    seed: int | None = None,
+    use_warm_start: bool = True,
 ) -> int:
     """Smallest tax_index in ``[lo, hi]`` whose follower response reaches the
     certified emissions floor ``e_star``, assuming P(hi) is True. Binary search
@@ -389,8 +391,9 @@ def _bisect_min_tax(
             mip_gap=_REFINE_MIP_GAP,
             threads=threads,
             mip_focus=mip_focus,
+            seed=seed,
             capture_solution=True,
-            warm_start_values=warm,  # adjacent taxes share near-identical solutions
+            warm_start_values=warm if use_warm_start else None,  # adjacent taxes share near-identical solutions
         )
         if not result.has_solution or result.status_name != "OPTIMAL" or result.emissions is None:
             # Can't confirm the floor here -> treat as NOT at floor, which keeps
@@ -421,6 +424,8 @@ def _refine_min_tax(
     threads: int | None,
     mip_focus: int | None,
     time_limit: float | None,
+    seed: int | None = None,
+    use_warm_start: bool = True,
 ) -> tuple[IncumbentSolution, SolveResult | None]:
     """Phase 2 wrapper: bisect for the smallest tax reaching the incumbent's
     (certified-minimum) emissions, and re-report the incumbent at that tax.
@@ -438,6 +443,8 @@ def _refine_min_tax(
         threads=threads,
         mip_focus=mip_focus,
         time_limit=time_limit,
+        seed=seed,
+        use_warm_start=use_warm_start,
     )
     if tau_star >= incumbent.tax_index:
         return incumbent, incumbent_solution
@@ -450,6 +457,7 @@ def _refine_min_tax(
         threads=threads,
         mip_focus=mip_focus,
         time_limit=time_limit,
+        seed=seed,
     )
     if not refined.has_solution or refined.status_name != "OPTIMAL":
         return incumbent, incumbent_solution
@@ -479,6 +487,10 @@ def solve_bilevel_dbp_lex(
     threads: int | None = None,
     mip_focus: int | None = None,
     refine_min_tax: bool = True,
+    seed: int | None = None,
+    use_warm_start: bool = True,
+    use_incumbent_cut: bool = True,
+    use_lex_master_stage2: bool = True,
 ) -> BilevelSolveResult:
     """DBP with the leader's lexicographic objective: minimise emissions
     (Phase 1, the DBP loop below), then minimise ``tax_index`` among the
@@ -504,6 +516,15 @@ def solve_bilevel_dbp_lex(
     default) for every Gurobi sub-solve. ``dbp_relative_gap`` overrides the
     DBP loop's own outer stopping criterion the same way -- it is unrelated
     to any Gurobi parameter.
+
+    ``seed`` sets the Gurobi ``Seed`` parameter on every sub-solve (MIP
+    performance-variability probes; Exp1/Exp2). The three ``use_*`` flags select
+    Experiment-3 ablation variants (all default True = full DBP): ``use_warm_start``
+    (A3) warm-starts successive follower solves; ``use_incumbent_cut`` (A5) tightens
+    the relaxation master with the incumbent's emissions as an objective upper bound;
+    ``use_lex_master_stage2`` (A2) runs the master's lexicographic Stage-2 tax
+    minimisation. Disabling any one leaves the certified emissions optimum unchanged
+    but changes the iteration/time path (and, for A2 without Phase 2, the reported tax).
     """
     instance = _coerce_instance(instance_or_path)
     max_iterations = max_iterations or (len(instance.iter_tax_index()) + 1)
@@ -521,6 +542,8 @@ def solve_bilevel_dbp_lex(
         mip_gap=mip_gap,
         threads=threads,
         mip_focus=mip_focus,
+        seed=seed,
+        lex_stage2=use_lex_master_stage2,
     )
     _require_optimal_result(relaxation, "initial DBP relaxation")
 
@@ -542,10 +565,11 @@ def solve_bilevel_dbp_lex(
             output_flag=output_flag,
             time_limit=time_limit,
             capture_solution=True,
-            warm_start_values=previous_lexicographic_values,
+            warm_start_values=previous_lexicographic_values if use_warm_start else None,
             mip_gap=mip_gap,
             threads=threads,
             mip_focus=mip_focus,
+            seed=seed,
         )
         if lexicographic.status_name == "TIME_LIMIT":
             if incumbent is not None:
@@ -602,7 +626,8 @@ def solve_bilevel_dbp_lex(
             iteration=iteration,
         )
         add_dbp_relaxation_cut(relaxation_master, cut)
-        set_dbp_relaxation_objective_upper_bound(relaxation_master, incumbent.emissions)
+        if use_incumbent_cut:
+            set_dbp_relaxation_objective_upper_bound(relaxation_master, incumbent.emissions)
 
         relaxation, relaxation_seconds = _solve_with_wall_time(
             solve_dbp_relaxation_lexicographic,
@@ -612,6 +637,8 @@ def solve_bilevel_dbp_lex(
             mip_gap=mip_gap,
             threads=threads,
             mip_focus=mip_focus,
+            seed=seed,
+            lex_stage2=use_lex_master_stage2,
         )
         if relaxation.status_name == "INFEASIBLE" and relaxation_master.objective_upper_bound is not None:
             # The objective upper bound combined with the accumulated DBP and lex
@@ -631,6 +658,7 @@ def solve_bilevel_dbp_lex(
                 incumbent, incumbent_solution = _refine_min_tax(
                     follower_master, instance, incumbent, incumbent_solution,
                     threads=threads, mip_focus=mip_focus, time_limit=time_limit,
+                    seed=seed, use_warm_start=use_warm_start,
                 )
             return _build_bilevel_result(
                 method="dbp_lex",
@@ -711,6 +739,7 @@ def solve_bilevel_dbp_lex(
                 incumbent, incumbent_solution = _refine_min_tax(
                     follower_master, instance, incumbent, incumbent_solution,
                     threads=threads, mip_focus=mip_focus, time_limit=time_limit,
+                    seed=seed, use_warm_start=use_warm_start,
                 )
             return _build_bilevel_result(
                 method="dbp_lex",
