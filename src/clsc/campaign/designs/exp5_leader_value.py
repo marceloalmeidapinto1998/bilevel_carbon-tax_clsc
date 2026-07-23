@@ -4,12 +4,16 @@ Compares the bilevel leader's tax against simpler policy rules on all 12 cells. 
 lexicographic) is Experiment 3's M0 result on the same cell -- not re-solved here. P0/P1/P2 are
 one fresh follower-only lexicographic solve each per cell.
 
-NOTE: P4 (plateau right edge) is the LARGEST tax still achieving the certified emissions floor E*,
-which is data-dependent (it needs the solved plateau). It is therefore added in a second stage
-after the emissions-vs-tax staircase is available, and is NOT emitted here. With P4 that would be
-48 follower solves; this static stage emits P0/P1/P2 = 36.
+P4 (plateau right edge) is the LARGEST tax still achieving the certified emissions floor E*, which
+is data-dependent (it needs the solved plateau). It is therefore a second stage: once
+`<results_root>/exp5_leader_value/_plateau_right_edge.json` (a JSON dict of base_instance_id ->
+tax_index) exists, `build_design_matrix(results_root=...)` appends one P4 follower solve per cell.
+With P4 that is 48 follower solves; the static stage is P0/P1/P2 = 36.
 """
 from __future__ import annotations
+
+import json
+from pathlib import Path
 
 from clsc.campaign.designs._cells import ALL_CELLS, time_limits
 from clsc.campaign.designs._common import DesignPoint
@@ -25,7 +29,11 @@ POLICY_RULES = {
 }
 
 
-def build_design_matrix() -> list[DesignPoint]:
+def _plateau_path(results_root: Path) -> Path:
+    return Path(results_root) / "exp5_leader_value" / "_plateau_right_edge.json"
+
+
+def build_design_matrix(*, results_root: Path | None = None) -> list[DesignPoint]:
     points: list[DesignPoint] = []
     for cell in ALL_CELLS:
         sub, wall = time_limits(cell)
@@ -37,4 +45,21 @@ def build_design_matrix() -> list[DesignPoint]:
                 per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
                 notes="Policy-rule follower solve (H5.1/H5.2).",
             ))
+
+    # P4 (data-dependent): plateau right edge per cell, once the solved plateau is available.
+    if results_root is not None:
+        plateau_path = _plateau_path(results_root)
+        if plateau_path.exists():
+            plateau = json.loads(plateau_path.read_text(encoding="utf-8"))
+            for cell in ALL_CELLS:
+                if cell not in plateau:
+                    continue
+                sub, wall = time_limits(cell)
+                points.append(DesignPoint(
+                    experiment_id=EXPERIMENT_ID, design_point_id=f"exp5-P4_plateau_edge-{cell}",
+                    run_code="P4_plateau_edge", base_instance_id=cell,
+                    execution_mode="fixed_tax", fixed_tax_index=int(plateau[cell]),
+                    per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
+                    notes="Plateau right-edge follower solve (H5.2).",
+                ))
     return points

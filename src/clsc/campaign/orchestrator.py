@@ -80,7 +80,7 @@ EXPERIMENT_DIR_NAMES = {
 
 # Experiments whose second-stage design matrix depends on first-stage solved results (read back
 # from disk by the module's build_design_matrix(results_root=...)).
-TWO_PHASE_EXPERIMENTS = ("exp6", "exp7")
+TWO_PHASE_EXPERIMENTS = ("exp5", "exp6", "exp7")
 
 BILEVEL_METHOD = "dbp_lex"
 

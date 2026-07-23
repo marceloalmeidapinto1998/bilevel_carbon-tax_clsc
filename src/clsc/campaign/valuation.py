@@ -6,10 +6,11 @@ reports the resulting τ*(ρ). A uniform rescale of ρ is applied here as a mult
 emission-carrying parameter, so emissions are counted ρ× relative to cost in the follower's
 objective while the physical network is unchanged.
 
-NOTE (modeling choice, flagged for review): this scales the emission *quantities*
-(e_prod_g / e_rem_l / e_raw_s_u / e_ship_m). An equivalent alternative is to scale the tax grid
-(SCALE_FACTOR) by ρ; the two are interchangeable for τ*(ρ) up to the index mapping. Confirm which
-convention the paper reports before finalizing Experiment 7's absolute USD/t statements.
+Convention (decided 2026-07-23): the paper reports Experiment 7 by scaling the emission
+*quantities* (e_prod_g / e_rem_l / e_raw_s_u / e_ship_m), as implemented here. This is
+mathematically interchangeable with scaling the tax grid (SCALE_FACTOR) by ρ for τ*(ρ) up to the
+index mapping, but the quantity-scaling convention is the one every absolute USD/t statement in the
+section is derived from.
 """
 from __future__ import annotations
 
