@@ -5,56 +5,50 @@ from pathlib import Path
 
 import pytest
 
-from archive.campaign_01.analysis.aggregate import _flatten
+from clsc.analysis.campaign_01.aggregate import _flatten
 
 
 def _synthetic_manifest(
     *,
-    family: str = "A",
+    experiment: str = "exp3",
     base_instance: str = "STD_I17_M4_T3",
     solve_status: str = "success",
     factor_levels: dict | None = None,
 ) -> dict:
     return {
-        "campaign_id": "doe_campaign_01",
-        "family_id": family,
-        "design_point_id": f"{family}-001",
+        "campaign_id": "campaign_01",
+        "experiment_id": experiment,
+        "design_point_id": f"{experiment}-M0-{base_instance}-s0",
         "base_instance_id": base_instance,
-        "technology_menu": "base",
-        "transport_menu": "base",
+        "algorithm_variant": "M0",
         "seed_offset": 0,
+        "gurobi_seed": None,
+        "valuation_ratio": None,
         "code_version": "abc123",
         "solver_method": "dbp_lex",
         "solve_status": solve_status,
-        "termination_reason": "optimal" if solve_status == "success" else None,
+        "termination_reason": "relative_gap" if solve_status == "success" else None,
         "censored": False,
-        "objective_values": {
-            "cost": 1_000_000.0,
-            "emissions": 500_000.0,
-            "follower_objective": 1_050_000.0,
-        },
+        "objective_values": {"cost": 1_000_000.0, "emissions": 500_000.0, "follower_objective": 2_000_000.0},
         "leader_tax": 10,
         "runtime_seconds": 42.0,
-        "mip_gap": 1e-5,
+        "mip_gap": 1e-8,
         "time_limit_seconds": 3600,
-        "wall_clock_cap_seconds": 7200,
-        "validation_status": "valid",
+        "wall_clock_cap_seconds": 28800,
+        "validation_status": "validated",
         "error_type": None,
-        "output_path": f"results/runs/doe_campaign_01/{family}/{base_instance}/{family}-001/summary.json",
+        "output_path": f"results/runs/campaign_01/{experiment}/{base_instance}/base/summary.json",
         "notes": None,
         "factor_levels": {"demand": 1.0, "capacity": 0.9} if factor_levels is None else factor_levels,
     }
 
 
-# ---------------------------------------------------------------------------
-# _flatten
-# ---------------------------------------------------------------------------
-
 def test_flatten_extracts_standard_fields() -> None:
     row = _flatten(_synthetic_manifest())
-    assert row["campaign_id"] == "doe_campaign_01"
-    assert row["family_id"] == "A"
+    assert row["campaign_id"] == "campaign_01"
+    assert row["experiment_id"] == "exp3"
     assert row["base_instance_id"] == "STD_I17_M4_T3"
+    assert row["algorithm_variant"] == "M0"
     assert row["solve_status"] == "success"
     assert row["cost"] == 1_000_000.0
     assert row["emissions"] == 500_000.0
@@ -65,16 +59,12 @@ def test_flatten_extracts_standard_fields() -> None:
 
 def test_flatten_parses_imt_from_instance_name() -> None:
     row = _flatten(_synthetic_manifest(base_instance="STD_I17_M4_T3"))
-    assert row["I"] == 17
-    assert row["M"] == 4
-    assert row["T"] == 3
+    assert (row["I"], row["M"], row["T"]) == (17, 4, 3)
 
 
 def test_flatten_parses_large_instance_name() -> None:
     row = _flatten(_synthetic_manifest(base_instance="STD_I25_M8_T12"))
-    assert row["I"] == 25
-    assert row["M"] == 8
-    assert row["T"] == 12
+    assert (row["I"], row["M"], row["T"]) == (25, 8, 12)
 
 
 def test_flatten_promotes_factor_levels_as_prefixed_columns() -> None:
@@ -105,26 +95,19 @@ def test_flatten_censored_run_has_correct_status() -> None:
     assert row["censored"] is True
 
 
-# ---------------------------------------------------------------------------
-# aggregate (smoke test via monkeypatch)
-# ---------------------------------------------------------------------------
-
 def test_aggregate_reads_manifests_and_returns_dataframe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Write two synthetic manifests to tmp_path
-    for family, instance in [("A", "STD_I17_M4_T3"), ("G", "STD_I25_M8_T6")]:
-        run_dir = tmp_path / "runs" / family / instance / f"{family}-001"
+    for experiment, instance in [("exp3", "STD_I17_M4_T3"), ("exp3", "STD_I25_M8_T6")]:
+        run_dir = tmp_path / "runs" / experiment / instance / "base"
         run_dir.mkdir(parents=True)
-        manifest = _synthetic_manifest(family=family, base_instance=instance)
-        (run_dir / "campaign_manifest.json").write_text(
-            json.dumps(manifest), encoding="utf-8"
-        )
+        manifest = _synthetic_manifest(experiment=experiment, base_instance=instance)
+        (run_dir / "campaign_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
     tables_dir = tmp_path / "tables"
     tables_dir.mkdir()
 
-    import archive.campaign_01.analysis.aggregate as agg_mod
+    import clsc.analysis.campaign_01.aggregate as agg_mod
 
     monkeypatch.setattr(agg_mod, "RUNS", tmp_path / "runs")
     monkeypatch.setattr(agg_mod, "TABLES", tables_dir)
@@ -133,7 +116,7 @@ def test_aggregate_reads_manifests_and_returns_dataframe(
     df = agg_mod.aggregate()
 
     assert len(df) == 2
-    assert set(df["family_id"]) == {"A", "G"}
+    assert set(df["experiment_id"]) == {"exp3"}
     assert "cost" in df.columns
     assert "factor__demand" in df.columns
-    assert (tables_dir / "master_runs_doe_campaign_01.csv").exists()
+    assert (tables_dir / "master_runs_campaign_01.csv").exists()

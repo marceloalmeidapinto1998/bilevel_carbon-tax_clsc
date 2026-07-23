@@ -10,33 +10,39 @@ with a lexicographic leader objective and a Phase-2 min-tax bisection.
 ## Repository layout
 
 ```
-clsc/                     # ALL active code
+src/clsc/                 # ALL active code (installable package: pip install -e .)
+  generator/              #   instance generator (Tautenhain-based sampler; pure data code)
   config/                 #   solver tolerances (gap_tol.ToleranceConfig)
   models/                 #   instance data model + Gurobi subproblem builders
   solvers/                #   DBP lexicographic bilevel solver + tax breakpoints
   solver_cli/             #   batch runner CLI (core.py; run via solve_batch)
-  campaign/               #   experimental campaign layer
-    orchestrator.py       #     doe_campaign_02 orchestrator (generate / run)
-    designs/              #     one declarative spec module per family (0, A-F)
-    doe/                  #     generic DOE primitives (factorials, sweeps, ...)
+  campaign/               #   experimental campaign layer (campaign_01)
+    orchestrator.py       #     generate / run, keyed by experiment (exp1..exp7)
+    designs/              #     one spec module per experiment (exp1_verification .. exp7_*)
+    doe/                  #     generic DOE primitives (factorials incl. resolution-V, sweeps)
     instances.py          #     instance materialization for design points
-    factors.py            #     continuous/structural factor registry
-    structural.py         #     technology/transport menu expansions
+    toy.py                #     hand-verifiable toy instances (Experiment 1)
+    factors.py            #     continuous factor registry (Experiment 6)
+    structural.py         #     5-way technology/transport menu expansions
+    valuation.py          #     Experiment-7 emissions-valuation rescale
     scenarios/            #     scenario instance builders
-  analysis/               #   aggregation, integrity checks, paper tables
-data/                     # instance generator + base instances (data/instances/base)
-manifests/                # generated design matrices (manifests/<campaign>/<family>/)
+  analysis/               #   aggregation, integrity checks, paper tables (analysis/campaign_01)
+data/instances/           # base + campaign instances (DATA only; generator lives in src/clsc/generator)
+experiments/              # generated design matrices (experiments/<campaign>/<experiment>/)
 results/                  # solve outputs (git-ignored except README)
 tests/                    # pytest suite
 docs/                     # notes
-archive/                  # superseded: doe_campaign_01 runner+analysis, legacy dashboard
+archive/                  # superseded, INERT (not a package): legacy scenario dashboard
 paper/                    # LaTeX manuscript
+pyproject.toml            # packaging + pytest config  (CITATION.cff: how to cite)
 ```
 
 ## Environment
 
 - Python 3.14, Gurobi 13 (academic licence). Virtualenv: `.venv_py314_gurobi13`.
-- Install: `pip install -r requirements.txt`.
+- Install (editable, from repo root): `pip install -e .` — puts the `clsc` package on
+  the path so every `python -m clsc.*` command below works from any directory.
+  (`requirements.txt` mirrors the runtime deps declared in `pyproject.toml`.)
 
 ## Canonical commands
 
@@ -44,7 +50,7 @@ Run from the repo root (the venv Python is used in examples).
 
 ```bash
 # --- Generate a fresh instance base set (deterministic) ---
-python -m data.generator benchmark --output-dir data/instances/base
+python -m clsc.generator benchmark --output-dir data/instances/base
 
 # --- Solve one instance on the campaign's fine tax grid + Phase-2 min-tax ---
 python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
@@ -52,12 +58,13 @@ python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
     --mip-gap 1e-6 --dbp-relative-gap 1e-4 --threads 4 --mip-focus 2 \
     --time-limit 10800 --results-root results/runs
 
-# --- Campaign (doe_campaign_02): build design matrices, then solve ---
-python -m clsc.campaign.orchestrator generate --family all
-python -m clsc.campaign.orchestrator run --family A       # resumable; --fail-fast optional
+# --- Campaign (campaign_01): build design matrices, then solve ---
+python -m clsc.campaign.orchestrator generate --experiment all
+python -m clsc.campaign.orchestrator run --experiment 1    # resumable; --fail-fast optional
+# (--experiment accepts exp1..exp7 or 1..7 or 'all'; --base-instance restricts to one cell)
 
 # --- Post-campaign analysis ---
-python -m clsc.analysis.doe_campaign_02.integrity_check
+python -m clsc.analysis.campaign_01.aggregate
 python -m clsc.analysis.tables.optimization
 python -m clsc.analysis.tables.iterations
 ```

@@ -48,7 +48,7 @@ class ToleranceConfig:
     # (2021)'s explicit CPLEX stopping criterion ("GAP ... less than or equal to 1%"). They are
     # kept as the fallback for coarse-grid solves and the unit-test suite, NOT changed here,
     # because the production bilevel campaign OVERRIDES them per-run (see
-    # tools/experiments/doe_campaign_02/campaign.py: CAMPAIGN_MIP_GAP = 1e-6,
+    # clsc.campaign.orchestrator: CAMPAIGN_MIP_GAP = 1e-6,
     # CAMPAIGN_DBP_RELATIVE_GAP = 1e-4) alongside --scale-factor 0.0001. Under that fine-grid
     # method the two are DELIBERATELY UNEQUAL: the fine grid's emissions plateau needs an outer
     # dbp_relative_gap (1e-4) far tighter than 1%, and a still-tighter per-MILP mip_gap (1e-6) so
@@ -61,14 +61,12 @@ class ToleranceConfig:
     lex_epsilon_prime: float = 1e-6
     dbp_cut_epsilon: float = 1e-6
     dbp_cut_epsilon_relative: float = 1e-7
-    # Raised 10 -> 20 (2026-07-07) after doe_campaign_01 showed several bilevel solves
-    # (STD_I25_M8_T3's baseline, some Family D large-instance cells) hitting
-    # stagnation_limit_gap_not_closed in the outer DBP loop well before the 1% mip_gap target --
-    # a failure mode MIPFocus cannot address, since it governs the outer bilevel loop's bound
-    # progress, not any single sub-MILP's solve. Doubling gives stalled points more DBP iterations
-    # to find a bound improvement before giving up; cost is more wall-clock time on cases that
-    # were already the slowest to converge, hence tested only in a fresh campaign, not applied
-    # retroactively to doe_campaign_01's completed runs.
+    # Raised 10 -> 20 (2026-07-07) after several bilevel solves (STD_I25_M8_T3's baseline, some
+    # Family D large-instance cells) hit stagnation_limit_gap_not_closed in the outer DBP loop
+    # well before the 1% mip_gap target -- a failure mode MIPFocus cannot address, since it
+    # governs the outer bilevel loop's bound progress, not any single sub-MILP's solve. Doubling
+    # gives stalled points more DBP iterations to find a bound improvement before giving up; cost
+    # is more wall-clock time on cases that were already the slowest to converge.
     stagnation_limit: int = 20
     elastic_penalty_mult: float = 10.0
 

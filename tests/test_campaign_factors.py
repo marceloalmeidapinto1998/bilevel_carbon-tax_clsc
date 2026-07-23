@@ -3,8 +3,7 @@ from __future__ import annotations
 import pytest
 
 from clsc.campaign.factors import (
-    CAMPAIGN_02_CONTINUOUS_FACTORS,
-    CORE_CONTINUOUS_FACTORS,
+    CONTINUOUS_FACTORS,
     FACTOR_REGISTRY,
     apply_levels,
     build_salib_problem,
@@ -34,9 +33,9 @@ def _minimal_params() -> dict:
 
 
 def test_factor_registry_contains_expected_factors() -> None:
-    """doe_campaign_01's original 7-factor set must still all be present; the registry is shared
-    with doe_campaign_02 (see test_campaign_02_continuous_factors_are_subset_of_registry below),
-    so it may legitimately contain more than these 7 -- hence subset, not exact-equality.
+    """The core 7-factor set must all be present; the registry is shared with the campaign
+    (see test_campaign_02_continuous_factors_are_subset_of_registry below), so it may
+    legitimately contain more than these 7 -- hence subset, not exact-equality.
     """
     expected = {
         "demand", "return_availability", "emission_intensity",
@@ -46,7 +45,7 @@ def test_factor_registry_contains_expected_factors() -> None:
 
 
 def test_campaign_02_continuous_factors_are_subset_of_registry() -> None:
-    for name in CAMPAIGN_02_CONTINUOUS_FACTORS:
+    for name in CONTINUOUS_FACTORS:
         assert name in FACTOR_REGISTRY, f"campaign_02 factor {name!r} missing from registry"
 
 
@@ -57,7 +56,7 @@ def test_factor_registry_specs_have_valid_bounds() -> None:
 
 
 def test_core_continuous_factors_are_subset_of_registry() -> None:
-    for name in CORE_CONTINUOUS_FACTORS:
+    for name in CONTINUOUS_FACTORS:
         assert name in FACTOR_REGISTRY, f"CORE factor {name!r} missing from registry"
 
 
@@ -65,7 +64,7 @@ def test_apply_levels_at_baseline_leaves_numeric_params_unchanged() -> None:
     params = _minimal_params()
     original_demand = params["d_r_p_t"]["r1"]["p1"]["t1"]
     original_e_prod = params["e_prod_g"]["g1"]
-    apply_levels(params, CORE_CONTINUOUS_FACTORS, [1.0] * len(CORE_CONTINUOUS_FACTORS))
+    apply_levels(params, CONTINUOUS_FACTORS, [1.0] * len(CONTINUOUS_FACTORS))
     assert params["d_r_p_t"]["r1"]["p1"]["t1"] == pytest.approx(original_demand)
     assert params["e_prod_g"]["g1"] == pytest.approx(original_e_prod)
 
@@ -131,15 +130,15 @@ def test_apply_levels_tax_range_updates_tax_index_and_tau_together() -> None:
 
 
 def test_build_salib_problem_has_correct_shape() -> None:
-    problem = build_salib_problem(CORE_CONTINUOUS_FACTORS)
-    n = len(CORE_CONTINUOUS_FACTORS)
+    problem = build_salib_problem(CONTINUOUS_FACTORS)
+    n = len(CONTINUOUS_FACTORS)
     assert problem["num_vars"] == n
     assert len(problem["names"]) == n
     assert len(problem["bounds"]) == n
 
 
 def test_build_salib_problem_bounds_match_registry() -> None:
-    problem = build_salib_problem(CORE_CONTINUOUS_FACTORS)
+    problem = build_salib_problem(CONTINUOUS_FACTORS)
     for name, (low, high) in zip(problem["names"], problem["bounds"]):
         spec = FACTOR_REGISTRY[name]
         assert low == spec.low

@@ -1,4 +1,4 @@
-"""Regression tests for doe_campaign_02's 5-way structural split (apply_structural_levels_v2).
+"""Regression tests for doe_campaign_02's 5-way structural split (apply_structural_levels).
 
 The bug this guards against (found 2026-07-09 during Family D): expanding two or more menus of the
 same type together -- production+remanufacturing, or road+sea+air -- is applied as sequential
@@ -9,9 +9,9 @@ failed on this. The fix scopes each guard to the subset being added in that call
 """
 from __future__ import annotations
 
-from data.generator import build_base_benchmark_specs, generate_instance
+from clsc.generator import build_base_benchmark_specs, generate_instance
 from clsc.models.instance import InstanceData
-from clsc.campaign.structural import apply_structural_levels_v2
+from clsc.campaign.structural import apply_structural_levels
 
 
 def _base_payload() -> dict:
@@ -25,7 +25,7 @@ def test_all_five_menus_expanded_together(  ) -> None:
     g0, l0 = len(payload["sets"]["G"]), len(payload["sets"]["L"])
     rd0, a0, s0 = (len(payload["sets"][k]) for k in ("M_RD", "M_A", "M_S"))
 
-    out = apply_structural_levels_v2(
+    out = apply_structural_levels(
         payload,
         production_technology_menu="expanded",
         remanufacturing_technology_menu="expanded",
@@ -49,7 +49,7 @@ def test_s1_style_partial_multi_menu() -> None:
     g0, l0 = len(payload["sets"]["G"]), len(payload["sets"]["L"])
     rd0, a0, s0 = (len(payload["sets"][k]) for k in ("M_RD", "M_A", "M_S"))
 
-    out = apply_structural_levels_v2(
+    out = apply_structural_levels(
         payload,
         production_technology_menu="expanded",
         road_menu="expanded",
@@ -68,7 +68,7 @@ def test_all_base_is_noop() -> None:
     payload = _base_payload()
     before = (len(payload["sets"]["G"]), len(payload["sets"]["L"]),
               len(payload["sets"]["M_RD"]), len(payload["sets"]["M_A"]), len(payload["sets"]["M_S"]))
-    out = apply_structural_levels_v2(payload)  # all default "base"
+    out = apply_structural_levels(payload)  # all default "base"
     after = (len(out["sets"]["G"]), len(out["sets"]["L"]),
              len(out["sets"]["M_RD"]), len(out["sets"]["M_A"]), len(out["sets"]["M_S"]))
     assert before == after
