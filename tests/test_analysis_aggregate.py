@@ -31,6 +31,9 @@ def _synthetic_manifest(
         "censored": False,
         "objective_values": {"cost": 1_000_000.0, "emissions": 500_000.0, "follower_objective": 2_000_000.0},
         "leader_tax": 10,
+        # A tax index is uninterpretable without its grid step, and the campaign has two grids
+        # 100x apart -- so the orchestrator records the step on every run.
+        "tax_grid_step_usd_per_kg": 1e-4,
         "runtime_seconds": 42.0,
         "mip_gap": 1e-8,
         "time_limit_seconds": 3600,
@@ -53,8 +56,27 @@ def test_flatten_extracts_standard_fields() -> None:
     assert row["cost"] == 1_000_000.0
     assert row["emissions"] == 500_000.0
     assert row["leader_tax_index"] == 10
-    assert row["leader_tax_usd_per_tonne"] == pytest.approx(100.0)
+    # 10 x 1e-4 USD/kg = 1e-3 USD/kg = 1 USD/t. The old constant (10 USD/t per index, the COARSE
+    # grid) reported this run 100x too high.
+    assert row["leader_tax_usd_per_tonne"] == pytest.approx(1.0)
     assert row["runtime_seconds"] == 42.0
+
+
+def test_flatten_reports_no_rate_when_the_grid_is_unknown() -> None:
+    # A pre-grid-unification manifest whose solve output is also gone: the index cannot be
+    # converted. Absent is correct; a guess would silently be on the wrong grid.
+    manifest = _synthetic_manifest()
+    manifest.pop("tax_grid_step_usd_per_kg")
+    row = _flatten(manifest)
+    assert row["leader_tax_index"] == 10
+    assert row["leader_tax_usd_per_tonne"] is None
+
+
+def test_flatten_prefers_the_solver_reported_rate() -> None:
+    manifest = _synthetic_manifest()
+    manifest["effective_tax_usd_per_kg"] = 0.1673  # what the solver actually applied
+    row = _flatten(manifest)
+    assert row["leader_tax_usd_per_tonne"] == pytest.approx(167.3)
 
 
 def test_flatten_parses_imt_from_instance_name() -> None:

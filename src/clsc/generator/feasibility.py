@@ -1,7 +1,7 @@
 """Generate-and-verify: retry instance generation until the follower's network-flow relaxation
 is actually feasible.
 
-The rest of `data.generator` has no dependency on `clsc.models`/Gurobi by design (it is pure
+The rest of `clsc.generator` has no dependency on `clsc.models`/Gurobi by design (it is pure
 sampling/geometry, unit-testable without a license). This module is the one deliberate
 exception: `ret_min_frac_r_p_t` (mandatory minimum return collection) is a hard lower bound on
 the recovered-product flow network, sampled independently per (retailer, product, period) with

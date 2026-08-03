@@ -103,6 +103,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-iterations", type=int, help="Maximum DBP iterations.")
     parser.add_argument("--time-limit", type=float, help="Per-subproblem Gurobi time limit in seconds.")
     parser.add_argument(
+        "--wall-clock-cap",
+        type=float,
+        help=(
+            "Total wall-clock budget for the whole DBP run, in seconds. Enforced inside the "
+            "solve: each subproblem's limit is clamped to the budget that remains and the loop "
+            "stops between iterations once it is exhausted, so an exhausted budget still "
+            "reports the incumbent, its variable values and the certified gap "
+            "(termination_reason=wall_clock_cap). Only supported with --method dbp_lex."
+        ),
+    )
+    parser.add_argument(
         "--mip-gap",
         type=float,
         help=(
@@ -313,6 +324,7 @@ def main() -> int:
                     max_iterations=args.max_iterations,
                     output_flag=args.solver_output,
                     time_limit=args.time_limit,
+                    wall_clock_cap=args.wall_clock_cap,
                     mip_gap=args.mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
                     threads=args.threads,
@@ -504,6 +516,7 @@ def build_manifest(
         "mode": args.dbp_mode,
         "max_iterations": args.max_iterations,
         "time_limit": args.time_limit,
+        "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
         "tax_grid_scale_factor": args.scale_factor,
         "refine_min_tax": bool(args.refine_min_tax),

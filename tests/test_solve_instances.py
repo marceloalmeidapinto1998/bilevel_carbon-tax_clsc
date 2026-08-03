@@ -9,7 +9,7 @@ import sys
 import pytest
 from gurobipy import GRB
 
-from data.generator import ArcConnectivityConfig, GeneratorConfig, generate_instance, write_instance
+from clsc.generator import ArcConnectivityConfig, GeneratorConfig, generate_instance, write_instance
 from clsc.config.gap_tol import DEFAULT
 from clsc.models.instance import InstanceData
 from clsc.models.subproblems import SolveResult
@@ -83,7 +83,8 @@ def test_solve_instances_writes_structured_results(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(input_root),
             "--recursive",
             "--method",
@@ -213,7 +214,8 @@ def test_solve_single_base_instance_preserves_base_folder(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -272,7 +274,8 @@ def test_solve_single_non_base_instance_preserves_scenarios_folder(tmp_path) -> 
     completed = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -331,7 +334,8 @@ def test_solve_single_scenario_scope_writes_method_dir(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--results-root",
             str(results_root),
@@ -400,7 +404,8 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
     first_run = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -421,7 +426,8 @@ def test_solve_single_instance_overwrite_replaces_existing_results(tmp_path) -> 
     second_run = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -476,7 +482,8 @@ def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) ->
     first_run = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -497,7 +504,8 @@ def test_solve_single_instance_skip_existing_keeps_existing_results(tmp_path) ->
     second_run = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--method",
             "dbp_lex",
@@ -601,7 +609,8 @@ def test_solve_instances_continues_after_failed_instance_and_writes_diagnostics(
     completed = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(input_root),
             "--recursive",
             "--results-root",
@@ -711,7 +720,8 @@ def test_solve_instances_supports_dbp_lex_method(tmp_path) -> None:
     completed = subprocess.run(
         [
             sys.executable,
-            "clsc/solver_cli/solve_batch.py",
+            "-m",
+            "clsc.solver_cli.solve_batch",
             str(instance_path),
             "--results-root",
             str(results_root),

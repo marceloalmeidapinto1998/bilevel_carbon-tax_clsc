@@ -1,4 +1,4 @@
-"""Experiment 3 - Ablation Study of the DBP Algorithm (docs/Experimental_Plan.md §5).
+"""Experiment 3 - Ablation Study of the DBP Algorithm (docs/Experimental_Plan.md §8.1).
 
 M0 (full DBP) on all 12 cells with the seed policy of §2.1 (27 solves), plus weakened variants:
 A1 (no Phase-2 bisection) and A4 (coarse grid) on 6 representative instances each, and A2/A3/A5
@@ -10,7 +10,7 @@ from __future__ import annotations
 from clsc.campaign.designs._cells import (
     FAST_CELLS, HARD_TIER_CELLS, REPRESENTATIVE_CELLS, STANDARD_TIER_CELLS, cell_id, time_limits,
 )
-from clsc.campaign.designs._common import DesignPoint
+from clsc.campaign.designs._common import COARSE_SCALE_FACTOR, DesignPoint
 
 EXPERIMENT_ID = "exp3"
 
@@ -19,8 +19,8 @@ STANDARD_SEEDS = (0, 1, 2)
 SPOT_CHECK_CELL = cell_id(25, 8, 6)
 SPOT_CHECK_SEED = 1
 
-# Coarse tax-grid step for A4 (the base instances' native grid: index 0..20 over 0..0.2 USD/kg).
-COARSE_SCALE_FACTOR = 0.01
+# A4's coarse tax-grid step (the base instances' native grid, index 0..20) comes from _common so
+# that both campaign grids have exactly one definition.
 
 CLAIM_CARRYING_VARIANTS = ("A1", "A4")      # change the certified guarantee -> 6 representative cells
 EFFICIENCY_VARIANTS = ("A2", "A3", "A5")    # efficiency only -> 2 fast cells

@@ -1,4 +1,4 @@
-"""Experiment 4 - Scalability Analysis (docs/Experimental_Plan.md §6).
+"""Experiment 4 - Scalability Analysis (docs/Experimental_Plan.md §8.2).
 
 The 12-cell core grid is Experiment 3's M0 arm (no separate solves). This experiment adds only one
 escalation probe on the empirically dominant axis: M in {8 -> 12} at (I25, T6), one seed, hard-tier

@@ -21,6 +21,12 @@ Execution modes (per design point, set by the experiment spec):
   min_emissions      -> `solve_fixed_tax_min_emissions` in-process (AUGMECON min-emissions anchor).
   epsilon_constraint -> `solve_epsilon_constraint_follower` in-process (emissions <= epsilon).
 
+Two time budgets bound every design point. `per_subproblem_time_limit_seconds` is handed to Gurobi
+and bounds ONE MILP; `per_run_wall_clock_cap_seconds` bounds the whole run and is enforced here --
+by killing the DBP subprocess for bilevel points, and by clamping the single solve's own limit for
+the in-process follower modes. A run stopped by the cap is recorded as `censored` with
+`termination_reason="wall_clock_cap"`.
+
 Resumable (plan §10): `run` skips any design point whose `campaign_manifest.json` already records a
 terminal status. `--fail-fast` defaults to False so one run's exception never aborts the batch.
 """
@@ -47,8 +53,9 @@ from clsc.campaign.designs import (
     exp5_leader_value,
     exp6_sensitivity,
     exp7_policy_calibration,
+    exp8_benchmark,
 )
-from clsc.campaign.designs._common import DesignPoint, rows_to_csv_dicts
+from clsc.campaign.designs._common import FINE_SCALE_FACTOR, DesignPoint, rows_to_csv_dicts
 from clsc.campaign.instances import materialize
 
 CAMPAIGN_ID = "campaign_01"
@@ -66,6 +73,7 @@ EXPERIMENT_MODULES = {
     "exp5": exp5_leader_value,
     "exp6": exp6_sensitivity,
     "exp7": exp7_policy_calibration,
+    "exp8": exp8_benchmark,
 }
 
 EXPERIMENT_DIR_NAMES = {
@@ -76,6 +84,7 @@ EXPERIMENT_DIR_NAMES = {
     "exp5": "exp5_leader_value",
     "exp6": "exp6_sensitivity",
     "exp7": "exp7_policy_calibration",
+    "exp8": "exp8_benchmark",
 }
 
 # Experiments whose second-stage design matrix depends on first-stage solved results (read back
@@ -87,7 +96,7 @@ BILEVEL_METHOD = "dbp_lex"
 # Campaign-wide solver defaults (Exp2 fixes threads/mip_focus; see docs/Experimental_Plan.md §2.3).
 DEFAULT_THREADS = 4
 DEFAULT_MIP_FOCUS = 2
-FINE_GRID_SCALE_FACTOR = 0.0001
+FINE_GRID_SCALE_FACTOR = FINE_SCALE_FACTOR  # single definition lives in designs/_common.py
 CAMPAIGN_DBP_RELATIVE_GAP = 1e-4
 CAMPAIGN_MIP_GAP = 1e-6
 REFINE_MIN_TAX = True
@@ -109,6 +118,20 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
 OVERWRITE_STASH_ROOT = Path(tempfile.gettempdir()) / f"{CAMPAIGN_ID}_overwrite_stash"
 _SOLVE_ARTIFACT_NAMES = ("summary.json", "solution.json", "result.json", "dbp_trace.csv",
                          "summary.csv", "manifest.json")
+
+
+# Slack allowed past the cap before the backstop kill fires. The solver stops itself at the cap
+# between iterations, but Gurobi can overrun a clamped limit slightly and the result still has to
+# be written, validated and moved -- so a kill at exactly the cap would destroy usable results.
+_WALL_CLOCK_BACKSTOP_GRACE = 900.0
+
+
+class WallClockCapExceeded(RuntimeError):
+    """A run blew past its cap AND the backstop grace, and was killed with nothing recoverable.
+
+    The normal cap path is not this exception: the solver stops itself at the cap and returns a
+    `wall_clock_cap` result carrying the incumbent. This is the pathological case only.
+    """
 
 
 def _stash_existing_solve_outputs(out_dir: Path, design_point_id: str) -> list[str]:
@@ -203,8 +226,11 @@ def _is_terminal(manifest: dict[str, Any]) -> bool:
     return manifest.get("solve_status") in {"success", "censored", "failed", "infeasible"}
 
 
+_CENSORING_REASONS = {"time_limit", "TIME_LIMIT", "wall_clock_cap"}
+
+
 def _classify_solve_status(summary: dict[str, Any]) -> str:
-    if summary.get("gurobi_status") == "TIME_LIMIT" or summary.get("termination_reason") in {"time_limit", "TIME_LIMIT"}:
+    if summary.get("gurobi_status") == "TIME_LIMIT" or summary.get("termination_reason") in _CENSORING_REASONS:
         return "censored"
     if summary.get("success"):
         return "success"
@@ -219,8 +245,37 @@ def _append_heartbeat(message: str) -> None:
         handle.write(f"{_utc_now_iso()}\t{message}\n")
 
 
-def _bilevel_scale_factor(point: DesignPoint) -> float:
-    """A4 (coarse grid) sets its own scale_factor; every other variant uses the fine grid."""
+def _effective_subproblem_time_limit(point: DesignPoint) -> float:
+    """Time limit for an in-process follower solve.
+
+    These modes are a single Gurobi call, so clamping that call's own limit to the run's
+    wall-clock cap enforces the cap exactly -- no external kill needed.
+    """
+    return min(point.per_subproblem_time_limit_seconds, point.per_run_wall_clock_cap_seconds)
+
+
+def _salvage_partial_dbp_trace(scratch_root: Path, out_dir: Path) -> None:
+    """Keep a killed run's partial DBP trace: it is the only record of how far the loop got."""
+    traces = sorted(scratch_root.glob("**/dbp_trace.csv"))
+    if not traces:
+        return
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        # Deliberately NOT named dbp_trace.csv: a partial trace must never be mistaken for a
+        # completed run's, and `summary.json` is absent so the run stays non-terminal.
+        shutil.copy2(str(traces[0]), str(out_dir / "_partial_dbp_trace.csv"))
+    except OSError:
+        pass
+
+
+def _tax_grid_step(point: DesignPoint) -> float:
+    """The tax-grid step (USD/kg CO2e per index) this design point is solved on.
+
+    Applies to EVERY execution mode, not just bilevel: a fixed-tax index means nothing without
+    the grid it indexes, so the in-process follower solves must be re-gridded onto the same step
+    the bilevel runs use before their `fixed_tax_index` is interpreted. A4 (coarse grid) is the
+    only variant that deliberately sets its own.
+    """
     return point.scale_factor if point.scale_factor is not None else FINE_GRID_SCALE_FACTOR
 
 
@@ -236,8 +291,11 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
                 sys.executable, "-m", "clsc.solver_cli.solve_batch", str(instance_path),
                 "--method", BILEVEL_METHOD,
                 "--time-limit", str(point.per_subproblem_time_limit_seconds),
+                # The solver enforces the cap itself and stops between iterations with its
+                # incumbent intact; the subprocess timeout below is only a backstop.
+                "--wall-clock-cap", str(point.per_run_wall_clock_cap_seconds),
                 "--results-root", str(scratch_root),
-                "--scale-factor", str(_bilevel_scale_factor(point)),
+                "--scale-factor", str(_tax_grid_step(point)),
             ]
             if not REFINE_MIN_TAX:
                 cmd += ["--no-refine-min-tax"]
@@ -252,7 +310,23 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
                 cmd += ["--mip-focus", str(point.mip_focus)]
             if point.gurobi_seed is not None:
                 cmd += ["--seed", str(point.gurobi_seed)]
-            completed = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True)
+            # BACKSTOP ONLY. The cap is enforced inside the solver (`--wall-clock-cap`), which
+            # stops between DBP iterations and writes a summary carrying the incumbent, its
+            # variables and the certified gap. Killing the process here would throw all of that
+            # away, so this timeout is deliberately slack: it fires only if the solver has hung
+            # past its own budget and is no longer stopping itself.
+            try:
+                completed = subprocess.run(
+                    cmd, cwd=REPO_ROOT, capture_output=True, text=True,
+                    timeout=point.per_run_wall_clock_cap_seconds + _WALL_CLOCK_BACKSTOP_GRACE,
+                )
+            except subprocess.TimeoutExpired as exc:
+                _salvage_partial_dbp_trace(scratch_root, out_dir)
+                raise WallClockCapExceeded(
+                    f"{point.design_point_id}: killed after "
+                    f"{point.per_run_wall_clock_cap_seconds:.0f}s wall-clock cap "
+                    f"(per-subproblem limit {point.per_subproblem_time_limit_seconds:.0f}s)"
+                ) from exc
             scratch_summaries = list(scratch_root.glob("**/summary.json"))
             if not scratch_summaries:
                 raise RuntimeError(
@@ -340,11 +414,11 @@ def _solve_fixed_tax(point: DesignPoint, instance_path: Path, out_dir: Path) -> 
     from clsc.models.instance import InstanceData
     from clsc.models.subproblems import solve_fixed_tax_follower
 
-    instance = InstanceData.from_file(instance_path)
+    instance = InstanceData.from_file(instance_path).with_tax_grid_step(_tax_grid_step(point))
     start = time.perf_counter()
     result = solve_fixed_tax_follower(
         instance, point.fixed_tax_index,
-        time_limit=point.per_subproblem_time_limit_seconds,
+        time_limit=_effective_subproblem_time_limit(point),
         capture_solution=True,
         mip_gap=point.mip_gap, threads=point.threads, mip_focus=point.mip_focus,
     )
@@ -359,11 +433,11 @@ def _solve_min_emissions(point: DesignPoint, instance_path: Path, out_dir: Path)
     from clsc.models.instance import InstanceData
     from clsc.models.subproblems import solve_fixed_tax_min_emissions
 
-    instance = InstanceData.from_file(instance_path)
+    instance = InstanceData.from_file(instance_path).with_tax_grid_step(_tax_grid_step(point))
     start = time.perf_counter()
     result = solve_fixed_tax_min_emissions(
         instance,
-        time_limit=point.per_subproblem_time_limit_seconds,
+        time_limit=_effective_subproblem_time_limit(point),
         capture_solution=True,
         mip_gap=point.mip_gap, threads=point.threads, mip_focus=point.mip_focus,
     )
@@ -378,11 +452,11 @@ def _solve_epsilon_constraint(point: DesignPoint, instance_path: Path, out_dir: 
     from clsc.models.instance import InstanceData
     from clsc.models.subproblems import solve_epsilon_constraint_follower
 
-    instance = InstanceData.from_file(instance_path)
+    instance = InstanceData.from_file(instance_path).with_tax_grid_step(_tax_grid_step(point))
     start = time.perf_counter()
     result = solve_epsilon_constraint_follower(
         instance, point.epsilon_emissions,
-        time_limit=point.per_subproblem_time_limit_seconds,
+        time_limit=_effective_subproblem_time_limit(point),
         capture_solution=True,
         mip_gap=point.mip_gap, threads=point.threads, mip_focus=point.mip_focus,
     )
@@ -392,6 +466,55 @@ def _solve_epsilon_constraint(point: DesignPoint, instance_path: Path, out_dir: 
         solve_seconds=solve_seconds, tax_index_for_report=0,
         extra={"epsilon_emissions": point.epsilon_emissions},
     )
+
+
+def _solve_enumeration(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
+    """Exp8's baseline: solve the fixed-tax lexicographic follower at EVERY grid point.
+
+    Exact by construction (no cuts, no theory) -- the naive method a referee would propose as
+    DBP's alternative. Reused fields (cost/emissions/tax_index/solution.json) come from
+    `_write_follower_result` so the aggregator reads exp8 rows the same way it reads any other
+    follower-mode row; enumeration-specific fields (follower-solve count, grid coverage, total
+    follower time) ride along in ``extra``.
+    """
+    import csv as _csv
+
+    from clsc.models.instance import InstanceData
+    from clsc.solvers.enumeration import enumerate_tax_grid
+
+    instance = InstanceData.from_file(instance_path).with_tax_grid_step(_tax_grid_step(point))
+    start = time.perf_counter()
+    enum_result = enumerate_tax_grid(
+        instance, instance,
+        time_limit=point.per_subproblem_time_limit_seconds,
+        wall_clock_cap=point.per_run_wall_clock_cap_seconds,
+        mip_gap=point.mip_gap, threads=point.threads, mip_focus=point.mip_focus,
+        seed=point.gurobi_seed,
+    )
+    solve_seconds = time.perf_counter() - start
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    trace_path = out_dir / "enumeration_trace.csv"
+    with trace_path.open("w", newline="", encoding="utf-8") as fh:
+        writer = _csv.writer(fh)
+        writer.writerow(["tax_index", "emissions", "cost", "solve_seconds"])
+        for record in enum_result.grid_records:
+            writer.writerow([record.tax_index, record.emissions, record.cost, record.solve_seconds])
+
+    summary = _write_follower_result(
+        point, instance, enum_result.incumbent_solution, instance_path, out_dir,
+        solve_seconds=solve_seconds, tax_index_for_report=enum_result.incumbent.tax_index,
+        extra={
+            "termination_reason": enum_result.termination_reason,
+            "exact": enum_result.exact,
+            "follower_solve_count": enum_result.points_visited,
+            "grid_points_total": enum_result.points_total,
+            "grid_coverage_fraction": enum_result.points_visited / enum_result.points_total,
+            "follower_seconds_total": enum_result.follower_seconds_total,
+            "enumeration_trace_file": str(trace_path.relative_to(REPO_ROOT)),
+        },
+    )
+    return summary
 
 
 def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
@@ -409,6 +532,7 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
         "fixed_tax": "fixed_tax_follower",
         "min_emissions": "fixed_tax_min_emissions",
         "epsilon_constraint": "epsilon_constraint_follower",
+        "enumeration": "exhaustive_grid_enumeration",
     }
     manifest: dict[str, Any] = {
         "campaign_id": CAMPAIGN_ID,
@@ -428,6 +552,9 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
         "epsilon_emissions": point.epsilon_emissions,
         "code_version": _code_version(),
         "solver_method": solver_method_by_execution_mode[point.execution_mode],
+        # Without the grid step a tax index is uninterpretable, and the two campaign grids are
+        # 100x apart -- so it is recorded per run rather than assumed downstream.
+        "tax_grid_step_usd_per_kg": _tax_grid_step(point),
         "time_limit_seconds": point.per_subproblem_time_limit_seconds,
         "wall_clock_cap_seconds": point.per_run_wall_clock_cap_seconds,
         "created_at_utc": _utc_now_iso(),
@@ -436,6 +563,7 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
     manifest_path.write_text(
         json.dumps({**manifest, "solve_status": "running"}, indent=2, default=str), encoding="utf-8"
     )
+    started = time.perf_counter()
     try:
         if point.is_toy:
             from clsc.campaign.toy import materialize_toy
@@ -459,6 +587,8 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
             summary = _solve_min_emissions(point, instance_path, out_dir)
         elif point.execution_mode == "epsilon_constraint":
             summary = _solve_epsilon_constraint(point, instance_path, out_dir)
+        elif point.execution_mode == "enumeration":
+            summary = _solve_enumeration(point, instance_path, out_dir)
         else:
             raise ValueError(f"Unknown execution_mode: {point.execution_mode!r}")
 
@@ -467,7 +597,7 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
                 "solve_status": _classify_solve_status(summary),
                 "termination_reason": summary.get("termination_reason"),
                 "censored": summary.get("gurobi_status") == "TIME_LIMIT"
-                or summary.get("termination_reason") in {"time_limit", "TIME_LIMIT"},
+                or summary.get("termination_reason") in _CENSORING_REASONS,
                 "objective_values": {
                     "cost": summary.get("cost"),
                     "emissions": summary.get("emissions"),
@@ -478,6 +608,8 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
                     if point.fixed_tax_index is None
                     else point.fixed_tax_index
                 ),
+                # The solver's own rate, in the one unit that IS comparable across grids.
+                "effective_tax_usd_per_kg": summary.get("effective_tax"),
                 "runtime_seconds": summary.get("solve_seconds"),
                 "mip_gap": summary.get("relative_gap"),
                 "output_path": summary.get("_summary_path"),
@@ -487,11 +619,31 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
         )
         _append_heartbeat(f"DONE  {point.experiment_id}/{point.base_instance_id}/{point.run_code} "
                            f"status={manifest['solve_status']}")
+    except WallClockCapExceeded as exc:
+        # Backstop kill only (the solver failed to stop itself within the grace period). The
+        # normal cap path returns through the success branch above WITH objective values, so
+        # reaching here means the process was killed mid-solve and nothing is recoverable.
+        manifest.update(
+            {
+                "solve_status": "censored",
+                "termination_reason": "wall_clock_cap_killed",
+                "censored": True,
+                "objective_values": {"cost": None, "emissions": None, "follower_objective": None},
+                "leader_tax": None,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+                "notes": point.notes,
+            }
+        )
+        _append_heartbeat(f"DONE  {point.experiment_id}/{point.base_instance_id}/{point.run_code} "
+                           f"status=censored reason=wall_clock_cap")
     except Exception as exc:  # noqa: BLE001 -- campaign must continue past any single failure
         manifest.update({"solve_status": "failed", "error_type": type(exc).__name__, "error_message": str(exc)})
         _append_heartbeat(f"FAIL  {point.experiment_id}/{point.base_instance_id}/{point.run_code} "
                            f"error={type(exc).__name__}")
 
+    # Measured end-to-end wall clock, independent of whatever the solver self-reports.
+    manifest["wall_clock_seconds"] = time.perf_counter() - started
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(manifest, indent=2, default=str), encoding="utf-8")
     return manifest

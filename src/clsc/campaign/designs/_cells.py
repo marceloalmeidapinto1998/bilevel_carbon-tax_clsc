@@ -1,8 +1,11 @@
 """Structural testbed cells and time tiers (docs/Experimental_Plan.md §2).
 
-The 12 base cells span I in {17,25} x M in {4,8} x T in {3,6,12}. Five are hard-tier
-(I25-M8-T6 plus the four T12 cells); the other seven are standard-tier. These are not design
-factors -- they are structurally distinct optimization problems.
+The 12 base cells span I in {17,25} x M in {4,8} x T in {3,6,12}. Six are hard-tier
+(I25-M8-T6, I17-M8-T6, plus the four T12 cells); the other six are standard-tier. These are not
+design factors -- they are structurally distinct optimization problems.
+
+I17-M8-T6 was promoted to the hard tier after its standard-tier (3600 s) Exp1 solve stagnated at a
+6.2% follower MIP gap on the tax=0 subproblem; the two M8-T6 cells now share the same 10800 s tier.
 """
 from __future__ import annotations
 
@@ -20,7 +23,7 @@ ALL_CELLS: tuple[str, ...] = tuple(
 )
 
 HARD_TIER_CELLS: frozenset[str] = frozenset(
-    {cell_id(25, 8, 6)}
+    {cell_id(25, 8, 6), cell_id(17, 8, 6)}
     | {cell_id(i, m, 12) for i in ITEM_COUNTS for m in TECH_COUNTS}
 )
 STANDARD_TIER_CELLS: tuple[str, ...] = tuple(c for c in ALL_CELLS if c not in HARD_TIER_CELLS)

@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clsc"
+version = "0.1.0"
+description = "Bilevel optimization of a Closed-Loop Supply Chain under a carbon tax (DBP solver + DOE campaign)."
+readme = "README.md"
+requires-python = ">=3.12"
+# TODO(publication): choose a license (MIT / Apache-2.0 / BSD-3-Clause) and add a LICENSE
+# file, then set:  license = "MIT"   (or license = { file = "LICENSE" })
+authors = [
+    { name = "Marcelo Pinto", email = "marceloalmeidapinto1998@gmail.com" },
+]
+keywords = [
+    "bilevel-optimization",
+    "closed-loop-supply-chain",
+    "carbon-tax",
+    "operations-research",
+    "gurobi",
+]
+
+# Runtime dependencies (source of truth; requirements.txt mirrors this for convenience).
+dependencies = [
+    "gurobipy>=13,<14",
+    "pyyaml>=6,<7",
+    "pandas>=2,<3",
+    "matplotlib>=3.8,<4",
+    "numpy>=1.26,<3",
+    "seaborn>=0.13,<1",
+    "SALib>=1.4,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["clsc*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+markers = [
+    "gurobi: requires a Gurobi licence (skipped without one)",
+    "slow: long-running test (>30 s); implies gurobi in practice",
+]

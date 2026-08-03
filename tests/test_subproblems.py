@@ -5,7 +5,7 @@ from dataclasses import replace
 import pytest
 from gurobipy import GRB
 
-from data.generator import ArcConnectivityConfig, GeneratorConfig, generate_instance
+from clsc.generator import ArcConnectivityConfig, GeneratorConfig, generate_instance
 from clsc.config.gap_tol import DEFAULT
 import clsc.models.subproblems as subproblems
 from clsc.models.instance import InstanceData

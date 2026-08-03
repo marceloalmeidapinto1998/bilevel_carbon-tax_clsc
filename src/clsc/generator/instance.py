@@ -457,7 +457,7 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "seed": config.seed,
         "source_model": "paper/bilevel_model.tex",
-        "sampling_rules_module": "data.generator.tautenhain_data",
+        "sampling_rules_module": "clsc.generator.tautenhain_data",
         "config": config.to_dict(),
         "node_coordinates": coordinates,
         "transport_mode_family": transport_family,

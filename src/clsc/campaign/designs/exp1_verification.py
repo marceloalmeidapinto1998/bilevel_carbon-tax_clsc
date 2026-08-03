@@ -1,4 +1,4 @@
-"""Experiment 1 - Verification and Solution Validation (docs/Experimental_Plan.md §3).
+"""Experiment 1 - Verification and Solution Validation (docs/Experimental_Plan.md §11.1).
 
 A validation battery (not a factorial): 6 toy instances, all 12 base cells at seed 0, structural-
 invariant probes (fixed-tax follower solves at 4 tax points on 4 cells), and Gurobi-seed
@@ -8,15 +8,17 @@ the rest of the campaign.
 from __future__ import annotations
 
 from clsc.campaign.designs._cells import ALL_CELLS, FAST_CELLS, HARD_CELLS, time_limits
-from clsc.campaign.designs._common import DesignPoint
+from clsc.campaign.designs._common import DesignPoint, fine_index
 from clsc.campaign.toy import TOY_SPECS
 
 EXPERIMENT_ID = "exp1"
 
 # Structural-invariant probe: 2 fast + 2 hard cells, each solved at 4 tax points spanning the
-# instance's native coarse grid (index 0..20).
+# campaign's fine grid. Stated as RATES (USD/kg CO2e) and converted, so these probes sit on the
+# same grid as the bilevel tau* they are compared against.
 INVARIANT_CELLS = (FAST_CELLS[0], FAST_CELLS[1], HARD_CELLS[0], HARD_CELLS[1])
-INVARIANT_TAX_INDICES = (0, 7, 13, 20)
+INVARIANT_TAX_RATES_USD_PER_KG = (0.0, 0.07, 0.13, 0.2)
+INVARIANT_TAX_INDICES = tuple(fine_index(rate) for rate in INVARIANT_TAX_RATES_USD_PER_KG)
 
 # Gurobi-seed invariance probes: 2 fast cells at seed in {1, 2} (seed 0 is the base-cell run).
 SEED_PROBE_CELLS = FAST_CELLS
@@ -52,8 +54,8 @@ def build_design_matrix() -> list[DesignPoint]:
         for tax_index in INVARIANT_TAX_INDICES:
             points.append(DesignPoint(
                 experiment_id=EXPERIMENT_ID,
-                design_point_id=f"exp1-invariant-{cell}-tau{tax_index:02d}",
-                run_code=f"invariant_tau{tax_index:02d}", base_instance_id=cell,
+                design_point_id=f"exp1-invariant-{cell}-tau{tax_index:04d}",
+                run_code=f"invariant_tau{tax_index:04d}", base_instance_id=cell,
                 execution_mode="fixed_tax", fixed_tax_index=tax_index,
                 invariant_tax_indices=INVARIANT_TAX_INDICES,
                 per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,

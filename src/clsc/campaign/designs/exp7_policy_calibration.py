@@ -17,13 +17,16 @@ import json
 from pathlib import Path
 
 from clsc.campaign.designs._cells import cell_id, time_limits
-from clsc.campaign.designs._common import DesignPoint
+from clsc.campaign.designs._common import FINE_CEILING_INDEX, DesignPoint
 from clsc.campaign.doe.frontier_sweep import tax_grid
 
 EXPERIMENT_ID = "exp7"
 ANCHOR_CELL = cell_id(17, 4, 3)
 RATIO_VALUES = (1.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0)
-FRONTIER_TAX_INDICES = tuple(tax_grid(20, n_points=11, step=2))  # 0,2,...,20
+# 11 points over the same real tax range as the bilevel runs, on the fine grid: 0, 200, ..., 2000.
+FRONTIER_TAX_INDICES = tuple(
+    tax_grid(FINE_CEILING_INDEX, n_points=11, step=FINE_CEILING_INDEX // 10)
+)
 
 
 def _rho_star_path(results_root: Path) -> Path:
@@ -59,8 +62,8 @@ def _anchored_suite_points(rho_star: float) -> list[DesignPoint]:
     for tax_index in FRONTIER_TAX_INDICES:
         points.append(DesignPoint(
             experiment_id=EXPERIMENT_ID,
-            design_point_id=f"exp7-frontier-tau{tax_index:02d}",
-            run_code=f"frontier_tau{tax_index:02d}", base_instance_id=ANCHOR_CELL,
+            design_point_id=f"exp7-frontier-tau{tax_index:04d}",
+            run_code=f"frontier_tau{tax_index:04d}", base_instance_id=ANCHOR_CELL,
             execution_mode="fixed_tax", fixed_tax_index=tax_index, valuation_ratio=rho_star,
             per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
             notes="Tax-indexed frontier point at rho*.",

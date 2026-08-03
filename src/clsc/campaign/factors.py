@@ -134,7 +134,7 @@ FACTOR_REGISTRY: dict[str, FactorSpec] = {
     )
 }
 
-# The 8 continuous factors screened in Experiment 6 (docs/Experimental_Plan.md §8). Structural
+# The 8 continuous factors screened in Experiment 6 (docs/Experimental_Plan.md §10). Structural
 # menu-breadth factors are handled separately (see clsc.campaign.structural) since they add
 # sets/parameters rather than scale existing ones.
 CONTINUOUS_FACTORS: tuple[str, ...] = (

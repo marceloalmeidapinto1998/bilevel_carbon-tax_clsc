@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from data.generator import tautenhain_data as taut
-from data.generator import build_base_benchmark_specs, generate_instance, write_instance
+from clsc.generator import tautenhain_data as taut
+from clsc.generator import build_base_benchmark_specs, generate_instance, write_instance
 from clsc.models.instance import InstanceData
 from clsc.campaign.scenarios.transport import (
     DEFAULT_SCENARIO_NAME,

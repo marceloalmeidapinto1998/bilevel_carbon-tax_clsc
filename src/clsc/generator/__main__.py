@@ -1,4 +1,4 @@
-"""Entry point for `python -m data.generator`."""
+"""Entry point for `python -m clsc.generator`."""
 
 from .cli import main
 

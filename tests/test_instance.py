@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from data.generator import build_base_benchmark_specs, generate_instance
+from clsc.generator import build_base_benchmark_specs, generate_instance
 from clsc.models.instance import PRODUCT_ROTATION_PER_PERIOD, InstanceData, InstanceValidationError
 
 

@@ -235,6 +235,11 @@ def _require_optimal_result(result: SolveResult, label: str) -> None:
         raise SubproblemStatusError(label, result)
 
 
+def _timeout_reason(budget: "_WallClockBudget") -> str:
+    """Which budget ran out: the run's wall-clock cap, or one subproblem's own limit."""
+    return "wall_clock_cap" if budget.expired() else "time_limit"
+
+
 def _build_time_limit_result(
     *,
     incumbent: IncumbentSolution,
@@ -245,17 +250,21 @@ def _build_time_limit_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
+    termination_reason: str = "time_limit",
 ) -> BilevelSolveResult:
-    """Return the best incumbent found so far when a subproblem hits the time limit.
+    """Return the best incumbent found so far when a time budget runs out.
 
-    The lower bound is the last value certified by an OPTIMAL relaxation; the gap
-    may therefore be non-zero.  ``exact=False`` signals that the result is not a
-    provably optimal bilevel solution.
+    Used for both budgets: ``time_limit`` (one subproblem hit its Gurobi limit) and
+    ``wall_clock_cap`` (the run's total budget expired between iterations). Either way the
+    incumbent is a genuine bilevel-feasible point with its cost, emissions and captured
+    variable values; the lower bound is the last value certified by an OPTIMAL relaxation, so
+    the reported gap is a valid -- if non-zero -- bound on how far the incumbent may be from
+    E*. ``exact=False`` signals it is not a provably optimal bilevel solution.
     """
     return _build_bilevel_result(
         method="dbp_lex",
         mode="exact",
-        termination_reason="time_limit",
+        termination_reason=termination_reason,
         exact=False,
         iterations=iteration,
         lower_bound=best_lower_bound,
@@ -288,6 +297,44 @@ def _solve_with_wall_time(solver_fn, *args, **kwargs):
     started_at = time.perf_counter()
     result = solver_fn(*args, **kwargs)
     return result, round(time.perf_counter() - started_at, 6)
+
+
+class _WallClockBudget:
+    """The run's total wall-clock budget, shared by every subproblem.
+
+    Enforced INSIDE the solve rather than by killing the process, so that an exhausted budget
+    still yields the incumbent, its variable values and a certified bound -- a killed process
+    yields nothing. Two mechanisms:
+
+    * `subproblem_time_limit()` caps each Gurobi call at the budget that remains, so no single
+      subproblem can run past the deadline;
+    * `expired()` is checked between iterations, where the DBP loop can stop cleanly.
+
+    A cap of ``None`` disables both (the budget never expires).
+    """
+
+    __slots__ = ("deadline", "per_subproblem_limit")
+
+    def __init__(self, cap: float | None, per_subproblem_limit: float | None) -> None:
+        self.deadline = None if cap is None else time.perf_counter() + cap
+        self.per_subproblem_limit = per_subproblem_limit
+
+    def remaining(self) -> float | None:
+        return None if self.deadline is None else self.deadline - time.perf_counter()
+
+    def expired(self) -> bool:
+        remaining = self.remaining()
+        return remaining is not None and remaining <= 0.0
+
+    def subproblem_time_limit(self) -> float | None:
+        remaining = self.remaining()
+        if remaining is None:
+            return self.per_subproblem_limit
+        # Never hand Gurobi a non-positive limit: it would be read as "no limit".
+        remaining = max(remaining, 1.0)
+        if self.per_subproblem_limit is None:
+            return remaining
+        return min(self.per_subproblem_limit, remaining)
 
 
 def _build_bilevel_result(
@@ -371,7 +418,7 @@ def _bisect_min_tax(
     hi: int,
     threads: int | None,
     mip_focus: int | None,
-    time_limit: float | None,
+    budget: "_WallClockBudget",
     seed: int | None = None,
     use_warm_start: bool = True,
 ) -> int:
@@ -387,7 +434,7 @@ def _bisect_min_tax(
         result = solve_fixed_tax_lexicographic(
             follower_master,
             tax_index=idx,
-            time_limit=time_limit,
+            time_limit=budget.subproblem_time_limit(),
             mip_gap=_REFINE_MIP_GAP,
             threads=threads,
             mip_focus=mip_focus,
@@ -423,7 +470,7 @@ def _refine_min_tax(
     *,
     threads: int | None,
     mip_focus: int | None,
-    time_limit: float | None,
+    budget: "_WallClockBudget",
     seed: int | None = None,
     use_warm_start: bool = True,
 ) -> tuple[IncumbentSolution, SolveResult | None]:
@@ -442,7 +489,7 @@ def _refine_min_tax(
         hi=incumbent.tax_index,
         threads=threads,
         mip_focus=mip_focus,
-        time_limit=time_limit,
+        budget=budget,
         seed=seed,
         use_warm_start=use_warm_start,
     )
@@ -456,7 +503,7 @@ def _refine_min_tax(
         mip_gap=_REFINE_MIP_GAP,
         threads=threads,
         mip_focus=mip_focus,
-        time_limit=time_limit,
+        time_limit=budget.subproblem_time_limit(),
         seed=seed,
     )
     if not refined.has_solution or refined.status_name != "OPTIMAL":
@@ -482,6 +529,7 @@ def solve_bilevel_dbp_lex(
     max_iterations: int | None = None,
     output_flag: bool = False,
     time_limit: float | None = None,
+    wall_clock_cap: float | None = None,
     mip_gap: float | None = None,
     dbp_relative_gap: float | None = None,
     threads: int | None = None,
@@ -517,6 +565,13 @@ def solve_bilevel_dbp_lex(
     DBP loop's own outer stopping criterion the same way -- it is unrelated
     to any Gurobi parameter.
 
+    ``time_limit`` bounds ONE subproblem; ``wall_clock_cap`` bounds the whole DBP run. The cap
+    is enforced from inside: each subproblem's limit is clamped to the budget that remains, and
+    the loop stops between iterations once it is exhausted, returning
+    ``termination_reason="wall_clock_cap"`` with the incumbent, its variable values and the
+    certified bounds. This is why the cap is not enforced by killing the process from outside --
+    a killed run reports nothing at all.
+
     ``seed`` sets the Gurobi ``Seed`` parameter on every sub-solve (MIP
     performance-variability probes; Exp1/Exp2). The three ``use_*`` flags select
     Experiment-3 ablation variants (all default True = full DBP): ``use_warm_start``
@@ -527,6 +582,7 @@ def solve_bilevel_dbp_lex(
     but changes the iteration/time path (and, for A2 without Phase 2, the reported tax).
     """
     instance = _coerce_instance(instance_or_path)
+    budget = _WallClockBudget(wall_clock_cap, time_limit)
     max_iterations = max_iterations or (len(instance.iter_tax_index()) + 1)
     effective_dbp_relative_gap = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
     iteration_records: list[DbpIterationRecord] = []
@@ -538,7 +594,7 @@ def solve_bilevel_dbp_lex(
         solve_dbp_relaxation_lexicographic,
         relaxation_master,
         output_flag=output_flag,
-        time_limit=time_limit,
+        time_limit=budget.subproblem_time_limit(),
         mip_gap=mip_gap,
         threads=threads,
         mip_focus=mip_focus,
@@ -555,6 +611,22 @@ def solve_bilevel_dbp_lex(
     iterations_without_bound_update = 0
 
     for iteration in range(1, max_iterations + 1):
+        if budget.expired() and incumbent is not None:
+            # Stop cleanly at the top of an iteration: the incumbent, its variable values and
+            # the last certified lower bound are all in hand, so the run reports a real
+            # (cost, emissions, gap) rather than nothing.
+            return _build_time_limit_result(
+                incumbent=incumbent,
+                incumbent_solution=incumbent_solution,
+                upper_bound_certificate=upper_bound_certificate,
+                best_lower_bound=best_lower_bound,
+                iteration=len(iteration_records),
+                iteration_records=iteration_records,
+                iteration_timings=iteration_timings,
+                initial_relaxation_seconds=initial_relaxation_seconds,
+                termination_reason="wall_clock_cap",
+            )
+
         current_relaxation_lower_bound = best_lower_bound
         tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
 
@@ -563,7 +635,7 @@ def solve_bilevel_dbp_lex(
             follower_master,
             tax_index=tax_index,
             output_flag=output_flag,
-            time_limit=time_limit,
+            time_limit=budget.subproblem_time_limit(),
             capture_solution=True,
             warm_start_values=previous_lexicographic_values if use_warm_start else None,
             mip_gap=mip_gap,
@@ -588,6 +660,7 @@ def solve_bilevel_dbp_lex(
                     iteration_records=iteration_records,
                     iteration_timings=iteration_timings,
                     initial_relaxation_seconds=initial_relaxation_seconds,
+                    termination_reason=_timeout_reason(budget),
                 )
             raise SubproblemStatusError(
                 f"lexicographic follower solve at tax_index={tax_index}", lexicographic,
@@ -633,7 +706,7 @@ def solve_bilevel_dbp_lex(
             solve_dbp_relaxation_lexicographic,
             relaxation_master,
             output_flag=output_flag,
-            time_limit=time_limit,
+            time_limit=budget.subproblem_time_limit(),
             mip_gap=mip_gap,
             threads=threads,
             mip_focus=mip_focus,
@@ -657,7 +730,7 @@ def solve_bilevel_dbp_lex(
             if refine_min_tax:
                 incumbent, incumbent_solution = _refine_min_tax(
                     follower_master, instance, incumbent, incumbent_solution,
-                    threads=threads, mip_focus=mip_focus, time_limit=time_limit,
+                    threads=threads, mip_focus=mip_focus, budget=budget,
                     seed=seed, use_warm_start=use_warm_start,
                 )
             return _build_bilevel_result(
@@ -695,6 +768,7 @@ def solve_bilevel_dbp_lex(
                 iteration_records=iteration_records,
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
+                termination_reason=_timeout_reason(budget),
             )
         _require_optimal_result(relaxation, f"DBP relaxation after iteration {iteration}")
 
@@ -738,7 +812,7 @@ def solve_bilevel_dbp_lex(
             if refine_min_tax:
                 incumbent, incumbent_solution = _refine_min_tax(
                     follower_master, instance, incumbent, incumbent_solution,
-                    threads=threads, mip_focus=mip_focus, time_limit=time_limit,
+                    threads=threads, mip_focus=mip_focus, budget=budget,
                     seed=seed, use_warm_start=use_warm_start,
                 )
             return _build_bilevel_result(

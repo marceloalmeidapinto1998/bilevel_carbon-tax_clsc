@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from data.generator import tautenhain_data as taut
-from data.generator import (
+from clsc.generator import tautenhain_data as taut
+from clsc.generator import (
     DEFAULT_AIRPLANES,
     DEFAULT_BOATS,
     DEFAULT_TRUCKS,

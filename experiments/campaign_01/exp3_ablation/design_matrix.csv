@@ -8,9 +8,6 @@ exp3,exp3-M0-STD_I17_M4_T6-s2,M0_seed2,STD_I17_M4_T6,bilevel,M0,3600.0,28800.0,b
 exp3,exp3-M0-STD_I17_M8_T3-s0,M0_seed0,STD_I17_M8_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
 exp3,exp3-M0-STD_I17_M8_T3-s1,M0_seed1,STD_I17_M8_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,1,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
 exp3,exp3-M0-STD_I17_M8_T3-s2,M0_seed2,STD_I17_M8_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,2,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
-exp3,exp3-M0-STD_I17_M8_T6-s0,M0_seed0,STD_I17_M8_T6,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
-exp3,exp3-M0-STD_I17_M8_T6-s1,M0_seed1,STD_I17_M8_T6,bilevel,M0,3600.0,28800.0,base,base,base,base,base,1,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
-exp3,exp3-M0-STD_I17_M8_T6-s2,M0_seed2,STD_I17_M8_T6,bilevel,M0,3600.0,28800.0,base,base,base,base,base,2,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
 exp3,exp3-M0-STD_I25_M4_T3-s0,M0_seed0,STD_I25_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
 exp3,exp3-M0-STD_I25_M4_T3-s1,M0_seed1,STD_I25_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,1,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
 exp3,exp3-M0-STD_I25_M4_T3-s2,M0_seed2,STD_I25_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,2,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
@@ -22,6 +19,7 @@ exp3,exp3-M0-STD_I25_M8_T3-s1,M0_seed1,STD_I25_M8_T3,bilevel,M0,3600.0,28800.0,b
 exp3,exp3-M0-STD_I25_M8_T3-s2,M0_seed2,STD_I25_M8_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,2,,False,,,,,1e-06,0.0001,,4,2,M0 reference (leader value P3 / scalability core).
 exp3,exp3-M0-STD_I17_M4_T12-s0,M0_seed0,STD_I17_M4_T12,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,"M0 reference, hard tier."
 exp3,exp3-M0-STD_I17_M8_T12-s0,M0_seed0,STD_I17_M8_T12,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,"M0 reference, hard tier."
+exp3,exp3-M0-STD_I17_M8_T6-s0,M0_seed0,STD_I17_M8_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,"M0 reference, hard tier."
 exp3,exp3-M0-STD_I25_M4_T12-s0,M0_seed0,STD_I25_M4_T12,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,"M0 reference, hard tier."
 exp3,exp3-M0-STD_I25_M8_T12-s0,M0_seed0,STD_I25_M8_T12,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,"M0 reference, hard tier."
 exp3,exp3-M0-STD_I25_M8_T6-s0,M0_seed0,STD_I25_M8_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,"M0 reference, hard tier."
@@ -30,8 +28,8 @@ exp3,exp3-A1-STD_I17_M4_T3,A1,STD_I17_M4_T3,bilevel,A1,3600.0,28800.0,base,base,
 exp3,exp3-A4-STD_I17_M4_T3,A4,STD_I17_M4_T3,bilevel,A4,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,0.01,4,2,A4: coarse tax grid (H3.4).
 exp3,exp3-A1-STD_I17_M4_T6,A1,STD_I17_M4_T6,bilevel,A1,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no Phase-2 min-tax bisection (H3.1).
 exp3,exp3-A4-STD_I17_M4_T6,A4,STD_I17_M4_T6,bilevel,A4,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,0.01,4,2,A4: coarse tax grid (H3.4).
-exp3,exp3-A1-STD_I17_M8_T6,A1,STD_I17_M8_T6,bilevel,A1,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no Phase-2 min-tax bisection (H3.1).
-exp3,exp3-A4-STD_I17_M8_T6,A4,STD_I17_M8_T6,bilevel,A4,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,0.01,4,2,A4: coarse tax grid (H3.4).
+exp3,exp3-A1-STD_I17_M8_T6,A1,STD_I17_M8_T6,bilevel,A1,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no Phase-2 min-tax bisection (H3.1).
+exp3,exp3-A4-STD_I17_M8_T6,A4,STD_I17_M8_T6,bilevel,A4,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,0.01,4,2,A4: coarse tax grid (H3.4).
 exp3,exp3-A1-STD_I25_M4_T6,A1,STD_I25_M4_T6,bilevel,A1,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no Phase-2 min-tax bisection (H3.1).
 exp3,exp3-A4-STD_I25_M4_T6,A4,STD_I25_M4_T6,bilevel,A4,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,0.01,4,2,A4: coarse tax grid (H3.4).
 exp3,exp3-A1-STD_I25_M8_T6,A1,STD_I25_M8_T6,bilevel,A1,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no Phase-2 min-tax bisection (H3.1).

@@ -4,7 +4,7 @@
     "generated_at_utc": "2026-07-16T17:47:03.004803+00:00",
     "seed": 2456714505,
     "source_model": "paper/bilevel_model.tex",
-    "sampling_rules_module": "data.generator.tautenhain_data",
+    "sampling_rules_module": "clsc.generator.tautenhain_data",
     "config": {
       "suppliers": 3,
       "factories": 3,

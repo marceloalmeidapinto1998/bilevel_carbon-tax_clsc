@@ -1,4 +1,4 @@
-"""Experiment 2 - Solver Configuration (docs/Experimental_Plan.md §4).
+"""Experiment 2 - Solver Configuration (docs/Experimental_Plan.md §11.2).
 
 Full 3x3 threads x MIPFocus grid on the hardest cell (I25-M8-T6), plus 2 Gurobi-seed probes on
 the expected-winning configuration = 11 bilevel solves. Fixes threads/MIPFocus for the campaign

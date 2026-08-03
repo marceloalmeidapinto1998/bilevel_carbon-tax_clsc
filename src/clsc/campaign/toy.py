@@ -1,4 +1,4 @@
-"""Hand-verifiable toy instances for Experiment 1 (docs/Experimental_Plan.md §3, H1.2).
+"""Hand-verifiable toy instances for Experiment 1 (docs/Experimental_Plan.md §11.1, H1.2).
 
 Six deliberately tiny instances (1-2 products, 1-2 periods, one node per echelon) whose optimal
 network configuration a reader can re-derive on paper. Built directly from a minimal

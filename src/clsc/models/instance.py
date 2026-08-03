@@ -8,11 +8,11 @@ from typing import Any
 from clsc.config.gap_tol import DEFAULT
 
 
-# Mirrors data.generator.config.SCALE_FACTOR; duplicated here (rather than
+# Mirrors clsc.generator.config.SCALE_FACTOR; duplicated here (rather than
 # imported) to avoid a model-layer dependency on the generator package.
 # Keep both values in sync if this is ever changed.
 SCALE_FACTOR = 0.01  # USD/kg CO2e per integer tax_index step: tax_rate = SCALE_FACTOR * tax_index
-# Mirrors data.generator.tautenhain_data.PRODUCT_ROTATION_PER_PERIOD; duplicated
+# Mirrors clsc.generator.tautenhain_data.PRODUCT_ROTATION_PER_PERIOD; duplicated
 # here (rather than imported) to avoid a model-layer dependency on the
 # generator package. Keep both values in sync if this is ever changed.
 PRODUCT_ROTATION_PER_PERIOD = 4.5

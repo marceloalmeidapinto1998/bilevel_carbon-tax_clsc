@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from data.generator import build_base_benchmark_specs, generate_instance, write_instance
+from clsc.generator import build_base_benchmark_specs, generate_instance, write_instance
 from clsc.models.instance import InstanceData
 from clsc.campaign.scenarios.technology import (
     DEFAULT_SCENARIO_NAME,

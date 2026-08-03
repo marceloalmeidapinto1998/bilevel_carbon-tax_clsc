@@ -10,11 +10,31 @@ from dataclasses import dataclass, field
 from typing import Any
 
 # Algorithm variants for Experiment 3 (ablation). M0 is the full DBP reference; A1..A5 each
-# weaken one component. See docs/Experimental_Plan.md §5 and the orchestrator's flag mapping.
+# weaken one component. See docs/Experimental_Plan.md §8.1 and the orchestrator's flag mapping.
 ALGORITHM_VARIANTS = ("M0", "A1", "A2", "A3", "A4", "A5")
 
 # Execution modes understood by the orchestrator.
-EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint")
+EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint", "enumeration")
+
+# --- Carbon-tax grid -------------------------------------------------------------------------
+# Both grids span the SAME real tax range [0, TAX_CEILING_USD_PER_KG]; only the resolution differs.
+# A tax RATE is therefore comparable across grids, but a tax INDEX is not: index 20 on the coarse
+# grid is 0.2 USD/kg, index 20 on the fine grid is 0.002 USD/kg. Every design point below states
+# its indices on the fine campaign grid, and the orchestrator puts every execution mode on that
+# same grid -- mixing the two is what made bilevel tau* and fixed-tax probes silently incomparable.
+TAX_CEILING_USD_PER_KG = 0.2
+FINE_SCALE_FACTOR = 1e-4    # campaign grid: index 0..2000
+COARSE_SCALE_FACTOR = 0.01  # the base instances' native grid (index 0..20); Exp3's A4 variant only
+FINE_CEILING_INDEX = round(TAX_CEILING_USD_PER_KG / FINE_SCALE_FACTOR)
+
+
+def fine_index(usd_per_kg: float) -> int:
+    """The fine-grid tax index for a tax rate in USD/kg CO2e."""
+    if not 0.0 <= usd_per_kg <= TAX_CEILING_USD_PER_KG:
+        raise ValueError(
+            f"tax rate {usd_per_kg} USD/kg outside the grid [0, {TAX_CEILING_USD_PER_KG}]"
+        )
+    return round(usd_per_kg / FINE_SCALE_FACTOR)
 
 
 @dataclass(frozen=True, slots=True)

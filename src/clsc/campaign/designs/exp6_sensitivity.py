@@ -1,4 +1,4 @@
-"""Experiment 6 - Global Sensitivity Analysis (docs/Experimental_Plan.md §8).
+"""Experiment 6 - Global Sensitivity Analysis (docs/Experimental_Plan.md §10).
 
 Two design families on the fast cell (I17-M4-T3):
 - 8 continuous factors in a resolution-V 2^(8-2) fractional factorial (64 runs) x 2 seeds = 128.
