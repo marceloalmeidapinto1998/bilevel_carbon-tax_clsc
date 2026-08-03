@@ -1,10 +1,15 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+*.egg-info/
 
 .venv*/
 .vscode/
-.claude/
+
+# .claude/ is versioned: it holds the multi-agent analysis framework (agents, workflows,
+# standards, templates), which is project infrastructure, not personal configuration.
+# Only per-user local settings stay out.
+.claude/settings.local.json
 
 tmp_pytest_*.log
 
@@ -22,3 +27,12 @@ texput.log
 
 results/*
 !results/README.md
+
+# Analysis reports are versioned (markdown only, never solver output): the claim ledger's
+# and the limitation register's history IS the audit trail for every number in the paper.
+# Each level must be re-included explicitly -- git does not descend into an excluded directory.
+!results/analysis/
+results/analysis/*
+!results/analysis/campaign_01/
+results/analysis/campaign_01/*
+!results/analysis/campaign_01/reports/
