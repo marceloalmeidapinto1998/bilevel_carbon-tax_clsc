@@ -1,8 +1,0 @@
-experiment_id,design_point_id,run_code,base_instance_id,execution_mode,algorithm_variant,per_subproblem_time_limit_seconds,per_run_wall_clock_cap_seconds,production_technology_menu,remanufacturing_technology_menu,road_menu,sea_menu,air_menu,seed_offset,valuation_ratio,is_toy,fixed_tax_index,epsilon_emissions,invariant_tax_indices,gurobi_seed,mip_gap,dbp_relative_gap,scale_factor,threads,mip_focus,notes
-exp7,exp7-rho-1,rho_1,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,1.0,False,,,,,1e-06,0.0001,,4,2,Valuation-ratio sweep (H7.1).
-exp7,exp7-rho-5,rho_5,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,5.0,False,,,,,1e-06,0.0001,,4,2,Valuation-ratio sweep (H7.1).
-exp7,exp7-rho-10,rho_10,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,10.0,False,,,,,1e-06,0.0001,,4,2,Valuation-ratio sweep (H7.1).
-exp7,exp7-rho-20,rho_20,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,20.0,False,,,,,1e-06,0.0001,,4,2,Valuation-ratio sweep (H7.1).
-exp7,exp7-rho-50,rho_50,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,50.0,False,,,,,1e-06,0.0001,,4,2,Valuation-ratio sweep (H7.1).
-exp7,exp7-rho-100,rho_100,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,100.0,False,,,,,1e-06,0.0001,,4,2,Valuation-ratio sweep (H7.1).
-exp7,exp7-rho-200,rho_200,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,200.0,False,,,,,1e-06,0.0001,,4,2,Valuation-ratio sweep (H7.1).

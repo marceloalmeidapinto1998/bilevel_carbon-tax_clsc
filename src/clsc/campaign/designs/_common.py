@@ -9,9 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-# Algorithm variants for Experiment 3 (ablation). M0 is the full DBP reference; A1..A5 each
-# weaken one component. See docs/Experimental_Plan.md §8.1 and the orchestrator's flag mapping.
-ALGORITHM_VARIANTS = ("M0", "A1", "A2", "A3", "A4", "A5")
+# Algorithm variants for Experiment 2 (computational performance / ablation). M0 is the full DBP
+# reference; A1/A5 are claim-carrying and efficiency-only respectively (A1 changes the certified
+# guarantee; A5 is the one efficiency-only variant with a measured effect in the prior campaign).
+# A4 (coarse tax grid) was dropped from the design matrix; the underlying scale_factor override it
+# used (COARSE_SCALE_FACTOR, below) still exists and is still exercised by the grid-consistency
+# tests. See docs/Experimental_Plan.md §2 and the orchestrator's flag mapping.
+ALGORITHM_VARIANTS = ("M0", "A1", "A5")
 
 # Execution modes understood by the orchestrator.
 EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint", "enumeration")
@@ -24,7 +28,7 @@ EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint"
 # same grid -- mixing the two is what made bilevel tau* and fixed-tax probes silently incomparable.
 TAX_CEILING_USD_PER_KG = 0.2
 FINE_SCALE_FACTOR = 1e-4    # campaign grid: index 0..2000
-COARSE_SCALE_FACTOR = 0.01  # the base instances' native grid (index 0..20); Exp3's A4 variant only
+COARSE_SCALE_FACTOR = 0.01  # the base instances' native grid (index 0..20)
 FINE_CEILING_INDEX = round(TAX_CEILING_USD_PER_KG / FINE_SCALE_FACTOR)
 
 
@@ -65,7 +69,7 @@ class DesignPoint:
     gurobi_seed: int | None = None                    # Exp1/Exp2 seed-invariance / noise probes
     mip_gap: float | None = None                      # None = campaign default
     dbp_relative_gap: float | None = None
-    scale_factor: float | None = None                 # None = campaign fine grid; A4 sets coarse
+    scale_factor: float | None = None                 # None = campaign fine grid
     threads: int | None = None
     mip_focus: int | None = None
     notes: str = ""

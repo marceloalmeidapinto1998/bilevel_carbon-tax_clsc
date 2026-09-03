@@ -24,14 +24,14 @@ $\Cost(\bz)$ and carbon-tax payment:
 \begin{equation}
 \textup{(FL)}\quad
 \min_{\bz\in\setX}\;
-\Cost(\bz) + \tfrac{\taxindex}{100}\,\Emis(\bz),
+\Cost(\bz) + \gridstep\,\taxindex\,\Emis(\bz),
 \label{eq:follower}
 \end{equation}
 with optimal-response correspondence
 \begin{equation}
 \Sol{\taxindex} \defeq
 \argmin_{\bz\in\setX}\;\Bigl\{\Cost(\bz) +
-\tfrac{\taxindex}{100}\,\Emis(\bz)\Bigr\}.
+\gridstep\,\taxindex\,\Emis(\bz)\Bigr\}.
 \label{eq:reaction_set}
 \end{equation}
 
@@ -39,8 +39,7 @@ The operator's total cost is given by
 \begin{align}
 \Cost(\bz)
 ={}&
-  \sum_{i\in\setS} F_i\,y_i
-  +\sum_{i\in\setF\cup\setW} c^{\mathrm{area}}_i\,YC_i
+  \sum_{i\in\setF\cup\setW} c^{\mathrm{area}}_i\,YC_i
   +\sum_{f\in\setF}\Bigl(
      \sum_{g\in\setG} C^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg}
     +\sum_{\ell\in\setL} C^{\mathrm{r}}_{\ell}\,\lambda^{\mathrm{r}}_{f\ell}

@@ -26,9 +26,9 @@ $\taxindex^{(j)}$, obtaining the optimistic response
 $\bz^{(j)}\in\Sol{\taxindex^{(j)}}$ with $c_{j}\defeq\Cost(\bz^{(j)})$
 and $e_{j}\defeq\Emis(\bz^{(j)})$, the inequality
 \begin{equation}\label{eq:cut}
-\Cost(\bz)+\tfrac{\taxindex}{100}\,\Emis(\bz)
+\Cost(\bz)+\gridstep\,\taxindex\,\Emis(\bz)
 \;\le\;
-c_{j}+\tfrac{\taxindex}{100}\,e_{j}
+c_{j}+\gridstep\,\taxindex\,e_{j}
 \end{equation}
 is valid for \emph{every} $\taxindex\in\mathcal{T}^{\tau}$ and every
 $\bz\in\setX$ (\Cref{lem:lb_validity}), because $\bz^{(j)}$ remains a

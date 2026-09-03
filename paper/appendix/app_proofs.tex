@@ -18,10 +18,10 @@ iteration $k$, is itself a feasible -- if possibly suboptimal -- point
 of the follower's problem at $\taxindex^{*}$. Optimality of $\bz^{*}$ at
 $\taxindex^{*}$ therefore gives
 \begin{equation*}
-\Cost(\bz^{*})+\tfrac{\taxindex^{*}}{100}\Emis(\bz^{*})
+\Cost(\bz^{*})+\gridstep\,\taxindex^{*}\,\Emis(\bz^{*})
 \;\le\;
-\Cost\!\bigl(\bz^{(j)}\bigr)+\tfrac{\taxindex^{*}}{100}\Emis\!\bigl(\bz^{(j)}\bigr)
-= c_{j}+\tfrac{\taxindex^{*}}{100}e_{j}
+\Cost\!\bigl(\bz^{(j)}\bigr)+\gridstep\,\taxindex^{*}\,\Emis\!\bigl(\bz^{(j)}\bigr)
+= c_{j}+\gridstep\,\taxindex^{*}\,e_{j}
 \qquad\text{for every }(\taxindex^{(j)},c_{j},e_{j})\in\mathcal{C}.
 \end{equation*}
 Thus $(\taxindex^{*},\bz^{*})$ satisfies cut~\eqref{eq:cut} for every
@@ -41,10 +41,10 @@ $\setX$, and $\setX$ does not depend on $\taxindex$
 possibly suboptimal -- point of the follower's problem at $\taxindex'$,
 so optimality of $\bz'$ at $\taxindex'$ gives
 \begin{equation*}
-\Cost(\bz')+\tfrac{\taxindex'}{100}\Emis(\bz')
+\Cost(\bz')+\gridstep\,\taxindex'\,\Emis(\bz')
 \;\le\;
-\Cost\!\bigl(\bz^{(j)}\bigr)+\tfrac{\taxindex'}{100}\Emis\!\bigl(\bz^{(j)}\bigr)
-= c_{j}+\tfrac{\taxindex'}{100}e_{j}.
+\Cost\!\bigl(\bz^{(j)}\bigr)+\gridstep\,\taxindex'\,\Emis\!\bigl(\bz^{(j)}\bigr)
+= c_{j}+\gridstep\,\taxindex'\,e_{j}.
 \end{equation*}
 Since this holds for every cut in $\mathcal{C}$, the pair
 $(\taxindex',\bz')$ satisfies~\eqref{eq:cut} for every accumulated cut,
@@ -68,10 +68,10 @@ Fix any tax index $\taxindex'\in\mathcal{T}^{\tau}$ already evaluated by
 iteration $k$, i.e.\ $\taxindex'=\taxindex^{(j)}$ for some cut
 $(\taxindex^{(j)},c_{j},e_{j})\in\mathcal{C}$. Evaluating
 cut~\eqref{eq:cut} at $\taxindex=\taxindex'$ gives
-$\Cost(\bz)+\tfrac{\taxindex'}{100}\Emis(\bz)\le
-c_{j}+\tfrac{\taxindex'}{100}e_{j}$ for every $\bz$ feasible in the
+$\Cost(\bz)+\gridstep\,\taxindex'\,\Emis(\bz)\le
+c_{j}+\gridstep\,\taxindex'\,e_{j}$ for every $\bz$ feasible in the
 relaxation master defining $\LB^{(k)}$; and since
-$c_{j}+\tfrac{\taxindex'}{100}e_{j}=\Cost(\bz^{(j)})+\tfrac{\taxindex'}{100}\Emis(\bz^{(j)})$
+$c_{j}+\gridstep\,\taxindex'\,e_{j}=\Cost(\bz^{(j)})+\gridstep\,\taxindex'\,\Emis(\bz^{(j)})$
 is itself the optimal value of~\eqref{eq:follower} at $\taxindex'$
 (because $\bz^{(j)}\in\Sol{\taxindex'}$), no feasible $\bz$ can improve
 on $\bz^{(j)}$ in objective~\eqref{eq:follower} at $\taxindex'$. Hence

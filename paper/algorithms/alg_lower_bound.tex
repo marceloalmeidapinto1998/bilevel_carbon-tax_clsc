@@ -10,10 +10,10 @@
 $\LB\leftarrow
   \displaystyle\min_{\taxindex\in\mathcal{T}^{\tau},\,\bz\in\setX}
   \Bigl\{\Emis(\bz)\ :\
-  \Cost(\bz)+\tfrac{\taxindex}{100}\Emis(\bz)\le c_{j}+\tfrac{\taxindex}{100}e_{j}
+  \Cost(\bz)+\gridstep\,\taxindex\,\Emis(\bz)\le c_{j}+\gridstep\,\taxindex\,e_{j}
   \ \ \forall(\taxindex^{(j)},c_{j},e_{j})\in\mathcal{C}\Bigr\}$\;
 \tcp*[h]{Stage 2: among master points attaining $\LB$, take the smallest tax index (\Cref{lem:tiebreak_validity})}
 $\taxindex^{(k+1)}\leftarrow
   \displaystyle\min\Bigl\{\taxindex\in\mathcal{T}^{\tau}\ :\ \exists\,\bz\in\setX,\ \Emis(\bz)=\LB,\
-  \Cost(\bz)+\tfrac{\taxindex}{100}\Emis(\bz)\le c_{j}+\tfrac{\taxindex}{100}e_{j}
+  \Cost(\bz)+\gridstep\,\taxindex\,\Emis(\bz)\le c_{j}+\gridstep\,\taxindex\,e_{j}
   \ \ \forall(\taxindex^{(j)},c_{j},e_{j})\in\mathcal{C}\Bigr\}$\;

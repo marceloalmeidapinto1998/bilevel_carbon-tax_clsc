@@ -17,23 +17,9 @@ exp1,exp1-base-STD_I25_M4_T12,base,STD_I25_M4_T12,bilevel,M0,10800.0,50400.0,bas
 exp1,exp1-base-STD_I25_M8_T3,base,STD_I25_M8_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Base-cell certified-exact gate (H1.1).
 exp1,exp1-base-STD_I25_M8_T6,base,STD_I25_M8_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Base-cell certified-exact gate (H1.1).
 exp1,exp1-base-STD_I25_M8_T12,base,STD_I25_M8_T12,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Base-cell certified-exact gate (H1.1).
-exp1,exp1-invariant-STD_I17_M4_T3-tau0000,invariant_tau0000,STD_I17_M4_T3,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,0,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I17_M4_T3-tau0700,invariant_tau0700,STD_I17_M4_T3,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,700,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I17_M4_T3-tau1300,invariant_tau1300,STD_I17_M4_T3,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,1300,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I17_M4_T3-tau2000,invariant_tau2000,STD_I17_M4_T3,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,2000,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I17_M4_T6-tau0000,invariant_tau0000,STD_I17_M4_T6,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,0,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I17_M4_T6-tau0700,invariant_tau0700,STD_I17_M4_T6,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,700,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I17_M4_T6-tau1300,invariant_tau1300,STD_I17_M4_T6,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,1300,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I17_M4_T6-tau2000,invariant_tau2000,STD_I17_M4_T6,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,2000,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T6-tau0000,invariant_tau0000,STD_I25_M8_T6,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,0,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T6-tau0700,invariant_tau0700,STD_I25_M8_T6,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,700,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T6-tau1300,invariant_tau1300,STD_I25_M8_T6,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,1300,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T6-tau2000,invariant_tau2000,STD_I25_M8_T6,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,2000,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T12-tau0000,invariant_tau0000,STD_I25_M8_T12,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,0,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T12-tau0700,invariant_tau0700,STD_I25_M8_T12,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,700,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T12-tau1300,invariant_tau1300,STD_I25_M8_T12,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,1300,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
-exp1,exp1-invariant-STD_I25_M8_T12-tau2000,invariant_tau2000,STD_I25_M8_T12,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,2000,,0;700;1300;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
+exp1,exp1-invariant-STD_I17_M4_T3-tau0000,invariant_tau0000,STD_I17_M4_T3,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,0,,0;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
+exp1,exp1-invariant-STD_I17_M4_T3-tau2000,invariant_tau2000,STD_I17_M4_T3,fixed_tax,M0,3600.0,28800.0,base,base,base,base,base,0,,False,2000,,0;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
+exp1,exp1-invariant-STD_I25_M8_T6-tau0000,invariant_tau0000,STD_I25_M8_T6,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,0,,0;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
+exp1,exp1-invariant-STD_I25_M8_T6-tau2000,invariant_tau2000,STD_I25_M8_T6,fixed_tax,M0,10800.0,50400.0,base,base,base,base,base,0,,False,2000,,0;2000,,1e-06,0.0001,,4,2,Structural-invariant probe (H1.3).
 exp1,exp1-seedprobe-STD_I17_M4_T3-s1,seedprobe_s1,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,1,1e-06,0.0001,,4,2,Gurobi-seed invariance probe (H1.4).
 exp1,exp1-seedprobe-STD_I17_M4_T3-s2,seedprobe_s2,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,2,1e-06,0.0001,,4,2,Gurobi-seed invariance probe (H1.4).
-exp1,exp1-seedprobe-STD_I17_M4_T6-s1,seedprobe_s1,STD_I17_M4_T6,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,1,1e-06,0.0001,,4,2,Gurobi-seed invariance probe (H1.4).
-exp1,exp1-seedprobe-STD_I17_M4_T6-s2,seedprobe_s2,STD_I17_M4_T6,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,2,1e-06,0.0001,,4,2,Gurobi-seed invariance probe (H1.4).

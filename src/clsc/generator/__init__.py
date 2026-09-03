@@ -20,8 +20,10 @@ from .benchmark import (
     BenchmarkSummary,
     apply_prefix_override,
     build_base_benchmark_specs,
+    build_escalation_specs,
     entity_split,
     generate_benchmark,
+    generate_escalation_bases,
 )
 from .cli import (
     build_benchmark_parser,
@@ -58,10 +60,12 @@ __all__ = [
     "apply_prefix_override",
     "build_base_benchmark_specs",
     "build_benchmark_parser",
+    "build_escalation_specs",
     "build_instance_parser",
     "build_parser",
     "entity_split",
     "generate_benchmark",
+    "generate_escalation_bases",
     "generate_instance",
     "generate_instances_from_args",
     "main",

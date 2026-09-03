@@ -13,17 +13,18 @@ non-increasing-emissions invariant DBP's own structural checks rely on (H1.3) on
 emissions monotonically improving as evidence corroborating that invariant -- the (E*, tau*)
 selected is still the true argmin/argmin-tax over every point actually visited, not an assumption.
 
-Incumbent selection uses the SAME tie tolerance as DBP's own Phase-2 bisection
-(``_REFINE_TIE_REL = 1e-4``, i.e. the campaign's ``dbp_relative_gap`` / plateau tolerance from
-Experimental_Plan.md §4), NOT the tight machine-precision tolerance DBP's main loop uses for its
-own few-iteration comparisons. A first implementation reused the main-loop comparator and it broke
-silently on I17-M4-T6: 737 near-identical follower solves after the true left edge (tax_index 1264)
-each carry a few units of Gurobi solve-to-solve noise (~1e-8 relative), which the tight tolerance
-misread as a sequence of genuine improvements, walking the reported incumbent out to tax_index 1903
--- a 0,00001% "improvement" in emissions bought a 51% inflation of the reported tax. DBP's own
-Phase-2 never hits this failure mode because it visits O(log n) points, not O(n): far less exposure
-to cumulative noise. That asymmetry is itself a real, citable robustness advantage for DBP over
-brute-force enumeration on long grids, independent of the already-large speed advantage.
+Incumbent selection uses a loose tie tolerance (``PLATEAU_RELATIVE_GAP = 1e-4``, i.e. the
+campaign's ``dbp_relative_gap`` / plateau tolerance from Experimental_Plan.md §4), NOT the tight
+machine-precision tolerance DBP's main loop uses for its own few-iteration comparisons. A first
+implementation reused the main-loop comparator and it broke silently on I17-M4-T6: 737
+near-identical follower solves after the true left edge (tax_index 1264) each carry a few units of
+Gurobi solve-to-solve noise (~1e-8 relative), which the tight tolerance misread as a sequence of
+genuine improvements, walking the reported incumbent out to tax_index 1903 -- a 0,00001%
+"improvement" in emissions bought a 51% inflation of the reported tax. DBP's own confirm_min_tax
+never hits this failure mode because it only ever compares candidates the master's Stage-2 itself
+proposed as ties -- far less exposure to cumulative noise than visiting every grid point. That
+asymmetry is itself a real, citable robustness advantage for DBP over brute-force enumeration on
+long grids, independent of the already-large speed advantage.
 """
 from __future__ import annotations
 
@@ -34,7 +35,7 @@ from clsc.models.instance import InstanceData
 from clsc.models.subproblems import FixedTaxFollowerMaster, SolveResult, solve_fixed_tax_lexicographic
 from clsc.solvers.dbp_lex import IncumbentSolution, SubproblemStatusError, _required_value, _WallClockBudget
 
-PLATEAU_RELATIVE_GAP = 1e-4  # matches dbp_lex._REFINE_TIE_REL / the campaign's dbp_relative_gap
+PLATEAU_RELATIVE_GAP = 1e-4  # matches the campaign's dbp_relative_gap / plateau convention
 
 
 def _is_better_on_plateau(
@@ -42,9 +43,9 @@ def _is_better_on_plateau(
 ) -> bool:
     """lexmin(emissions, tax_index), with a tie tolerance sized for a long ascending scan.
 
-    Mirrors ``dbp_lex._bisect_min_tax``'s own predicate (``tol = max(eps, relative_gap *
-    |e_star|)``) exactly, rather than the main DBP loop's near-machine-precision comparator --
-    see the module docstring for why that distinction matters here specifically.
+    ``tol = max(eps, relative_gap * |e_star|)``, looser than the main DBP loop's
+    near-machine-precision comparator -- see the module docstring for why that
+    distinction matters here specifically.
     """
     if incumbent is None:
         return True

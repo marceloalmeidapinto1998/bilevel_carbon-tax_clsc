@@ -52,11 +52,26 @@ compute budget (\Cref{sec:exp:scalability}).
   Remanufacturing technologies & 3 \\
   Planning periods & T3, T6, or T12 \\
   Coordinate span & \SI{750}{\kilo\metre} square \\
-  Tax-index domain & $\taxindex\in\{0,\ldots,20\}$ \\
-  Effective tax rate & $\tau=10\,\taxindex$ USD/t\,CO\textsubscript{2}e, i.e.\ $\tau\in[0,200]$ USD/t \\
+  Policy interval & $\tau\in[0,200]$ USD/t\,CO\textsubscript{2}e,
+    i.e.\ $[\underline{\tau},\overline{\tau}]=[0,0.2]$ USD/kg \\
+  Tax-grid step & $\gridstep=10^{-4}$ USD/kg\,CO\textsubscript{2}e
+    ($0.1$ USD/t per index step) \\
+  Tax-index domain & $\taxindex\in\{0,\ldots,2000\}$, derived as
+    $\overline{\tau}/\gridstep$ \\
   \bottomrule
 \end{tabularx}
 \end{table}
+
+The instance files store the policy interval
+$[\underline{\tau},\overline{\tau}]$, not the index domain: the bounds
+$\taxindexlb,\taxindexub$ and the step $\gridstep$ are derived at load
+time, so the same instance can be solved at any grid resolution over the
+same interval. The generator's default step is
+$\gridstep=10^{-2}$ USD/kg (10 USD/t, giving
+$\taxindex\in\{0,\ldots,20\}$); the campaign of
+\Cref{sec:experiments} overrides it with the hundred-fold finer step
+reported above, so reported tax indices range over
+$\{0,\ldots,2000\}$ and must be read against $\gridstep=10^{-4}$.
 
 \subsection{Carbon-Tax Range Justification}
 \label{app:data:tax_range}

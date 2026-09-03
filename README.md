@@ -17,14 +17,15 @@ src/clsc/                 # ALL active code (installable package: pip install -e
   solvers/                #   DBP lexicographic bilevel solver + tax breakpoints
   solver_cli/             #   batch runner CLI (core.py; run via solve_batch)
   campaign/               #   experimental campaign layer (campaign_01)
-    orchestrator.py       #     generate / run, keyed by experiment (exp1..exp7)
-    designs/              #     one spec module per experiment (exp1_verification .. exp7_*)
-    doe/                  #     generic DOE primitives (factorials incl. resolution-V, sweeps)
+    orchestrator.py       #     generate / run, keyed by experiment (exp1..exp4)
+    designs/              #     one spec module per experiment (exp1_verification .. exp4_sensitivity)
+    doe/                  #     generic DOE primitives (fractional factorials, tax-grid sweeps)
     instances.py          #     instance materialization for design points
     toy.py                #     hand-verifiable toy instances (Experiment 1)
-    factors.py            #     continuous factor registry (Experiment 6)
-    structural.py         #     5-way technology/transport menu expansions
-    valuation.py          #     Experiment-7 emissions-valuation rescale
+    factors.py            #     continuous factor registry (Experiment 4)
+    structural.py         #     5-way technology/transport menu expansions (scenario builders only;
+                           #     not used by campaign_01's own design points)
+    valuation.py          #     emissions-valuation rescale (Experiment 3's rho sweep)
     scenarios/            #     scenario instance builders
   analysis/               #   aggregation, integrity checks, paper tables (analysis/campaign_01)
 data/instances/           # base + campaign instances (DATA only; generator lives in src/clsc/generator)
@@ -61,7 +62,7 @@ python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
 # --- Campaign (campaign_01): build design matrices, then solve ---
 python -m clsc.campaign.orchestrator generate --experiment all
 python -m clsc.campaign.orchestrator run --experiment 1    # resumable; --fail-fast optional
-# (--experiment accepts exp1..exp7 or 1..7 or 'all'; --base-instance restricts to one cell)
+# (--experiment accepts exp1..exp4 or 1..4 or 'all'; --base-instance restricts to one cell)
 
 # --- Post-campaign analysis ---
 python -m clsc.analysis.campaign_01.aggregate

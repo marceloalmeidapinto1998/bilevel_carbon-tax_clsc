@@ -165,20 +165,22 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--no-refine-min-tax",
-        dest="refine_min_tax",
+        "--no-confirm-min-tax",
+        dest="confirm_min_tax",
         action="store_false",
         help=(
-            "Disable the DBP Phase 2 (min-tax bisection). By default the solver, "
-            "after certifying minimum emissions E*, bisects the follower's monotone "
-            "emissions(tau) to recover the EXACT least-intervention tax_index (the "
+            "Disable in-loop confirmation of the least-intervention tax_index "
+            "(Soares et al. 2021's Lemma-3 stopping rule). By default the solver, "
+            "after certifying minimum emissions E*, keeps iterating until the "
+            "relaxation master's Stage-2 minimal-tax proposal is confirmed by a "
+            "follower solve, recovering the EXACT least-intervention tax_index (the "
             "leader's lexicographic secondary objective). Disabling it reports the "
-            "incumbent's tax (an upper bound on tau*), which is cheaper (~half the "
-            "per-instance time) but over-reports the tax and reintroduces "
-            "spatial-B&B run-to-run variance in the reported tax."
+            "incumbent's tax (an upper bound on tau*), which is cheaper but "
+            "over-reports the tax and reintroduces spatial-B&B run-to-run variance "
+            "in the reported tax. Ablation A1."
         ),
     )
-    parser.set_defaults(refine_min_tax=True)
+    parser.set_defaults(confirm_min_tax=True)
     parser.add_argument(
         "--seed",
         type=int,
@@ -329,7 +331,7 @@ def main() -> int:
                     dbp_relative_gap=args.dbp_relative_gap,
                     threads=args.threads,
                     mip_focus=args.mip_focus,
-                    refine_min_tax=args.refine_min_tax,
+                    confirm_min_tax=args.confirm_min_tax,
                     seed=args.seed,
                     use_warm_start=args.use_warm_start,
                     use_incumbent_cut=args.use_incumbent_cut,
@@ -519,7 +521,7 @@ def build_manifest(
         "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
         "tax_grid_scale_factor": args.scale_factor,
-        "refine_min_tax": bool(args.refine_min_tax),
+        "confirm_min_tax": bool(args.confirm_min_tax),
         "gurobi_seed": args.seed,
         "use_warm_start": bool(args.use_warm_start),
         "use_incumbent_cut": bool(args.use_incumbent_cut),

@@ -290,6 +290,25 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         for technology in remanufacturing_technologies
     }
 
+    # Labour (Mota eq. 43, terms 10-13). lc_i is drawn for every entity, but
+    # only facilities, technologies and owned vehicles actually incur a crew.
+    labour_cost = {entity: taut.sample_labour_cost(rng) for entity in all_entities}
+    fixed_workers = {
+        **{factory: taut.sample_fixed_workers(rng, factory=True) for factory in factories},
+        **{warehouse: taut.sample_fixed_workers(rng, factory=False) for warehouse in warehouses},
+    }
+    workers_per_sqm = {
+        entity: taut.WORKERS_PER_SQM for entity in (*factories, *warehouses)
+    }
+    production_workers = {
+        technology: taut.technology_workers(production_cost[technology])
+        for technology in production_technologies
+    }
+    remanufacturing_workers = {
+        technology: taut.technology_workers(remanufacturing_cost[technology])
+        for technology in remanufacturing_technologies
+    }
+
     transport_capacity: dict[str, float] = {}
     transport_min_capacity: dict[str, float] = {}
     contracted_capacity: dict[str, float] = {}
@@ -411,10 +430,6 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         }
         for supplier in suppliers
     }
-    supplier_selection_cost = {
-        supplier: taut.sample_supplier_selection_cost(rng)
-        for supplier in suppliers
-    }
     raw_material_emission = {
         supplier: {
             material: round(
@@ -526,7 +541,8 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
     parameters = {
         "c_area_f": factory_area_cost,
         "c_area_w": warehouse_area_cost,
-        "f_s": supplier_selection_cost,
+        # No "f_s": selecting a supplier is free in both sources. See the note
+        # beside SUPPLIER_MIN_FRACTION_RANGE in tautenhain_data.
         "i_prod_g": production_install_cost,
         "i_rem_l": remanufacturing_install_cost,
         "c_prod_g": production_cost,
@@ -544,6 +560,26 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         "speed_km_h_m": speed_km_h,
         "max_driving_hours_m": max_driving_hours,
         "truck_investment_budget": taut.TRUCK_INVESTMENT_BUDGET,
+        "interest_rate": taut.INTEREST_RATE,
+        # Stated on the instance rather than inferred by the model: both are
+        # per-period quantities derived from WEEKS_PER_PERIOD, and an instance
+        # that carries them can be reloaded years later without depending on
+        # whatever the generator constants happen to say then.
+        "product_rotation_per_period": taut.PRODUCT_ROTATION_PER_PERIOD,
+        "asset_life_years": dict(taut.ASSET_LIFE_YEARS),
+        # Labour: Mota eq. 43 charges each crew as workers * lc_i * wwh * wpt,
+        # every period. wwh and wpt are emitted separately so the product is
+        # auditable rather than pre-collapsed.
+        "labour_cost_i": labour_cost,
+        "workers_fixed_i": fixed_workers,
+        "workers_per_sqm_i": workers_per_sqm,
+        "workers_prod_g": production_workers,
+        "workers_rem_l": remanufacturing_workers,
+        "workers_mode_m": {
+            mode: taut.mode_workers(transport_family[mode]) for mode in modes
+        },
+        "weekly_working_hours": taut.WEEKLY_WORKING_HOURS,
+        "weeks_per_period": taut.WEEKS_PER_PERIOD,
         "trip_big_m_m": trip_big_m,
         "bar_s_s_u": supplier_capacity_by_material,
         "scmin_s_u": supplier_minimum_order_by_material,
@@ -570,7 +606,10 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         "bar_X_m": transport_capacity,
         "ctmin_m": transport_min_capacity,
         "ccamax_m": contracted_capacity,
-        "ecmax_i": {entity: taut.MAX_ENTITY_FLOW_KG for entity in all_entities},
+        # ecmax_i (Mota's node throughput capacity) is intentionally not emitted:
+        # entity capacity is carried by the installed-area mechanism (YCT <= YC),
+        # as in Tautenhain et al. (2021). See _add_flow_constraints in
+        # src/clsc/models/subproblems.py.
         "a_in_u_p_g": technology_input_requirement,
         "bom_rem_r_p": remanufacturing_bom_matrix,
         "ret_yield_rp_p": return_yield_matrix,

@@ -63,7 +63,6 @@ $\setT$ & $t$ & Planning periods, $\setT\defeq\{1,\ldots,T\}$ \\
 \toprule
 Parameter & Description & Units \\
 \midrule
-$F_i$ & Fixed cost of selecting supplier $i\in\setS$ & USD \\
 $c^{\mathrm{area}}_i$ & Installation cost per unit of floor area at facility $i\in\setF\cup\setW$ & USD/m$^2$ \\
 $F_h$ & Per-period access (contract) cost of hub $h\in\setH$ & USD/period \\
 $C^{\mathrm{p}}_g,\;C^{\mathrm{r}}_{\ell}$ & Installation cost of production/remanufacturing technology & USD \\
@@ -153,7 +152,8 @@ $e^{\mathrm{o,f}}_i$ & Opening emission intensity for facility $i\in\setF\cup\se
 $e^{\mathrm{p}}_g,\;e^{\mathrm{r}}_{\ell}$ & Emission intensity per kg produced/remanufactured & kg\,CO$_2$e/kg \\
 $e^{\mathrm{u}}_{su}$ & Emission intensity of raw material $u$ from supplier $s$ & kg\,CO$_2$e/kg \\
 $e^{\mathrm{tr}}_m$ & Transport emission intensity of mode $m$ & kg\,CO$_2$e/(kg$\cdot$km) \\
-$\taxindexlb,\taxindexub$ & Lower/upper bounds on the leader's carbon-tax index & -- \\
+$\gridstep$ & Tax-grid step; the effective rate is $\tau=\gridstep\,\taxindex$ & USD/kg\,CO$_2$e \\
+$\taxindexlb,\taxindexub$ & Lower/upper bounds on the leader's carbon-tax index, derived as $\underline{\tau}/\gridstep$ and $\overline{\tau}/\gridstep$ & -- \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -9,7 +9,6 @@ from clsc.config.gap_tol import DEFAULT
 from clsc.models.instance import SCALE_FACTOR, InstanceData
 from clsc.models.subproblems import (
     DbpFollowerCut,
-    FixedTaxFollowerMaster,
     SolveResult,
     add_dbp_relaxation_cut,
     build_dbp_relaxation_master,
@@ -207,6 +206,41 @@ def _emissions_tie_tolerance(first_emissions: float, second_emissions: float) ->
     )
 
 
+def _min_tax_confirmed(
+    *,
+    incumbent_emissions: float,
+    incumbent_tax_index: int,
+    best_lower_bound: float,
+    next_tax_index: int,
+) -> bool:
+    """Soares-style confirmation that the incumbent's tax is grid-minimal.
+
+    Two conditions, both required:
+
+    1. The emission bounds have closed to NOISE level (the cross-model tie
+       tolerance), not merely to ``dbp_relative_gap``. The master's Stage-2
+       minimises the tax over points within a freeze band above its Stage-1
+       optimum; only once that optimum sits within tie tolerance of the
+       incumbent's emissions does the band provably contain every true point
+       tying the certified floor (lem:lb_validity keeps such points feasible),
+       making the Stage-2 proposal a valid LOWER bound on the true minimal
+       tax. At a looser gap the band can sit strictly below the floor and the
+       proposal certifies nothing.
+    2. The proposal does not undercut the incumbent (``>=``). Combined with
+       (1): true minimal tax >= proposal >= incumbent's tax, and the incumbent
+       attains the floor at its tax, so its tax IS the minimum.
+
+    This is Soares et al. (2021)'s termination rule ``x^{u(K+1)} = x^{uK}``
+    (their Lemma 3) transplanted to the lexicographic leader: stop when the
+    master re-proposes the leader decision the follower has already confirmed.
+    """
+    bounds_at_noise_level = (
+        incumbent_emissions - best_lower_bound
+        <= _emissions_tie_tolerance(incumbent_emissions, best_lower_bound)
+    )
+    return bounds_at_noise_level and next_tax_index >= incumbent_tax_index
+
+
 def _classify_stagnation_stop(
     *,
     upper_bound: float,
@@ -397,129 +431,6 @@ def _build_dbp_timing_summary(
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: least-intervention tax bisection
-# ---------------------------------------------------------------------------
-
-# Phase 2 always solves the follower tightly: emissions must be accurate enough
-# to separate the floor config from the one just above it (their gap sets the
-# tax's identifiability), and a loose gap would bias emissions via the freeze
-# amplification. This is independent of the loop's own ``mip_gap``.
-_REFINE_MIP_GAP = 1e-6
-# Two emissions are "the same floor" within this relative tolerance -- looser
-# than the tight follower's numerical noise, tighter than a genuine config gap.
-_REFINE_TIE_REL = 1e-4
-
-
-def _bisect_min_tax(
-    follower_master: FixedTaxFollowerMaster,
-    e_star: float,
-    *,
-    lo: int,
-    hi: int,
-    threads: int | None,
-    mip_focus: int | None,
-    budget: "_WallClockBudget",
-    seed: int | None = None,
-    use_warm_start: bool = True,
-) -> int:
-    """Smallest tax_index in ``[lo, hi]`` whose follower response reaches the
-    certified emissions floor ``e_star``, assuming P(hi) is True. Binary search
-    over the monotone predicate ``emissions(idx) <= e_star + tol`` -- ~log2(hi-lo)
-    follower solves."""
-    tol = max(DEFAULT.eps, _REFINE_TIE_REL * abs(e_star))
-    warm: dict[str, float] | None = None
-
-    def at_floor(idx: int) -> bool:
-        nonlocal warm
-        result = solve_fixed_tax_lexicographic(
-            follower_master,
-            tax_index=idx,
-            time_limit=budget.subproblem_time_limit(),
-            mip_gap=_REFINE_MIP_GAP,
-            threads=threads,
-            mip_focus=mip_focus,
-            seed=seed,
-            capture_solution=True,
-            warm_start_values=warm if use_warm_start else None,  # adjacent taxes share near-identical solutions
-        )
-        if not result.has_solution or result.status_name != "OPTIMAL" or result.emissions is None:
-            # Can't confirm the floor here -> treat as NOT at floor, which keeps
-            # the reported tax higher (conservative: never under-reports tau*).
-            return False
-        if result.variable_values is not None:
-            warm = result.variable_values
-        return result.emissions <= e_star + tol
-
-    if at_floor(lo):
-        return lo
-    # Invariant: P(lo) False, P(hi) True. Narrow to adjacent indices.
-    while hi - lo > 1:
-        mid = (lo + hi) // 2
-        if at_floor(mid):
-            hi = mid
-        else:
-            lo = mid
-    return hi
-
-
-def _refine_min_tax(
-    follower_master: FixedTaxFollowerMaster,
-    instance: InstanceData,
-    incumbent: IncumbentSolution,
-    incumbent_solution: SolveResult | None,
-    *,
-    threads: int | None,
-    mip_focus: int | None,
-    budget: "_WallClockBudget",
-    seed: int | None = None,
-    use_warm_start: bool = True,
-) -> tuple[IncumbentSolution, SolveResult | None]:
-    """Phase 2 wrapper: bisect for the smallest tax reaching the incumbent's
-    (certified-minimum) emissions, and re-report the incumbent at that tax.
-    Leaves emissions unchanged (still E*); only lowers the tax. No-op when the
-    incumbent is already at the lower grid bound."""
-    lower_index = instance.lower_tax_index
-    if incumbent.tax_index <= lower_index:
-        return incumbent, incumbent_solution
-
-    tau_star = _bisect_min_tax(
-        follower_master,
-        incumbent.emissions,
-        lo=lower_index,
-        hi=incumbent.tax_index,
-        threads=threads,
-        mip_focus=mip_focus,
-        budget=budget,
-        seed=seed,
-        use_warm_start=use_warm_start,
-    )
-    if tau_star >= incumbent.tax_index:
-        return incumbent, incumbent_solution
-
-    refined = solve_fixed_tax_lexicographic(
-        follower_master,
-        tax_index=tau_star,
-        capture_solution=True,
-        mip_gap=_REFINE_MIP_GAP,
-        threads=threads,
-        mip_focus=mip_focus,
-        time_limit=budget.subproblem_time_limit(),
-        seed=seed,
-    )
-    if not refined.has_solution or refined.status_name != "OPTIMAL":
-        return incumbent, incumbent_solution
-
-    new_incumbent = IncumbentSolution(
-        tax_index=tau_star,
-        cost=_required_value(refined.cost, "refined cost"),
-        emissions=_required_value(refined.emissions, "refined emissions"),
-        follower_objective=_required_value(refined.follower_objective, "refined follower objective"),
-        scale_factor=instance.scale_factor,
-    )
-    return new_incumbent, refined
-
-
-# ---------------------------------------------------------------------------
 # DBP lexicographic solver (leader minimises emissions then tax_index)
 # ---------------------------------------------------------------------------
 
@@ -534,30 +445,45 @@ def solve_bilevel_dbp_lex(
     dbp_relative_gap: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
-    refine_min_tax: bool = True,
+    confirm_min_tax: bool = True,
     seed: int | None = None,
     use_warm_start: bool = True,
     use_incumbent_cut: bool = True,
     use_lex_master_stage2: bool = True,
 ) -> BilevelSolveResult:
-    """DBP with the leader's lexicographic objective: minimise emissions
-    (Phase 1, the DBP loop below), then minimise ``tax_index`` among the
-    emissions-tied candidates (Phase 2, a bisection appended after the loop).
+    """DBP with the leader's lexicographic objective: minimise emissions, then
+    minimise ``tax_index`` among the emissions-tied candidates.
 
-    Phase 1 squeezes a lower bound (from the relaxation master) against an upper
-    bound (from the follower) until the emissions gap closes, CERTIFYING the
-    minimum emissions E*. But that certificate is silent about the tax: the
+    The DBP loop squeezes a lower bound (from the relaxation master) against an
+    upper bound (from the follower) until the emissions gap closes, CERTIFYING
+    the minimum emissions E*. But that certificate is silent about the tax: the
     incumbent's tax is just the last one evaluated, an UPPER bound on the true
     least-intervention tax (the loop can terminate before ever proposing a
     smaller tax that also reaches E*).
 
-    Phase 2 (``refine_min_tax=True``, the default) fixes this. Because the
-    follower's optimistic emissions are non-increasing in the tax, the predicate
-    "emissions(tax) == E*" is monotone, so the smallest grid tax reaching E* is
-    found by a bisection over ``[lower_tax_index, incumbent.tax_index]`` -- about
-    log2 follower solves. Only runs on the two EXACT exits (emissions gap closed
-    / INFEASIBLE certificate); time-limit and stagnation exits keep the raw
-    incumbent. Set ``refine_min_tax=False`` for the un-refined behaviour.
+    ``confirm_min_tax=True`` (the default) certifies the minimal tax INSIDE the
+    loop: Soares et al. (2021)'s own stopping rule (their Lemma 3,
+    ``x^{u(K+1)} = x^{uK}``) applied to the lexicographic leader. When the
+    emissions gap closes, the loop keeps iterating until the master's Stage-2
+    minimal-tax proposal is CONFIRMED -- either the proposal equals the
+    incumbent's own tax with the emission bounds closed to noise level (see
+    ``_min_tax_confirmed``), or the incumbent-cut renders the master
+    infeasible, which excludes tied points at every other tax outright. Each
+    unconfirmed proposal is probed by the next follower solve: it either ties
+    the certified floor at a smaller tax (the lexicographic incumbent adopts
+    it) or fails and its cut lifts the master there, so the proposal sequence
+    is finite on the finite grid. This needs no monotonicity assumption, so it
+    works unchanged on discounted instances (where the follower's tax base and
+    the leader's physical emissions differ).
+
+    ``confirm_min_tax`` requires ``use_lex_master_stage2``: the Stage-2
+    proposal is the object being confirmed. If ``use_lex_master_stage2=False``
+    (the A2 ablation), confirmation is silently unavailable regardless of this
+    flag -- the certified emissions optimum is unaffected, but the reported
+    tax is only an upper bound on the true minimum. Set
+    ``confirm_min_tax=False`` explicitly to get that same un-certified tax on
+    an otherwise full run (the A1 ablation: certified emissions, unconfirmed
+    tax).
 
     ``mip_gap``/``threads``/``mip_focus`` override the corresponding
     :class:`clsc.config.gap_tol.ToleranceConfig` default (``None`` keeps the
@@ -579,8 +505,10 @@ def solve_bilevel_dbp_lex(
     the relaxation master with the incumbent's emissions as an objective upper bound;
     ``use_lex_master_stage2`` (A2) runs the master's lexicographic Stage-2 tax
     minimisation. Disabling any one leaves the certified emissions optimum unchanged
-    but changes the iteration/time path (and, for A2 without Phase 2, the reported tax).
+    but changes the iteration/time path (and, for A1/A2, the reported tax is no
+    longer certified minimal).
     """
+    effective_confirm_min_tax = confirm_min_tax and use_lex_master_stage2
     instance = _coerce_instance(instance_or_path)
     budget = _WallClockBudget(wall_clock_cap, time_limit)
     max_iterations = max_iterations or (len(instance.iter_tax_index()) + 1)
@@ -696,6 +624,11 @@ def solve_bilevel_dbp_lex(
             tax_index=tax_index,
             cost=candidate.cost + max(0.0, follower_objective_upper - candidate.follower_objective),
             emissions=candidate.emissions,
+            # The cut's tau-coefficient must be the quantity the follower was
+            # actually taxed on -- the discounted base -- while `emissions`
+            # stays physical for the leader's bound. The two coincide when the
+            # instance carries no interest rate.
+            tax_base=lexicographic.tax_base,
             iteration=iteration,
         )
         add_dbp_relaxation_cut(relaxation_master, cut)
@@ -727,12 +660,14 @@ def solve_bilevel_dbp_lex(
                     relaxation_seconds=relaxation_seconds,
                 )
             )
-            if refine_min_tax:
-                incumbent, incumbent_solution = _refine_min_tax(
-                    follower_master, instance, incumbent, incumbent_solution,
-                    threads=threads, mip_focus=mip_focus, budget=budget,
-                    seed=seed, use_warm_start=use_warm_start,
-                )
+            # When confirm_min_tax is in effect, this infeasibility certifies
+            # the TAX as well as the emissions: the objective upper bound is
+            # widened by lex_freeze_tolerance (see
+            # set_dbp_relaxation_objective_upper_bound), so any true
+            # optimistic point tying the incumbent's emissions at any other
+            # tax index would still be feasible here (lem:lb_validity -- cuts
+            # never exclude true points). Infeasibility therefore proves no
+            # such tied point exists, and in particular none at a smaller tax.
             return _build_bilevel_result(
                 method="dbp_lex",
                 mode="exact",
@@ -809,12 +744,24 @@ def solve_bilevel_dbp_lex(
             )
             <= effective_dbp_relative_gap
         ):
-            if refine_min_tax:
-                incumbent, incumbent_solution = _refine_min_tax(
-                    follower_master, instance, incumbent, incumbent_solution,
-                    threads=threads, mip_focus=mip_focus, budget=budget,
-                    seed=seed, use_warm_start=use_warm_start,
-                )
+            if effective_confirm_min_tax and not _min_tax_confirmed(
+                incumbent_emissions=incumbent.emissions,
+                incumbent_tax_index=incumbent.tax_index,
+                best_lower_bound=best_lower_bound,
+                next_tax_index=next_tax_index,
+            ):
+                # Endgame: the emissions gap is closed but the master's Stage-2
+                # still proposes a smaller tax (or the bounds are not yet at
+                # noise level, where the Stage-2 band provably contains every
+                # true tie). The next iteration probes that proposal with a
+                # follower solve: either it ties the floor at a smaller tax --
+                # the lexicographic incumbent adopts it -- or its cut lifts the
+                # master there and the proposal moves on. Skipping the
+                # stagnation bookkeeping is deliberate: these iterations
+                # advance the tax certificate without moving either emissions
+                # bound, and their number is finite on the finite grid (the
+                # loop-head wall-clock and max_iterations guards still apply).
+                continue
             return _build_bilevel_result(
                 method="dbp_lex",
                 mode="exact",

@@ -12,10 +12,12 @@ from clsc.config.gap_tol import DEFAULT
 # imported) to avoid a model-layer dependency on the generator package.
 # Keep both values in sync if this is ever changed.
 SCALE_FACTOR = 0.01  # USD/kg CO2e per integer tax_index step: tax_rate = SCALE_FACTOR * tax_index
-# Mirrors clsc.generator.tautenhain_data.PRODUCT_ROTATION_PER_PERIOD; duplicated
-# here (rather than imported) to avoid a model-layer dependency on the
-# generator package. Keep both values in sync if this is ever changed.
-PRODUCT_ROTATION_PER_PERIOD = 4.5
+# Fallback for instances generated before 2026-08-11, which carry no
+# product_rotation_per_period. Those were built reading Mota's 4.5 turns/year
+# as a per-period count, and must keep it so archived runs stay reproducible.
+# Fresh instances state their own value, which retires the hand-synced
+# duplicate this constant used to be.
+LEGACY_PRODUCT_ROTATION_PER_PERIOD = 4.5
 SUPPORTED_MODE_FAMILIES = {"truck", "air", "sea"}
 SUPPORTED_RAW_MATERIAL_FLOW_UNITS = {"item_units"}
 SUPPORTED_PROCESS_EMISSION_UNITS = {"kg CO2e/kg"}
@@ -74,7 +76,6 @@ REQUIRED_PARAMETER_KEYS = (
     "bar_X_m",
     "ctmin_m",
     "ccamax_m",
-    "ecmax_i",
     "a_in_u_p_g",
     "bom_rem_r_p",
     "ret_yield_rp_p",
@@ -382,7 +383,7 @@ def _apply_parameter_defaults(parameters: dict[str, Any], sets: dict[str, Any]) 
     parameters.setdefault("Amin_w", {warehouse: 0.0 for warehouse in sets.get("W", ())})
     parameters.setdefault("apu_u", {material: 0.0 for material in sets.get("U", ())})
     parameters.setdefault("apu_p", {product: 0.0 for product in sets.get("P", ())})
-    # apur_p is a DERIVED quantity -- apur_p[p] == apu_p[p] / PRODUCT_ROTATION_PER_PERIOD by
+    # apur_p is a DERIVED quantity -- apur_p[p] == apu_p[p] / product_rotation_per_period by
     # definition (it is the per-period rotation footprint the model reads as flow area, see
     # subproblems._item_flow_area_map). Recompute it authoritatively from apu_p on every load
     # rather than trusting whatever the file carries: the generator serialises apur_p rounded to
@@ -459,9 +460,13 @@ def _zero_nested_dict(value: Any) -> Any:
 
 
 def _derive_product_rotation_area(parameters: dict[str, Any], sets: dict[str, Any]) -> dict[str, float]:
+    rotation = float(
+        parameters.get("product_rotation_per_period")
+        or LEGACY_PRODUCT_ROTATION_PER_PERIOD
+    )
     product_area = parameters.get("apu_p", {})
     return {
-        product: float(product_area.get(product, 0.0)) / PRODUCT_ROTATION_PER_PERIOD
+        product: float(product_area.get(product, 0.0)) / rotation
         for product in sets.get("P", ())
     }
 

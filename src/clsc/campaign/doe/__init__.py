@@ -1,3 +1,3 @@
-"""Generic DOE design primitives (factorials, frontier/epsilon sweeps, response-surface,
-robustness grids) shared across campaign family specs.
+"""Generic DOE design primitives (fractional factorials, tax-grid sweeps) shared across
+campaign experiment specs.
 """

@@ -5,7 +5,11 @@ from pathlib import Path
 import pytest
 
 from clsc.generator import build_base_benchmark_specs, generate_instance
-from clsc.models.instance import PRODUCT_ROTATION_PER_PERIOD, InstanceData, InstanceValidationError
+from clsc.models.instance import (
+    LEGACY_PRODUCT_ROTATION_PER_PERIOD,
+    InstanceData,
+    InstanceValidationError,
+)
 
 
 def test_instance_loader_reads_committed_std_base_instance() -> None:
@@ -37,9 +41,30 @@ def test_instance_loader_reads_committed_std_base_instance() -> None:
     assert all(isinstance(instance.parameters["theta_p"][product], int) for product in instance.sets["P"])
     assert all(instance.parameters["theta_p"][product] >= 1 for product in instance.sets["P"])
     assert instance.tax_rate(20) == 0.2
+    # The committed file is current (carries product_rotation_per_period), so
+    # apur_p is derived from ITS OWN rotation, not the legacy fallback -- see
+    # test_instance_loader_falls_back_to_legacy_product_rotation below for the
+    # pre-fix (field-absent) case.
+    assert "product_rotation_per_period" in instance.parameters
     for product in instance.sets["P"]:
         assert instance.parameters["apur_p"][product] == pytest.approx(
-            instance.parameters["apu_p"][product] / PRODUCT_ROTATION_PER_PERIOD
+            instance.parameters["apu_p"][product] / instance.parameters["product_rotation_per_period"]
+        )
+
+
+def test_instance_loader_falls_back_to_legacy_product_rotation() -> None:
+    """Instances archived before product_rotation_per_period became an explicit
+    field must keep deriving apur_p at the rotation they were built with."""
+    spec = next(item for item in build_base_benchmark_specs(seed_base=5) if item.name == "STD_I17_M4_T3")
+    payload = generate_instance(spec.to_config()).to_dict()
+    del payload["parameters"]["product_rotation_per_period"]
+
+    instance = InstanceData.from_dict(payload)
+
+    assert "product_rotation_per_period" not in instance.parameters
+    for product in instance.sets["P"]:
+        assert instance.parameters["apur_p"][product] == pytest.approx(
+            instance.parameters["apu_p"][product] / LEGACY_PRODUCT_ROTATION_PER_PERIOD
         )
 
 
@@ -80,8 +105,9 @@ def test_instance_loader_derives_missing_product_rotation_area() -> None:
 
     instance = InstanceData.from_dict(payload)
 
+    rotation = instance.parameters["product_rotation_per_period"]
     for product in instance.sets["P"]:
-        expected_rate = instance.parameters["apu_p"][product] / PRODUCT_ROTATION_PER_PERIOD
+        expected_rate = instance.parameters["apu_p"][product] / rotation
         assert instance.parameters["apur_p"][product] == pytest.approx(expected_rate)
 
 

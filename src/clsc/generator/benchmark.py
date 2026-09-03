@@ -35,6 +35,17 @@ PREFIX_OVERRIDE_DECIMALS: dict[str, dict[str, int]] = {}
 
 SIZE_PATTERN = re.compile(r"^I(?P<entities>\d+)_M(?P<materials>\d+)_T(?P<periods>\d+)$")
 
+# Escalation-only bases: NOT part of the standard 12 (SIZE_SUFFIXES) and not written by
+# `python -m clsc.generator benchmark`. Each pushes one axis (materials/products richness, or
+# node count) past the standard testbed's range, for the scalability curves in Experiment 2.
+# STD_I25_M12_T6 is the pre-existing escalation probe; STD_I25_M16_T6 and STD_I33_M8_T6 extend
+# the materials/products and node-count axes by one further point each.
+ESCALATION_SUFFIXES = (
+    "I25_M12_T6",
+    "I25_M16_T6",
+    "I33_M8_T6",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class BenchmarkSpec:
@@ -110,15 +121,22 @@ def entity_split(total_entities: int) -> dict[str, int]:
     }
 
 
-def build_base_benchmark_specs(seed_base: int = 0) -> list[BenchmarkSpec]:
-    specs: list[BenchmarkSpec] = []
-    material_split = {
-        4: {"raw_materials": 2, "products": 1},
-        8: {"raw_materials": 4, "products": 2},
-    }
+def _material_split(materials_code: int) -> dict[str, int]:
+    """Materials/products richness code -> (raw_materials, products).
 
+    The standard 12 use M4 (2 raw materials, 1 product) and M8 (4/2); this is the formula those
+    two fit exactly (`code // 2`, `code // 4`), generalized so escalation codes beyond M8 (M12,
+    M16, ...) follow the same pattern rather than needing their own lookup entry.
+    """
+    if materials_code <= 0 or materials_code % 4 != 0:
+        raise ValueError(f"Unsupported material code M{materials_code}: must be a positive multiple of 4")
+    return {"raw_materials": materials_code // 2, "products": materials_code // 4}
+
+
+def _specs_from_suffixes(suffixes: tuple[str, ...], *, seed_base: int) -> list[BenchmarkSpec]:
+    specs: list[BenchmarkSpec] = []
     for prefix in PREFIXES:
-        for suffix in SIZE_SUFFIXES:
+        for suffix in suffixes:
             match = SIZE_PATTERN.fullmatch(suffix)
             if match is None:
                 raise ValueError(f"Unsupported benchmark suffix: {suffix}")
@@ -126,8 +144,6 @@ def build_base_benchmark_specs(seed_base: int = 0) -> list[BenchmarkSpec]:
             total_entities = int(match.group("entities"))
             materials_code = int(match.group("materials"))
             periods = int(match.group("periods"))
-            if materials_code not in material_split:
-                raise ValueError(f"Unsupported material code M{materials_code}")
 
             specs.append(
                 BenchmarkSpec(
@@ -138,12 +154,31 @@ def build_base_benchmark_specs(seed_base: int = 0) -> list[BenchmarkSpec]:
                     remanufacturing_technologies=3,
                     seed=_deterministic_seed(seed_base, prefix, suffix),
                     **entity_split(total_entities),
-                    **material_split[materials_code],
+                    **_material_split(materials_code),
                 )
             )
+    return specs
 
+
+def build_base_benchmark_specs(seed_base: int = 0) -> list[BenchmarkSpec]:
+    specs = _specs_from_suffixes(SIZE_SUFFIXES, seed_base=seed_base)
     if len(specs) != len(PREFIXES) * len(SIZE_SUFFIXES):
         raise AssertionError(f"Expected {len(PREFIXES) * len(SIZE_SUFFIXES)} base benchmark specs, got {len(specs)}")
+    return specs
+
+
+def build_escalation_specs(seed_base: int = 0) -> list[BenchmarkSpec]:
+    """Escalation-only bases (`ESCALATION_SUFFIXES`): one point beyond the standard 12 on each of
+    the materials/products and node-count axes, for Experiment 2's scalability curves. Built the
+    same deterministic way as `build_base_benchmark_specs`, just over a different suffix list --
+    these are not part of the standard benchmark set and are not written by
+    `python -m clsc.generator benchmark`.
+    """
+    specs = _specs_from_suffixes(ESCALATION_SUFFIXES, seed_base=seed_base)
+    if len(specs) != len(PREFIXES) * len(ESCALATION_SUFFIXES):
+        raise AssertionError(
+            f"Expected {len(PREFIXES) * len(ESCALATION_SUFFIXES)} escalation specs, got {len(specs)}"
+        )
     return specs
 
 
@@ -153,6 +188,27 @@ def apply_prefix_override(instance: GeneratedInstance, prefix: str) -> Generated
     if prefix == "STD":
         return overridden
     raise ValueError(f"Unsupported benchmark prefix: {prefix}; only STD instances are generated")
+
+
+def _generate_and_write_specs(
+    specs: list[BenchmarkSpec], *, output_root: Path, extension: str, ensure_feasible: bool,
+) -> int:
+    if ensure_feasible:
+        from .feasibility import generate_feasible_instance
+
+    written = 0
+    for spec in specs:
+        generated = (
+            generate_feasible_instance(spec.to_config())
+            if ensure_feasible
+            else generate_instance(spec.to_config())
+        )
+        benchmark_instance = apply_prefix_override(generated, spec.prefix)
+        _set_base_metadata(benchmark_instance, spec)
+        _validate_prefix_override(generated, benchmark_instance, spec.prefix)
+        write_instance(benchmark_instance, output_root / f"{benchmark_instance.name}{extension}")
+        written += 1
+    return written
 
 
 def generate_benchmark(
@@ -170,35 +226,44 @@ def generate_benchmark(
     output_root = Path(output_dir)
     specs = build_base_benchmark_specs(seed_base)
 
-    if ensure_feasible:
-        from .feasibility import generate_feasible_instance
-
     base_count = 0
-    for spec in specs:
-        if not include_base:
-            continue
-
-        generated = (
-            generate_feasible_instance(spec.to_config())
-            if ensure_feasible
-            else generate_instance(spec.to_config())
+    if include_base:
+        base_count = _generate_and_write_specs(
+            specs, output_root=output_root, extension=extension, ensure_feasible=ensure_feasible,
         )
-        benchmark_instance = apply_prefix_override(generated, spec.prefix)
-        _set_base_metadata(benchmark_instance, spec)
-        _validate_prefix_override(generated, benchmark_instance, spec.prefix)
-
-        if include_base:
-            write_instance(benchmark_instance, output_root / f"{benchmark_instance.name}{extension}")
-            base_count += 1
-
-        if spec.prefix != "STD":
-            continue
 
     return BenchmarkSummary(
         base_specs=len(specs),
         base_instances=base_count,
         output_dir=output_root,
         file_format=file_format,
+    )
+
+
+def generate_escalation_bases(
+    output_dir: str | Path,
+    *,
+    seed_base: int = 0,
+    file_format: str = "json",
+    ensure_feasible: bool = True,
+) -> BenchmarkSummary:
+    """Write the escalation-only bases (`ESCALATION_SUFFIXES`) to `output_dir`.
+
+    Kept separate from `generate_benchmark` because these are not part of the standard 12 and must
+    never be silently produced by a routine `python -m clsc.generator benchmark` run -- call this
+    explicitly to (re)generate them.
+    """
+    if file_format not in {"json", "yaml"}:
+        raise ValueError("file_format must be either 'json' or 'yaml'")
+
+    extension = ".json" if file_format == "json" else ".yaml"
+    output_root = Path(output_dir)
+    specs = build_escalation_specs(seed_base)
+    written = _generate_and_write_specs(
+        specs, output_root=output_root, extension=extension, ensure_feasible=ensure_feasible,
+    )
+    return BenchmarkSummary(
+        base_specs=len(specs), base_instances=written, output_dir=output_root, file_format=file_format,
     )
 
 

@@ -6,10 +6,10 @@ __pycache__/
 .venv*/
 .vscode/
 
-# .claude/ is versioned: it holds the multi-agent analysis framework (agents, workflows,
-# standards, templates), which is project infrastructure, not personal configuration.
-# Only per-user local settings stay out.
-.claude/settings.local.json
+# .claude/ is NOT versioned. The multi-agent analysis framework it held (agents, workflows,
+# standards, templates) was retired with the campaign_01 remap; what remains there is per-user
+# local configuration, which does not belong in the repository.
+.claude/
 
 tmp_pytest_*.log
 

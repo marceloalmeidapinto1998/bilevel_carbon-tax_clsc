@@ -24,6 +24,9 @@ class DbpFollowerCut:
     cost: float
     emissions: float
     iteration: int
+    # Discounted emission aggregate at this point; the cut's tau-coefficient.
+    # None means "undiscounted instance", where it equals ``emissions``.
+    tax_base: float | None = None
 
 
 @dataclass(slots=True)
@@ -32,6 +35,9 @@ class ModelArtifacts:
     cost_expr: gp.LinExpr
     emissions_expr: gp.LinExpr
     follower_expr: gp.LinExpr
+    # Emission aggregate the tax is levied on (discounted). Falls back to the
+    # physical emissions_expr when the instance is undiscounted.
+    tax_base_expr: gp.LinExpr | None = None
     tax_index_var: gp.Var | None = None
     emissions_total_var: gp.Var | None = None
     elastic_slack_var: gp.Var | None = None
@@ -57,6 +63,9 @@ class SolveResult:
     runtime: float
     variable_values: dict[str, float] | None = None
     objective_bound: float | None = None
+    # Discounted emission aggregate the tax was levied on. Equals ``emissions``
+    # on an undiscounted instance.
+    tax_base: float | None = None
     status_history: tuple[str, ...] = ()
     iis_constraints: tuple[str, ...] = ()
     iis_variable_bounds: tuple[str, ...] = ()
@@ -74,6 +83,9 @@ class _CommonModel:
     model: gp.Model
     cost_expr: gp.LinExpr
     emissions_expr: gp.LinExpr
+    # Discounted emission aggregate the follower is taxed on. Is the same
+    # object as emissions_expr when the instance carries no interest rate.
+    tax_base_expr: gp.LinExpr
 
 
 @dataclass(slots=True)
@@ -246,13 +258,16 @@ def solve_fixed_rate_lexicographic(
 
     Rate-based analogue of :func:`solve_fixed_tax_lexicographic` (which takes an
     integer index): identical follower MILP, only the emissions coefficient is a
-    continuous rate rather than ``scale_factor * index``. Used by the breakpoint
-    tracer (``clsc.solvers.tax_breakpoints``), which probes the follower at
-    off-grid tax rates.
+    continuous rate rather than ``scale_factor * index``.
+
+    Currently unused: its only caller was the parametric breakpoint tracer,
+    removed in favour of a single solution method (DBP). Retained because it is
+    the only way to probe the follower off the leader's tax grid, which is what
+    a grid-calibration study needs.
     """
     artifacts = master.artifacts
     model = artifacts.model
-    artifacts.follower_expr = artifacts.cost_expr + tax_rate * artifacts.emissions_expr
+    artifacts.follower_expr = artifacts.cost_expr + tax_rate * _tax_base_of(artifacts)
     model.ModelSense = GRB.MINIMIZE
     _apply_mip_start(model, warm_start_values)
 
@@ -387,8 +402,9 @@ def solve_dbp_relaxation_lexicographic(
 
     ``lex_stage2=False`` runs Stage 1 only (the DBP-ablation variant A2, no
     lexicographic Stage-2 in the master): the returned ``tax_index`` is then an
-    arbitrary emissions-minimiser, not the smallest tied index, so the surrounding
-    loop must rely on its Phase-2 bisection for tax-minimality.
+    arbitrary emissions-minimiser, not the smallest tied index, and there is no
+    Stage-2 proposal left for the surrounding loop's ``confirm_min_tax`` to
+    confirm, so the reported tax is only an upper bound on the true minimum.
 
     This replaces a post-hoc tax-tiebreak search (e.g. bisection) over the
     leader's tax grid. Every cut added to the master is valid for *every*
@@ -522,14 +538,17 @@ def build_fixed_tax_model(
     common = _build_common_model(instance, model_name=f"fixed_tau_{tax_index}")
     follower_expr = (
         common.cost_expr
-        + instance.scale_factor * tax_index * common.emissions_expr
+        + instance.scale_factor * tax_index * common.tax_base_expr
     )
 
+    # tie_break minimises PHYSICAL emissions: that is the leader's criterion,
+    # not the operator's tax bill.
     common.model.setObjective(common.emissions_expr if tie_break else follower_expr, GRB.MINIMIZE)
     return ModelArtifacts(
         model=common.model,
         cost_expr=common.cost_expr,
         emissions_expr=common.emissions_expr,
+        tax_base_expr=common.tax_base_expr,
         follower_expr=follower_expr,
     )
 
@@ -553,6 +572,7 @@ def build_epsilon_constraint_model(
         model=common.model,
         cost_expr=common.cost_expr,
         emissions_expr=common.emissions_expr,
+        tax_base_expr=common.tax_base_expr,
         follower_expr=common.cost_expr,
     )
 
@@ -615,6 +635,7 @@ def build_fixed_tax_follower_master(instance: InstanceData) -> FixedTaxFollowerM
         model=common.model,
         cost_expr=common.cost_expr,
         emissions_expr=common.emissions_expr,
+        tax_base_expr=common.tax_base_expr,
         follower_expr=common.cost_expr,
     )
     master = FixedTaxFollowerMaster(instance=instance, artifacts=artifacts)
@@ -635,7 +656,7 @@ def _set_fixed_tax_follower_expression(master: FixedTaxFollowerMaster, tax_index
         raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
     master.artifacts.follower_expr = (
         master.artifacts.cost_expr
-        + master.instance.scale_factor * tax_index * master.artifacts.emissions_expr
+        + master.instance.scale_factor * tax_index * _tax_base_of(master.artifacts)
     )
 
 
@@ -690,6 +711,23 @@ def build_dbp_relaxation_master(
     )
     model.addConstr(tax_rate == scale_factor * tax_index, name="tax_rate_def")
 
+    # The leader minimises emissions_total_scaled (PHYSICAL emissions); the
+    # follower pays tax on the discounted base. On an undiscounted instance the
+    # two coincide and we reuse the same variable, leaving the master's
+    # structure byte-identical to the pre-discounting formulation.
+    if common.tax_base_expr is common.emissions_expr:
+        tax_base_scaled = emissions_total_scaled
+    else:
+        tax_base_scaled = model.addVar(
+            lb=0.0,
+            ub=emissions_upper_bound_scaled,
+            name="tax_base_kt",
+        )
+        model.addConstr(
+            tax_base_scaled == common.tax_base_expr / EMISSIONS_SCALE,
+            name="tax_base_kt_def",
+        )
+
     # tau*emissions linearised by McCormick + spatial branch-and-bound. Exact
     # because tax_index is integer: once branching pins it, the McCormick box
     # degenerates to a single point and w = tax_rate * E exactly (Gupte, Ahmed,
@@ -704,7 +742,7 @@ def build_dbp_relaxation_master(
         name="tau_emissions_scaled_product",
     )
     model.addQConstr(
-        tau_emissions_product == tax_rate * emissions_total_scaled,
+        tau_emissions_product == tax_rate * tax_base_scaled,
         name="tau_emissions_scaled_def",
     )
     # tax_rate * E_scaled * EMISSIONS_SCALE == tax_rate * E_raw.
@@ -722,6 +760,7 @@ def build_dbp_relaxation_master(
             model=model,
             cost_expr=common.cost_expr,
             emissions_expr=common.emissions_expr,
+            tax_base_expr=common.tax_base_expr,
             follower_expr=follower_expr,
             tax_index_var=tax_index,
             emissions_total_var=emissions_total_scaled,
@@ -749,9 +788,12 @@ def add_dbp_relaxation_cut(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> 
     # regardless of tax_rate's own domain. follower_expr <= cost_v +
     # emissions_v * tax_rate is exactly cost_v + emissions_v * (scale_factor
     # * tax_index), just spelled without the scale factor inline.
+    # cut.tax_base is the discounted aggregate the follower was taxed on at
+    # this point; it coincides with cut.emissions on an undiscounted instance.
+    cut_tax_base = cut.emissions if cut.tax_base is None else cut.tax_base
     right_hand_side = (
         cut.cost
-        + cut.emissions * tax_rate
+        + cut_tax_base * tax_rate
         + _dbp_cut_epsilon(master, cut)
     )
     if master.artifacts.elastic_slack_var is not None:
@@ -909,6 +951,7 @@ def optimize_model(
         objective_value=float(model.ObjVal),
         cost=float(artifacts.cost_expr.getValue()),
         emissions=float(artifacts.emissions_expr.getValue()),
+        tax_base=float(_tax_base_of(artifacts).getValue()),
         follower_objective=float(artifacts.follower_expr.getValue()),
         tax_index=tax_index_value,
         mip_gap=mip_gap_value,
@@ -1152,29 +1195,67 @@ def _build_common_model(instance: InstanceData, *, model_name: str) -> _CommonMo
         name="x",
     )
 
+    # Present-value weights on recurring flows (see discount_factors), and the
+    # per-period rental charge for capital held over the horizon (see
+    # capital_multipliers). Both collapse to 1.0 on an instance carrying no
+    # interest_rate, leaving its objective exactly as first recorded.
+    discount = discount_factors(params, periods)
+    annuity = sum(discount[t] for t in periods)
+    capital = capital_multipliers(params, periods)
+
     inventory_cost = _inventory_cost(
         params,
         products,
         warehouses,
         periods,
         inv_w,
+        discount,
     )
     cost_expr = (
+        # Supplier selection is free in both Mota et al. (2018) and Tautenhain
+        # et al. (2021), and the generator no longer emits f_s -- the default
+        # in _apply_parameter_defaults is 0.0. The term is retained so that
+        # instances archived before 2026-08-11, which do carry an f_s, still
+        # reproduce their recorded objective exactly.
         gp.quicksum(params["f_s"].get(s, 0.0) * y_s[s] for s in suppliers)
-        + gp.quicksum(params.get("c_area_f", {}).get(f, 0.0) * installed_area[f] for f in factories)
-        + gp.quicksum(params.get("c_area_w", {}).get(w, 0.0) * installed_area[w] for w in warehouses)
-        + len(periods) * gp.quicksum(params["f_h"][h] * y_h[h] for h in hubs)
-        + _transport_fixed_cost(params, vehicle)
-        + gp.quicksum(params["i_prod_g"][g] * u_prod[f, g] for f in factories for g in production_technologies)
-        + gp.quicksum(params["i_rem_l"][l] * u_rem[f, l] for f in factories for l in remanufacturing_technologies)
-        + gp.quicksum(params["c_prod_g"][g] * q[p, f, g, t] for p, f, g, t in q.keys())
-        + gp.quicksum(params["c_rem_l"][l] * rem[p, f, l, t] for p, f, l, t in rem.keys())
+        + capital[ASSET_CLASS_FACILITY] * (
+            gp.quicksum(params.get("c_area_f", {}).get(f, 0.0) * installed_area[f] for f in factories)
+            + gp.quicksum(params.get("c_area_w", {}).get(w, 0.0) * installed_area[w] for w in warehouses)
+        )
+        + annuity * gp.quicksum(params["f_h"][h] * y_h[h] for h in hubs)
+        # The fleet's purchase price is charged here at its rental equivalent.
+        # Mota's investment ceiling (eq. 31) still binds the raw outlay -- see
+        # the truck_investment_budget constraint, which must not carry this
+        # factor: a budget limits what you spend, not what you consume.
+        + capital[ASSET_CLASS_VEHICLE] * _transport_fixed_cost(params, vehicle)
+        + capital[ASSET_CLASS_TECHNOLOGY] * (
+            gp.quicksum(params["i_prod_g"][g] * u_prod[f, g] for f in factories for g in production_technologies)
+            + gp.quicksum(params["i_rem_l"][l] * u_rem[f, l] for f in factories for l in remanufacturing_technologies)
+        )
+        + _labour_cost(
+            params,
+            factories=factories,
+            warehouses=warehouses,
+            production_technologies=production_technologies,
+            remanufacturing_technologies=remanufacturing_technologies,
+            vehicle_pairs=vehicle_pairs,
+            annuity=annuity,
+            y_f=y_f,
+            y_w=y_w,
+            installed_area=installed_area,
+            u_prod=u_prod,
+            u_rem=u_rem,
+            vehicle=vehicle,
+        )
+        + gp.quicksum(discount[t] * params["c_prod_g"][g] * q[p, f, g, t] for p, f, g, t in q.keys())
+        + gp.quicksum(discount[t] * params["c_rem_l"][l] * rem[p, f, l, t] for p, f, l, t in rem.keys())
         + inventory_cost
-        + gp.quicksum(params["rmc_s_u"][s][u] * x[u, s, d, m, t] for u, s, d in flow_raw if s in suppliers for m in allowed_modes[(s, d)] for t in periods)
-        + gp.quicksum(params["rpc_rp"][rp] * x[rp, r, d, m, t] for rp, r, d in flow_rp if r in retailers for m in allowed_modes[(r, d)] for t in periods)
-        + _transport_variable_cost(params, flow_tuples, allowed_modes, weights, distances, periods, mode_family, x, trip)
+        + gp.quicksum(discount[t] * params["rmc_s_u"][s][u] * x[u, s, d, m, t] for u, s, d in flow_raw if s in suppliers for m in allowed_modes[(s, d)] for t in periods)
+        + gp.quicksum(discount[t] * params["rpc_rp"][rp] * x[rp, r, d, m, t] for rp, r, d in flow_rp if r in retailers for m in allowed_modes[(r, d)] for t in periods)
+        + _transport_variable_cost(params, flow_tuples, allowed_modes, weights, distances, periods, mode_family, x, trip, discount)
         + gp.quicksum(
-            params["c_handle_m"][m]
+            discount[t]
+            * params["c_handle_m"][m]
             * ((1 if o in hubs else 0) + (1 if d in hubs else 0))
             * weights[item]
             * x[item, o, d, m, t]
@@ -1184,25 +1265,45 @@ def _build_common_model(instance: InstanceData, *, model_name: str) -> _CommonMo
             for t in periods
         )
     )
-    emissions_expr = (
-        gp.quicksum(params["e_open_f"][f] * installed_area[f] for f in factories)
-        + gp.quicksum(params["e_open_w"][w] * installed_area[w] for w in warehouses)
-        + gp.quicksum(
-            params["e_prod_g"][g] * params["omega_p"][p] * q[p, f, g, t]
-            for p, f, g, t in q.keys()
+
+    def _emissions(weight: dict[str, float]) -> gp.LinExpr:
+        """Total emissions, with ``weight[t]`` applied to per-period terms.
+
+        Construction emissions are unweighted in both variants: they are
+        incurred once, at t=0, when the facility is built.
+        """
+        return (
+            gp.quicksum(params["e_open_f"][f] * installed_area[f] for f in factories)
+            + gp.quicksum(params["e_open_w"][w] * installed_area[w] for w in warehouses)
+            + gp.quicksum(
+                weight[t] * params["e_prod_g"][g] * params["omega_p"][p] * q[p, f, g, t]
+                for p, f, g, t in q.keys()
+            )
+            + gp.quicksum(
+                weight[t] * params["e_rem_l"][l] * params["omega_p"][p] * rem[p, f, l, t]
+                for p, f, l, t in rem.keys()
+            )
+            + gp.quicksum(
+                weight[t] * params["e_raw_s_u"][s][u] * params["omega_u"][u] * x[u, s, d, m, t]
+                for u, s, d in flow_raw if s in suppliers for m in allowed_modes[(s, d)] for t in periods
+            )
+            + gp.quicksum(
+                weight[t]
+                * params["e_ship_m"][m]
+                * params.get("road_return_factor_m", {}).get(m, 1.0)
+                * weights[item] * distances[o][d] * x[item, o, d, m, t]
+                for item, o, d in flow_tuples for m in allowed_modes[(o, d)] for t in periods
+            )
         )
-        + gp.quicksum(
-            params["e_rem_l"][l] * params["omega_p"][p] * rem[p, f, l, t]
-            for p, f, l, t in rem.keys()
-        )
-        + gp.quicksum(params["e_raw_s_u"][s][u] * params["omega_u"][u] * x[u, s, d, m, t] for u, s, d in flow_raw if s in suppliers for m in allowed_modes[(s, d)] for t in periods)
-        + gp.quicksum(
-            params["e_ship_m"][m]
-            * params.get("road_return_factor_m", {}).get(m, 1.0)
-            * weights[item] * distances[o][d] * x[item, o, d, m, t]
-            for item, o, d in flow_tuples for m in allowed_modes[(o, d)] for t in periods
-        )
-    )
+
+    # emissions_expr is the PHYSICAL total the regulator minimises and every
+    # result reports: undiscounted, because a tonne of CO2e in the final period
+    # accumulates in the atmosphere exactly like one in the first.
+    emissions_expr = _emissions({t: 1.0 for t in periods})
+    # tax_base_expr is what the OPERATOR pays tax on: the present value of the
+    # tax bill, so per-period emissions carry the same discount weights as every
+    # other monetary flow. Identical to emissions_expr when ir = 0.
+    tax_base_expr = _emissions(discount) if is_discounted(params) else emissions_expr
 
     def fs(index: dict[tuple[str, str], list[tuple[str, str]]], item: str, node: str, period: str) -> gp.LinExpr:
         return gp.quicksum(x[item, o, d, m, period] for o, d in index.get((item, node), ()) for m in allowed_modes[(o, d)])
@@ -1228,7 +1329,12 @@ def _build_common_model(instance: InstanceData, *, model_name: str) -> _CommonMo
         u_prod,
         u_rem,
     )
-    return _CommonModel(model=model, cost_expr=cost_expr, emissions_expr=emissions_expr)
+    return _CommonModel(
+        model=model,
+        cost_expr=cost_expr,
+        emissions_expr=emissions_expr,
+        tax_base_expr=tax_base_expr,
+    )
 
 
 def _flow_sets(instance: InstanceData):
@@ -1247,19 +1353,21 @@ def _transport_fixed_cost(params, vehicle) -> gp.LinExpr:
 
 
 def _transport_variable_cost(
-    params, flow_tuples, allowed_modes, weights, distances, periods, mode_family, x, trip,
+    params, flow_tuples, allowed_modes, weights, distances, periods, mode_family, x, trip, discount,
 ) -> gp.LinExpr:
     truck_trip_cost = params.get("c_trip_m", {})
     road_return_factor = params.get("road_return_factor_m", {})
     flow_cost = gp.quicksum(
-        params["c_ship_m"][mode] * weights[item] * distances[origin][destination] * x[item, origin, destination, mode, period]
+        discount[period]
+        * params["c_ship_m"][mode] * weights[item] * distances[origin][destination] * x[item, origin, destination, mode, period]
         for item, origin, destination in flow_tuples
         for mode in allowed_modes[(origin, destination)]
         if _mode_family(mode, mode_family) != "truck"
         for period in periods
     )
     trip_cost = gp.quicksum(
-        truck_trip_cost.get(mode, params["c_ship_m"][mode] * params["bar_X_m"][mode])
+        discount[period]
+        * truck_trip_cost.get(mode, params["c_ship_m"][mode] * params["bar_X_m"][mode])
         * road_return_factor.get(mode, 2.0)
         * distances[origin][destination]
         * trip[origin, destination, mode, period]
@@ -1584,18 +1692,15 @@ def _add_transport_constraints(
             name=f"min_flow[{entity}]",
         )
 
-    for entity, cap in params.get("ecmax_i", {}).items():
-        for period in periods:
-            model.addConstr(
-                gp.quicksum(
-                    weights[item] * x[item, origin, destination, mode, period]
-                    for origin, destination in transport_arcs
-                    if origin == entity or destination == entity
-                    for mode in allowed_modes[(origin, destination)]
-                    for item in flow_by_arc.get((origin, destination), ())
-                )
-                <= cap * _entity_activity(entity, suppliers, factories, warehouses, hubs, y_s, y_f, y_w, y_h)
-    )
+    # Node throughput capacity (Mota et al. 2018, eq. 12-13, parameter ecmax_i)
+    # is deliberately NOT imposed. Entity capacity is expressed through installed
+    # floor area instead -- YCT_it <= YC_i in (C4), with YCT accumulating both
+    # per-period throughput (apur_p) and stored stock (apu_p). Tautenhain et al.
+    # (2021), the direct methodological reference, likewise drops the flow-based
+    # capacity and keeps only the area mechanism. Imposing both duplicated the
+    # same limit; with ecmax_i set two orders of magnitude above any attainable
+    # flow it never bound, and only injected a 7e6 big-M that pushed the
+    # constraint-matrix range past the solver's conditioning threshold.
     _add_intermodal_hub_constraints(
         model,
         transport_arcs,
@@ -1866,9 +1971,222 @@ def _entity_activity(entity: str, suppliers, factories, warehouses, hubs, y_s, y
     return 1.0
 
 
-def _inventory_cost(params, products, warehouses, periods, inv_w):
+def _labour_cost(
+    params,
+    *,
+    factories,
+    warehouses,
+    production_technologies,
+    remanufacturing_technologies,
+    vehicle_pairs,
+    annuity,
+    y_f,
+    y_w,
+    installed_area,
+    u_prod,
+    u_rem,
+    vehicle,
+) -> gp.LinExpr:
+    """Recurring labour cost (Mota et al. 2018, eq. 43, terms 10-13).
+
+    Four crews attach to network-design variables and are paid every period:
+    a fixed crew per opened facility, a crew proportional to installed floor
+    area, a crew per installed technology, and a driver per owned truck. Each
+    costs ``workers * lc_i * wwh * wpt`` per period. Because the crew sizes do
+    not vary over the horizon, the per-period total is multiplied by the
+    annuity factor rather than by ``|T|`` -- the same present-value weighting
+    every other recurring flow receives.
+
+    Returns an empty expression when the instance carries no labour data, so
+    instances generated before these parameters existed keep their original
+    objective.
+    """
+    labour_cost_by_entity = params.get("labour_cost_i") or {}
+    if not labour_cost_by_entity:
+        return gp.LinExpr(0.0)
+
+    hours = float(params.get("weekly_working_hours", 0.0)) * float(params.get("weeks_per_period", 0.0))
+    if hours <= 0.0:
+        return gp.LinExpr(0.0)
+
+    rate = annuity * hours
+
+    def wage(entity: str) -> float:
+        return float(labour_cost_by_entity.get(entity, 0.0))
+
+    fixed_workers = params.get("workers_fixed_i") or {}
+    workers_per_sqm = params.get("workers_per_sqm_i") or {}
+    workers_prod = params.get("workers_prod_g") or {}
+    workers_rem = params.get("workers_rem_l") or {}
+    workers_mode = params.get("workers_mode_m") or {}
+
+    facility_crew = gp.quicksum(
+        rate * wage(f) * float(fixed_workers.get(f, 0.0)) * y_f[f] for f in factories
+    ) + gp.quicksum(
+        rate * wage(w) * float(fixed_workers.get(w, 0.0)) * y_w[w] for w in warehouses
+    )
+    area_crew = gp.quicksum(
+        rate * wage(i) * float(workers_per_sqm.get(i, 0.0)) * installed_area[i]
+        for i in (*factories, *warehouses)
+    )
+    technology_crew = gp.quicksum(
+        rate * wage(f) * float(workers_prod.get(g, 0.0)) * u_prod[f, g]
+        for f in factories
+        for g in production_technologies
+    ) + gp.quicksum(
+        rate * wage(f) * float(workers_rem.get(l, 0.0)) * u_rem[f, l]
+        for f in factories
+        for l in remanufacturing_technologies
+    )
+    fleet_crew = gp.quicksum(
+        rate * wage(origin) * float(workers_mode.get(mode, 0.0)) * vehicle[origin, mode]
+        for origin, mode in vehicle_pairs
+    )
+    return facility_crew + area_crew + technology_crew + fleet_crew
+
+
+def _tax_base_of(artifacts: ModelArtifacts) -> gp.LinExpr:
+    """Expression the carbon tax multiplies.
+
+    Artifacts built before the discounted tax base existed (and any constructed
+    without it in tests) fall back to the physical emissions, which is exactly
+    the undiscounted semantics.
+    """
+    return artifacts.emissions_expr if artifacts.tax_base_expr is None else artifacts.tax_base_expr
+
+
+WEEKS_PER_YEAR = 52.0
+
+
+def discount_factors(params, periods) -> dict[str, float]:
+    """Present-value weight for each period, ``t = 1..|T|``.
+
+    Follows Mota et al. (2018), eq. 41: every recurring per-period monetary
+    flow is discounted at the interest rate ``ir``. Capital carries no weight
+    from this function -- it is charged as a per-period rental by
+    ``capital_multipliers``, which builds on the annuity computed here.
+    Emissions are NOT
+    discounted -- Mota's environmental objective (eq. 46) is a plain sum over
+    ``t`` -- but the carbon-tax *payment* is, because it is money. That
+    asymmetry is the point: the regulator counts physical tonnes, the operator
+    counts the present value of its tax bill.
+
+    ``ir = 0.1`` is an ANNUAL rate. Mota calibrated it for a model whose
+    periods are years ("ten years with yearly increments"), which his
+    depreciation schedule corroborates -- 5%/12.5%/20% per period are textbook
+    20-, 8- and 5-year asset lives. Tautenhain et al. carry that value into a
+    generator whose periods are 17.33 weeks without rescaling it, and never
+    address the mismatch; read literally there, 10% per four-month period
+    compounds to 33.1% a year, which is not a cost of capital any firm faces.
+    The rate is therefore compounded to the period length rather than applied
+    per period:
+
+        weight(t) = (1 + ir) ** (-t * weeks_per_period / 52)
+
+    ``weeks_per_period`` defaults to 52, i.e. periods ARE years and the
+    expression collapses to the textbook ``(1 + ir)^-t``. A missing or
+    non-positive ``interest_rate`` yields unit weights, so any instance
+    generated before the parameter existed reproduces its original objective
+    exactly.
+    """
+    rate = float(params.get("interest_rate", 0.0) or 0.0)
+    if rate <= 0.0:
+        return {period: 1.0 for period in periods}
+    weeks = float(params.get("weeks_per_period") or WEEKS_PER_YEAR)
+    years_per_period = weeks / WEEKS_PER_YEAR
+    return {
+        period: (1.0 + rate) ** (-(index + 1) * years_per_period)
+        for index, period in enumerate(periods)
+    }
+
+
+def is_discounted(params) -> bool:
+    return float(params.get("interest_rate", 0.0) or 0.0) > 0.0
+
+
+ASSET_CLASS_FACILITY = "facility"
+ASSET_CLASS_TECHNOLOGY = "technology"
+ASSET_CLASS_VEHICLE = "vehicle"
+
+# Mirrors clsc.generator.tautenhain_data.ASSET_LIFE_YEARS, for instances that
+# predate the parameter. Recovered from Mota's depreciation schedule: his
+# 5%/12.5%/20% per yearly period are 20-, 8- and 5-year straight-line lives,
+# and in each class the ten-year depreciation plus the salvage value sums to
+# exactly 1.0, which is what identifies the life as the underlying invariant.
+DEFAULT_ASSET_LIFE_YEARS = {
+    ASSET_CLASS_FACILITY: 20.0,
+    ASSET_CLASS_TECHNOLOGY: 8.0,
+    ASSET_CLASS_VEHICLE: 5.0,
+}
+
+
+def capital_recovery_factor(rate_per_period: float, life_periods: float) -> float:
+    """Level per-period charge that repays one unit of capital over its life.
+
+    The textbook CRF, ``i / (1 - (1+i)^-n)``. At ``i = 0`` it degenerates to
+    straight-line depreciation ``1/n``, which is the correct limit.
+    """
+    if life_periods <= 0.0:
+        return 1.0
+    if rate_per_period <= 0.0:
+        return 1.0 / life_periods
+    return rate_per_period / (1.0 - (1.0 + rate_per_period) ** (-life_periods))
+
+
+def capital_multipliers(params, periods) -> dict[str, float]:
+    """Coefficient each one-off capital cost carries in the follower's objective.
+
+    Mota et al. (2018) buy an asset outright at ``t=0`` -- eq. 41 subtracts
+    ``FCI`` undiscounted -- and sell the unconsumed remainder back at the
+    horizon, through eq. 42's salvage term. Charging the full purchase price
+    WITHOUT that recovery, which is what this model did until 2026-08-11, is
+    half of the convention, and it makes the price of capital depend on the
+    horizon: a factory used for one year cost exactly what one used for four
+    years cost. Since ``|T|`` is an experimental factor here, that alone put a
+    3.5x swing in the capex:opex ratio across its levels, for no economic
+    reason.
+
+    We charge instead for the asset-years actually consumed: a level per-period
+    rental ``CRF * FCI``, whose present value over the horizon is
+    ``CRF * FCI * annuity``. That is the same economics as Mota's buy-and-sell
+    pair, it needs no assumption about reselling a purpose-built facility at
+    book value after one year, and it makes capex:opex invariant in ``|T|`` by
+    construction. Salvage is then not omitted but structurally absent: nothing
+    is bought outright, so there is no residual to recover.
+
+    The depreciation tax shield is NOT applied. With revenue constant the
+    objective reduces to cost minimisation and Mota's ``(1-tr)`` divides out,
+    leaving a relative discount on capital of ``tr/(1-tr)`` per unit
+    depreciated; at these asset lives that is worth about 2% of FCI, second
+    order against everything else here.
+
+    A missing or non-positive ``interest_rate`` returns unit multipliers, so
+    any instance generated before this existed reproduces its original
+    objective exactly.
+    """
+    lives = params.get("asset_life_years") or DEFAULT_ASSET_LIFE_YEARS
+    rate = float(params.get("interest_rate", 0.0) or 0.0)
+    if rate <= 0.0:
+        return {asset_class: 1.0 for asset_class in lives}
+    weeks = float(params.get("weeks_per_period") or WEEKS_PER_YEAR)
+    years_per_period = weeks / WEEKS_PER_YEAR
+    rate_per_period = (1.0 + rate) ** years_per_period - 1.0
+    annuity = sum(discount_factors(params, periods).values())
+    return {
+        asset_class: annuity
+        * capital_recovery_factor(rate_per_period, float(life) / years_per_period)
+        for asset_class, life in lives.items()
+    }
+
+
+def _inventory_cost(params, products, warehouses, periods, inv_w, discount):
     product_holding_cost = params["h_p"]
-    return gp.quicksum(product_holding_cost[p] * inv_w[p, w, t] for p in products for w in warehouses for t in periods)
+    return gp.quicksum(
+        discount[t] * product_holding_cost[p] * inv_w[p, w, t]
+        for p in products
+        for w in warehouses
+        for t in periods
+    )
 
 
 def _input_requirement(params: dict[str, object], raw_material: str, product: str, technology: str) -> float:

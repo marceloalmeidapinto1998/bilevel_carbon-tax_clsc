@@ -33,9 +33,9 @@ def _minimal_params() -> dict:
 
 
 def test_factor_registry_contains_expected_factors() -> None:
-    """The core 7-factor set must all be present; the registry is shared with the campaign
-    (see test_campaign_02_continuous_factors_are_subset_of_registry below), so it may
-    legitimately contain more than these 7 -- hence subset, not exact-equality.
+    """The core 7-factor set must all be present; the registry may legitimately contain more
+    than these 7 (see test_continuous_factors_are_subset_of_registry) -- hence subset, not
+    exact-equality.
     """
     expected = {
         "demand", "return_availability", "emission_intensity",
@@ -44,20 +44,15 @@ def test_factor_registry_contains_expected_factors() -> None:
     assert expected.issubset(set(FACTOR_REGISTRY))
 
 
-def test_campaign_02_continuous_factors_are_subset_of_registry() -> None:
+def test_continuous_factors_are_subset_of_registry() -> None:
     for name in CONTINUOUS_FACTORS:
-        assert name in FACTOR_REGISTRY, f"campaign_02 factor {name!r} missing from registry"
+        assert name in FACTOR_REGISTRY, f"CONTINUOUS_FACTORS entry {name!r} missing from registry"
 
 
 def test_factor_registry_specs_have_valid_bounds() -> None:
     for name, spec in FACTOR_REGISTRY.items():
         assert spec.low < spec.high, f"Factor {name!r}: low >= high"
         assert spec.low > 0.0, f"Factor {name!r}: low must be positive"
-
-
-def test_core_continuous_factors_are_subset_of_registry() -> None:
-    for name in CONTINUOUS_FACTORS:
-        assert name in FACTOR_REGISTRY, f"CORE factor {name!r} missing from registry"
 
 
 def test_apply_levels_at_baseline_leaves_numeric_params_unchanged() -> None:
@@ -69,31 +64,30 @@ def test_apply_levels_at_baseline_leaves_numeric_params_unchanged() -> None:
     assert params["e_prod_g"]["g1"] == pytest.approx(original_e_prod)
 
 
-def test_apply_levels_demand_scales_leaf_values() -> None:
+# One case per factor whose `.apply()` scales a fixed set of leaves to an exact value. Each
+# entry is (factor_name, level, [(path_into_params, expected_value), ...]). Factors with a
+# qualitatively different assertion shape (return_availability's cap, tax_range's paired
+# int+float update) get their own test below instead of forcing them into this table.
+_LEAF_SCALING_CASES = [
+    ("demand", 2.0, [(("d_r_p_t", "r1", "p1", "t1"), 200.0)]),
+    ("emission_intensity", 0.5, [(("e_prod_g", "g1"), 0.05), (("e_rem_l", "l1"), 0.05)]),
+    ("capacity", 1.5, [(("bar_p_g", "g1"), 750.0), (("bar_q_l", "l1"), 450.0)]),
+    ("facility_area_cost", 0.5, [(("c_area_f", "f1"), 500.0), (("c_area_w", "w1"), 400.0)]),
+    ("transport_emission_intensity", 0.5, [(("e_ship_m", "m1"), 0.15)]),
+    ("return_economics", 1.5, [(("rpc_rp", "r1", "p1"), 75.0)]),
+    ("raw_material_cost", 0.5, [(("rmc_s_u", "s1", "u1"), 10.0)]),
+]
+
+
+@pytest.mark.parametrize("factor, level, expected", _LEAF_SCALING_CASES, ids=[c[0] for c in _LEAF_SCALING_CASES])
+def test_apply_levels_scales_the_expected_leaves(factor, level, expected) -> None:
     params = _minimal_params()
-    apply_levels(params, ("demand",), [2.0])
-    assert params["d_r_p_t"]["r1"]["p1"]["t1"] == pytest.approx(200.0)
-
-
-def test_apply_levels_emission_intensity_scales_both_prod_and_rem() -> None:
-    params = _minimal_params()
-    apply_levels(params, ("emission_intensity",), [0.5])
-    assert params["e_prod_g"]["g1"] == pytest.approx(0.05)
-    assert params["e_rem_l"]["l1"] == pytest.approx(0.05)
-
-
-def test_apply_levels_capacity_scales_both_prod_and_rem() -> None:
-    params = _minimal_params()
-    apply_levels(params, ("capacity",), [1.5])
-    assert params["bar_p_g"]["g1"] == pytest.approx(750.0)
-    assert params["bar_q_l"]["l1"] == pytest.approx(450.0)
-
-
-def test_apply_levels_facility_area_cost_scales_both_f_and_w() -> None:
-    params = _minimal_params()
-    apply_levels(params, ("facility_area_cost",), [0.5])
-    assert params["c_area_f"]["f1"] == pytest.approx(500.0)
-    assert params["c_area_w"]["w1"] == pytest.approx(400.0)
+    apply_levels(params, (factor,), [level])
+    for path, value in expected:
+        node = params
+        for key in path:
+            node = node[key]
+        assert node == pytest.approx(value), path
 
 
 def test_apply_levels_return_availability_is_capped_at_one() -> None:
@@ -102,24 +96,6 @@ def test_apply_levels_return_availability_is_capped_at_one() -> None:
     assert params["rho_r_p_t"]["r1"]["p1"]["t1"] <= 1.0
     assert params["ret_max_frac_r_p_t"]["r1"]["p1"]["t1"] <= 1.0
     assert params["ret_min_frac_r_p_t"]["r1"]["p1"]["t1"] <= 1.0
-
-
-def test_apply_levels_transport_emission_intensity_scales_e_ship_m() -> None:
-    params = _minimal_params()
-    apply_levels(params, ("transport_emission_intensity",), [0.5])
-    assert params["e_ship_m"]["m1"] == pytest.approx(0.15)
-
-
-def test_apply_levels_return_economics_scales_rpc_rp() -> None:
-    params = _minimal_params()
-    apply_levels(params, ("return_economics",), [1.5])
-    assert params["rpc_rp"]["r1"]["p1"] == pytest.approx(75.0)
-
-
-def test_apply_levels_raw_material_cost_scales_rmc_s_u() -> None:
-    params = _minimal_params()
-    apply_levels(params, ("raw_material_cost",), [0.5])
-    assert params["rmc_s_u"]["s1"]["u1"] == pytest.approx(10.0)
 
 
 def test_apply_levels_tax_range_updates_tax_index_and_tau_together() -> None:

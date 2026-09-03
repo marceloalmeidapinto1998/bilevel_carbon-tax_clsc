@@ -159,18 +159,26 @@ The regulator's sole decision is the integer carbon-tax index
 \{\taxindexlb,\taxindexlb+1,\ldots,\taxindexub\}\subset\Z,
 \label{eq:leader_domain}
 \end{equation}
-which induces the carbon-tax rate $\tau=10\,\taxindex$ (USD/t\,CO$_2$e).
+which induces the carbon-tax rate $\tau=\gridstep\,\taxindex$, where
+$\gridstep$ is the grid step (USD/kg\,CO$_2$e). The substantive object
+is the policy interval $[\underline{\tau},\overline{\tau}]$ of
+\Cref{app:data:tax_range}; the index bounds are \emph{derived} from it
+and from $\gridstep$, as
+$\taxindexlb=\underline{\tau}/\gridstep$ and
+$\taxindexub=\overline{\tau}/\gridstep$. The same policy interval can
+therefore be traversed at different grid resolutions by varying
+$\gridstep$ alone, at the cost of a proportionally larger index domain.
+
 We work with the index $\taxindex$, rather than the economically
 meaningful rate $\tau$ directly, \emph{only} in the leader's
 formulation~\eqref{eq:leader} and the \DBP of \Cref{sec:methodology}:
 restricting the leader to a finite, evenly spaced grid is what makes
 the domain enumerable and keeps the exact DBP's bounding argument
-finite. This is a modelling device, not a substantive restriction ---
-the grid step (10 USD/t) is fine relative to the policy range under
-study (\Cref{app:data:tax_range}) --- and it is confined to the
-algorithmic machinery: every reported result, table, and discussion in
-\Cref{sec:experiments,sec:discussion} is expressed in the rate $\tau$
-(USD/t\,CO$_2$e), not the index $\taxindex$.
+finite. This is a modelling device, not a substantive restriction, and
+it is confined to the algorithmic machinery: every reported result,
+table, and discussion in \Cref{sec:experiments,sec:discussion} is
+expressed in the rate $\tau$ (USD/t\,CO$_2$e), not the index
+$\taxindex$.
 
 \paragraph{Follower decision variables.}
 Given $\taxindex$, the follower chooses the vector

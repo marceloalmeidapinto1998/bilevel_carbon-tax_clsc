@@ -1,0 +1,602 @@
+% !TeX root = ../main.tex
+% ================================================================
+%  sections/04_model_rewrite.tex
+%
+%  Proposed EJOR-style rewrite of the bilevel formulation.
+%  Self-contained: \providecommand guards define every new symbol,
+%  so this file compiles alongside styles/macros.tex unchanged.
+%
+%  It does NOT overwrite 04b_leader.tex / 04c_follower.tex.
+%  Symbol migration map: see the table at the end of this file.
+% ================================================================
+
+% ── New/renamed symbols (guarded; move into styles/macros.tex) ──
+\providecommand{\taxstep}{\Delta}                        % was \gridstep (=\theta): CLASHED with return lag \theta_p
+\providecommand{\taxgrid}{\mathcal{T}^{\tau}}
+\providecommand{\lexle}{\preceq_{\mathrm{lex}}}
+\providecommand{\Mtrip}{M^{\mathrm{trip}}}
+\providecommand{\Mveh}{M^{\mathrm{veh}}}
+\providecommand{\Mrdij}{\setM^{\mathrm{rd}}_{ij}}
+\providecommand{\Moutij}{\setM^{\mathrm{out}}_{ij}}
+
+%=================================================================
+\subsection{Notational conventions}
+\label{sec:model:conventions}
+
+Three conventions keep the formulation compact. First, an overline or
+underline always denotes a \emph{bound} on the quantity carrying it
+($\underline{A}_i\le A_i\le\overline{A}_i$), and never any other
+operation. Second, whenever a relation is indexed by a pair set, we
+write its slices as
+\begin{equation}
+\setG_p\defeq\{g\in\setG:(p,g)\in\Omega^{\mathrm{p}}\},\quad
+\setP_g\defeq\{p\in\setP:(p,g)\in\Omega^{\mathrm{p}}\},\quad
+\setL_p,\ \setP_{\ell}\ \text{analogously,}
+\label{eq:slices}
+\end{equation}
+\begin{equation}
+\Phi_{ij}\defeq\{q\in\setQ:(i,j)\in\setA_q\},\qquad
+\Mrdij\defeq\setM_{ij}\cap\setMrd,\qquad
+\Moutij\defeq\setM_{ij}\cap\setMout ,
+\label{eq:slices2}
+\end{equation}
+so that every summation ranges over a named set. Third, aggregate node
+flows and the network-activity indicator are
+\begin{equation}
+X^{\mathrm{in}}_{qit}\defeq\!\!\sum_{j:(j,i)\in\setA_q}\sum_{m\in\setM_{ji}}\!\! x_{qjimt},
+\qquad
+X^{\mathrm{out}}_{qit}\defeq\!\!\sum_{j:(i,j)\in\setA_q}\sum_{m\in\setM_{ij}}\!\! x_{qijmt},
+\qquad
+\tilde{y}_i\defeq
+\begin{cases}
+y_i, & i\in\setNo,\\
+1,   & i\in\setR,
+\end{cases}
+\label{eq:flows}
+\end{equation}
+for all $q\in\setQ$, $i\in\setN$, $t\in\setT$. Finally, the floor area
+used at facility $i$ in period $t$ combines a throughput-handling
+component (factories and warehouses) with a stock-storage component
+(warehouses only; factories hold no inventory, \Cref{sec:model:c1}):
+\begin{equation}
+A^{\mathrm{u}}_{it}\defeq
+\begin{cases}
+\displaystyle\sum_{p\in\setP} a^{\mathrm{hd}}_p\,X^{\mathrm{out}}_{pit},
+  & i\in\setF,\\[1.0em]
+\displaystyle\sum_{p\in\setP}\Bigl(a^{\mathrm{hd}}_p\,X^{\mathrm{in}}_{pit}
+  + a^{\mathrm{st}}_p\,I_{pit}\Bigr),
+  & i\in\setW,
+\end{cases}
+\qquad \forall\, i\in\setF\cup\setW,\ t\in\setT .
+\label{eq:used_area}
+\end{equation}
+
+%=================================================================
+\subsection{The bilevel programme}
+\label{sec:model:bilevel}
+
+The regulator (leader) announces a carbon-tax index
+$\hat{\tau}\in\taxgrid\defeq\{\underline{\hat{\tau}},\ldots,
+\overline{\hat{\tau}}\}\subset\Z$, inducing the rate
+$\tau=\taxstep\hat{\tau}$ with grid step $\taxstep$
+(USD/kg\,CO$_2$e). The supply chain operator (follower) observes
+$\hat{\tau}$ and chooses
+\begin{equation}
+\bz=\bigl(y,\,A,\,\lambda^{\mathrm{p}},\,\lambda^{\mathrm{r}},\,\rho,\,
+\sigma,\,\zeta,\,\kappa,\,n,\,N,\,q^{\mathrm{p}},\,q^{\mathrm{r}},\,
+I,\,x\bigr)\in\setX ,
+\label{eq:zvec}
+\end{equation}
+where $\setX$ is the mixed-integer set defined by
+\eqref{eq:c1}--\eqref{eq:domains} below. Writing $\lexle$ for the
+lexicographic order on $\R^2$ --- $(e_1,\hat\tau_1)\lexle
+(e_2,\hat\tau_2)$ iff $e_1<e_2$, or $e_1=e_2$ and
+$\hat\tau_1\le\hat\tau_2$ --- the complete programme is
+\begin{subequations}\label{eq:BL}
+\begin{alignat}{2}
+\textup{(BL)}\quad
+\lexmin_{\hat{\tau},\,\bz}\quad
+ & \bigl(\Emis(\bz),\ \hat{\tau}\bigr) &&
+\label{eq:BL_obj}\\[0.2em]
+\text{s.t.}\quad
+ & \hat{\tau}\in\taxgrid , &&
+\label{eq:BL_tax}\\[0.2em]
+ & \bz\in\Sol{\hat{\tau}}\defeq
+   \argmin_{\bz'\in\setX}\;
+   \bigl\{\Cost(\bz')+\taxstep\,\hat{\tau}\,\Emis(\bz')\bigr\}. &&
+\label{eq:BL_react}
+\end{alignat}
+\end{subequations}
+Minimising jointly over $(\hat\tau,\bz)$ in~\eqref{eq:BL_obj} encodes
+the \emph{optimistic} (strong) bilevel convention
+\citep{dempe2002}: when the follower's best response is not
+unique, the leader resolves the tie in favour of the lowest-emission
+response. The second lexicographic criterion encodes a
+\emph{least-intervention principle} --- among tax indices attaining the
+minimum emissions, the regulator levies the smallest.
+
+\begin{remark}[Why lexicographic and not weighted-sum]
+\label{rem:no_scalarization}
+The two leader criteria are incommensurable: $\Emis$ is measured in
+kg\,CO$_2$e, $\hat\tau$ is a dimensionless grid index. A weighted sum
+$\Emis(\bz)+\varepsilon\hat\tau$ is \emph{exactly} equivalent
+to~\eqref{eq:BL_obj} for any
+$0<\varepsilon<\Delta E_{\min}/(\overline{\hat\tau}-\underline{\hat\tau})$,
+where $\Delta E_{\min}$ is the smallest positive gap between distinct
+attainable emission levels; but $\Delta E_{\min}$ is not known a priori
+and any safe surrogate drives $\varepsilon$ below solver tolerance. We
+therefore keep the pre-emptive form and enforce it algorithmically
+(\Cref{sec:method:tiebreak}).
+\end{remark}
+
+Since the follower's problem is a \MILP for every fixed $\hat\tau$,
+\eqref{eq:BL} is NP-hard \citep{moore1990,jeroslow1985}.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Structural properties}
+\label{sec:model:structure}
+
+The tax index enters~\eqref{eq:BL_react} only through an objective
+coefficient. This observation has three consequences that the solution
+method of \Cref{sec:methodology} exploits.
+
+\begin{proposition}[Parameter-free feasible set]\label{prop:X_indep}
+$\setX$ does not depend on $\hat{\tau}$. Consequently
+$\Sol{\hat\tau}\neq\emptyset$ for every $\hat\tau\in\taxgrid$ if and
+only if $\setX\neq\emptyset$, and bilevel feasibility need be verified
+once, not once per tax index.
+\end{proposition}
+
+\begin{proposition}[Monotone emission response]\label{prop:monotone}
+Let $\hat\tau_1<\hat\tau_2$ in $\taxgrid$ and let
+$\bz_1\in\Sol{\hat\tau_1}$, $\bz_2\in\Sol{\hat\tau_2}$ be \emph{any}
+optimal responses. Then $\Emis(\bz_2)\le\Emis(\bz_1)$. Hence the
+optimal-response emission level
+$\Emis^{*}(\hat\tau)\defeq\min\{\Emis(\bz):\bz\in\Sol{\hat\tau}\}$ is a
+non-increasing step function of $\hat\tau$, and the follower value
+function
+$\phi(\hat\tau)\defeq\min_{\bz\in\setX}\{\Cost(\bz)+\taxstep\hat\tau\Emis(\bz)\}$
+is concave and piecewise linear in $\hat\tau$, with slope
+$\taxstep\,\Emis^{*}(\hat\tau)$.
+\end{proposition}
+
+\begin{proof}
+Optimality of $\bz_1$ at $\hat\tau_1$ and of $\bz_2$ at $\hat\tau_2$ gives
+$\Cost_1+\taxstep\hat\tau_1\Emis_1\le\Cost_2+\taxstep\hat\tau_1\Emis_2$
+and
+$\Cost_2+\taxstep\hat\tau_2\Emis_2\le\Cost_1+\taxstep\hat\tau_2\Emis_1$.
+Adding and cancelling $\Cost_1,\Cost_2$ yields
+$\taxstep(\hat\tau_2-\hat\tau_1)(\Emis_2-\Emis_1)\le0$; since
+$\taxstep>0$ and $\hat\tau_2>\hat\tau_1$, $\Emis_2\le\Emis_1$.
+Concavity of $\phi$ is immediate: it is a pointwise minimum of the
+affine functions $\hat\tau\mapsto\Cost(\bz)+\taxstep\hat\tau\Emis(\bz)$
+over $\bz\in\setX$, and piecewise linearity follows because $\setX$ has
+finitely many extreme optimal responses over the finite grid.
+\end{proof}
+
+\begin{corollary}[Threshold form of the leader's problem]
+\label{cor:threshold}
+The leader's optimal emission level is
+$\Emis^{*}(\overline{\hat\tau})$, and its optimal tax index is
+$\hat\tau^{*}=\min\{\hat\tau\in\taxgrid:
+\Emis^{*}(\hat\tau)=\Emis^{*}(\overline{\hat\tau})\}$. The predicate
+$\Emis^{*}(\hat\tau)=\Emis^{*}(\overline{\hat\tau})$ is monotone in
+$\hat\tau$ by \Cref{prop:monotone}, so $\hat\tau^{*}$ is located by
+bisection in $O(\log|\taxgrid|)$ exact follower solves.
+\end{corollary}
+
+\Cref{prop:monotone} also explains, as a property of the model rather
+than an empirical regularity, why the emission--tax response observed in
+\Cref{sec:experiments} is a saturating staircase: the response is
+non-increasing and piecewise constant by construction, and it flattens
+once no remaining reconfiguration of the network trades cost for
+emissions at the prevailing rate.
+
+%=================================================================
+\subsection{Leader: the regulator}
+\label{sec:model:leader}
+
+The leader's feasible set is the finite grid~\eqref{eq:BL_tax} together
+with the bilevel-optimality condition~\eqref{eq:BL_react}. The index
+bounds are \emph{derived} from the substantive policy interval
+$[\underline{\tau},\overline{\tau}]$ of \Cref{app:data:tax_range} and
+the grid step, as
+$\underline{\hat\tau}=\underline{\tau}/\taxstep$ and
+$\overline{\hat\tau}=\overline{\tau}/\taxstep$; the same interval is
+traversed at any resolution by varying $\taxstep$ alone. The index is a
+modelling device confined to~\eqref{eq:BL} and to the \DBP of
+\Cref{sec:methodology}: all reported results are expressed in the rate
+$\tau$ (USD/t\,CO$_2$e).
+
+%=================================================================
+\subsection{Follower: the supply chain operator}
+\label{sec:model:follower}
+
+\subsubsection{Objective}
+\label{sec:model:follower_obj}
+
+Total cost decomposes into network investment, operations, and
+transport, $\Cost(\bz)=\Cost^{\mathrm{inv}}(\bz)+
+\Cost^{\mathrm{op}}(\bz)+\Cost^{\mathrm{tr}}(\bz)$, with
+\begin{align}
+\Cost^{\mathrm{inv}}(\bz)
+&=\sum_{s\in\setS}F^{\mathrm{s}}_s\,y_s
+ +\sum_{i\in\setF\cup\setW}c^{\mathrm{area}}_i\,A_i
+ +\sum_{f\in\setF}\Bigl(\sum_{g\in\setG}C^{\mathrm{p}}_g\lambda^{\mathrm{p}}_{fg}
+  +\sum_{\ell\in\setL}C^{\mathrm{r}}_{\ell}\lambda^{\mathrm{r}}_{f\ell}\Bigr)
+ +\sum_{i\in\setN}\sum_{m\in\setMrd}F^{\mathrm{v}}_m\,N_{im},
+\label{eq:cost_inv}\\[0.4em]
+\Cost^{\mathrm{op}}(\bz)
+&=\abs{\setT}\sum_{h\in\setH}F^{\mathrm{h}}_h\,y_h
+ +\sum_{t\in\setT}\sum_{f\in\setF}\Bigl(
+   \sum_{g\in\setG}\sum_{p\in\setP_g}c^{\mathrm{p}}_g\,q^{\mathrm{p}}_{pfgt}
+  +\sum_{\ell\in\setL}\sum_{p\in\setP_{\ell}}c^{\mathrm{r}}_{\ell}\,q^{\mathrm{r}}_{pf\ell t}\Bigr)
+\nonumber\\
+&\quad
+ +\sum_{t\in\setT}\Bigl(
+   \sum_{i\in\setNv}\sum_{p\in\setP}c^{\mathrm{h}}_p\,I_{pit}
+  +\sum_{s\in\setS}\sum_{u\in\setU}c^{\mathrm{u}}_{su}\,X^{\mathrm{out}}_{ust}
+  +\sum_{r\in\setR}\sum_{k\in\setK}c^{\mathrm{k}}_k\,X^{\mathrm{out}}_{krt}\Bigr),
+\label{eq:cost_op}\\[0.4em]
+\Cost^{\mathrm{tr}}(\bz)
+&=\sum_{t\in\setT}\sum_{(i,j)\in\setA}\Biggl[
+   \sum_{m\in\Mrdij}c^{\mathrm{veh}}_m\,r_m\,\delta_{ij}\,n_{ijmt}
+  +\sum_{m\in\Moutij}\sum_{q\in\Phi_{ij}}c^{\mathrm{tr}}_m\,\delta_{ij}\,\omega_q\,x_{qijmt}
+\nonumber\\
+&\hspace{6.2em}
+  +\bigl(\xi^{\mathrm{o}}_{ij}+\xi^{\mathrm{d}}_{ij}\bigr)
+   \sum_{m\in\setM_{ij}}\sum_{q\in\Phi_{ij}}c^{\mathrm{hub}}_m\,\omega_q\,x_{qijmt}\Biggr],
+\label{eq:cost_tr}
+\end{align}
+where $\xi^{\mathrm{o}}_{ij}=\mathbf{1}[i\in\setH]$ and
+$\xi^{\mathrm{d}}_{ij}=\mathbf{1}[j\in\setH]$ flag hub endpoints. No
+separate fixed cost is charged for opening a factory or warehouse:
+\eqref{eq:area_bounds} forces $A_i\ge\underline{A}_i>0$ whenever
+$y_i=1$, so the area term already prices the opening decision. Road
+transport is charged per trip and scaled by the empty-return factor
+$r_m$; outsourced transport is charged per kilogram-kilometre.
+
+Total emissions are
+\begin{align}
+\Emis(\bz)
+&=\sum_{i\in\setF\cup\setW}e^{\mathrm{o,f}}_i\,A_i
+ +\sum_{t\in\setT}\sum_{f\in\setF}\Bigl(
+   \sum_{g\in\setG}\sum_{p\in\setP_g}e^{\mathrm{p}}_g\,\omega_p\,q^{\mathrm{p}}_{pfgt}
+  +\sum_{\ell\in\setL}\sum_{p\in\setP_{\ell}}e^{\mathrm{r}}_{\ell}\,\omega_p\,q^{\mathrm{r}}_{pf\ell t}\Bigr)
+\nonumber\\
+&\quad
+ +\sum_{t\in\setT}\sum_{s\in\setS}\sum_{u\in\setU}e^{\mathrm{u}}_{su}\,\omega_u\,X^{\mathrm{out}}_{ust}
+ +\sum_{t\in\setT}\sum_{(i,j)\in\setA}\sum_{m\in\setM_{ij}}\sum_{q\in\Phi_{ij}}
+   e^{\mathrm{tr}}_m\,r_m\,\omega_q\,\delta_{ij}\,x_{qijmt}.
+\label{eq:emissions}
+\end{align}
+Suppliers and hubs carry no opening emission: a supplier's footprint is
+priced entirely through $e^{\mathrm{u}}_{su}$, and hubs are outsourced
+terminal-access points (\Cref{as:hub}). The empty return leg of a road
+delivery emits although it carries no cargo, hence the same $r_m$ as
+in~\eqref{eq:cost_tr}, with $r_m=1$ for outsourced modes.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C1) Flow conservation and inventory balance}
+\label{sec:model:c1}
+
+\begin{subequations}\label{eq:c1}
+\begin{alignat}{2}
+X^{\mathrm{in}}_{pft}
+  +\!\!\sum_{g\in\setG_p}\!\! q^{\mathrm{p}}_{pfgt}
+  +\!\!\sum_{\ell\in\setL_p}\!\! q^{\mathrm{r}}_{pf\ell t}
+  &= X^{\mathrm{out}}_{pft},
+&\quad& \forall\, p\in\setP,\ f\in\setF,\ t\in\setT,
+\label{eq:bal_factory}\\
+I_{pwt} &= I_{pw,t-1}+X^{\mathrm{in}}_{pwt}-X^{\mathrm{out}}_{pwt},
+&& \forall\, p\in\setP,\ w\in\setW,\ t\in\setT,
+\label{eq:bal_warehouse}\\
+X^{\mathrm{in}}_{kwt} &= X^{\mathrm{out}}_{kwt},
+&& \forall\, k\in\setK,\ w\in\setW,\ t\in\setT,
+\label{eq:bal_warehouse_k}\\
+X^{\mathrm{in}}_{prt} &= d_{rpt},
+&& \forall\, p\in\setP,\ r\in\setR,\ t\in\setT,
+\label{eq:bal_market}\\
+X^{\mathrm{in}}_{qht} &= X^{\mathrm{out}}_{qht},
+&& \forall\, q\in\setQ,\ h\in\setH,\ t\in\setT,
+\label{eq:bal_hub}\\
+I_{pi0} &= I^{0}_{pi},
+&& \forall\, p\in\setP,\ i\in\setNv .
+\label{eq:inv_init}
+\end{alignat}
+\end{subequations}
+Only warehouses hold stock, and only of finished products; factories,
+markets, and hubs are pure flow-through nodes, as are recoverable items
+everywhere.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C2) Reverse logistics and returns}
+\label{sec:model:c2}
+
+With $d_{rp,t-\theta_p}\defeq0$ for $t-\theta_p<1$:
+\begin{subequations}\label{eq:c2}
+\begin{alignat}{2}
+\sum_{p\in\setP}\gamma_{kp}\,\underline{\eta}_{rpt}\,d_{rp,t-\theta_p}
+  \;\le\; X^{\mathrm{out}}_{krt}
+  \;&\le\;\sum_{p\in\setP}\gamma_{kp}\,\overline{\eta}_{rpt}\,d_{rp,t-\theta_p},
+&\quad& \forall\, k\in\setK,\ r\in\setR,\ t\in\setT,
+\label{eq:return_bounds}\\
+X^{\mathrm{in}}_{kft}
+  &=\sum_{\ell\in\setL}\sum_{p\in\setP_{\ell}}\beta_{kp}\,q^{\mathrm{r}}_{pf\ell t},
+&& \forall\, k\in\setK,\ f\in\setF,\ t\in\setT.
+\label{eq:return_factory}
+\end{alignat}
+\end{subequations}
+Every recovered unit entering a factory is consumed by
+remanufacturing, closing the material loop.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C3) Raw material supply}
+\label{sec:model:c3}
+
+\begin{subequations}\label{eq:c3}
+\begin{alignat}{2}
+\underline{S}_{su}\,\sigma_{sut}\;\le\; X^{\mathrm{out}}_{ust}
+  \;&\le\;\overline{S}_{su}\,\sigma_{sut},
+&\quad& \forall\, s\in\setS,\ u\in\setU,\ t\in\setT,
+\label{eq:supply_bounds}\\
+\sigma_{sut} &\le y_s,
+&& \forall\, s\in\setS,\ u\in\setU,\ t\in\setT,
+\label{eq:supplier_link}\\
+X^{\mathrm{in}}_{uft}
+  &=\sum_{g\in\setG}\sum_{p\in\setP_g}\alpha_{upg}\,q^{\mathrm{p}}_{pfgt},
+&& \forall\, u\in\setU,\ f\in\setF,\ t\in\setT.
+\label{eq:raw_consumption}
+\end{alignat}
+\end{subequations}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C4) Facility opening and area capacity}
+\label{sec:model:c4}
+
+\begin{subequations}\label{eq:c4}
+\begin{alignat}{2}
+\underline{A}_i\,y_i \;\le\; A_i \;&\le\; \overline{A}_i\,y_i,
+&\quad& \forall\, i\in\setF\cup\setW,
+\label{eq:area_bounds}\\
+A^{\mathrm{u}}_{it} &\le A_i,
+&& \forall\, i\in\setF\cup\setW,\ t\in\setT,
+\label{eq:capacity_use}\\
+\underline{I}_{pi}\,y_i \;\le\; I_{pit} \;&\le\;\overline{I}_{pi}\,y_i,
+&& \forall\, p\in\setP,\ i\in\setNv,\ t\in\setT.
+\label{eq:inv_bounds}
+\end{alignat}
+\end{subequations}
+Installed area is the sole capacity mechanism: it is bounded by
+facility-specific limits conditional on opening, must cover the used
+area~\eqref{eq:used_area} in every period, and carries the
+opening cost and opening emission. Inventory bounds
+\eqref{eq:inv_bounds} are folded into this block because they are the
+stock-side counterpart of the same open/closed linkage.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C5) Technology selection and operation}
+\label{sec:model:c5}
+
+\begin{subequations}\label{eq:c5}
+\begin{alignat}{2}
+\underline{Q}^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg}
+  \;\le\;\sum_{p\in\setP_g}q^{\mathrm{p}}_{pfgt}
+  \;&\le\;\overline{Q}^{\mathrm{p}}_g\,\lambda^{\mathrm{p}}_{fg},
+&\quad& \forall\, f\in\setF,\ g\in\setG,\ t\in\setT,
+\label{eq:prod_cap}\\
+\underline{Q}^{\mathrm{r}}_{\ell}\,\rho_{f\ell t}
+  \;\le\;\sum_{p\in\setP_{\ell}}q^{\mathrm{r}}_{pf\ell t}
+  \;&\le\;\overline{Q}^{\mathrm{r}}_{\ell}\,\rho_{f\ell t},
+&& \forall\, f\in\setF,\ \ell\in\setL,\ t\in\setT,
+\label{eq:rem_cap}\\
+\rho_{f\ell t} &\le\lambda^{\mathrm{r}}_{f\ell},
+&& \forall\, f\in\setF,\ \ell\in\setL,\ t\in\setT,
+\label{eq:rem_operation_link}\\
+\lambda^{\mathrm{p}}_{fg} &\le y_f,
+&& \forall\, f\in\setF,\ g\in\setG,
+\label{eq:tech_link_p}\\
+\lambda^{\mathrm{r}}_{f\ell} &\le y_f,
+&& \forall\, f\in\setF,\ \ell\in\setL,
+\label{eq:tech_link_r}\\
+\sum_{g\in\setG_p}\lambda^{\mathrm{p}}_{fg} &\le 1,
+&& \forall\, p\in\setP,\ f\in\setF,
+\label{eq:tech_excl_p}\\
+\sum_{\ell\in\setL_p}\lambda^{\mathrm{r}}_{f\ell} &\le 1,
+&& \forall\, p\in\setP,\ f\in\setF.
+\label{eq:tech_excl_r}
+\end{alignat}
+\end{subequations}
+Technologies are installed once, at the start of the horizon
+(\Cref{as:fixednet}), and shared across compatible products. The two
+families are deliberately \emph{not} unified under a single index: a
+production technology is either installed or not, whereas an installed
+remanufacturing technology is additionally switched on or off per
+period through $\rho_{f\ell t}$.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C6) Transport mode selection and shipments}
+\label{sec:model:c6}
+
+\begin{subequations}\label{eq:c6}
+\begin{alignat}{2}
+\underline{W}_m\,n_{ijmt}
+  \;\le\;\sum_{q\in\Phi_{ij}}\omega_q\,x_{qijmt}
+  \;&\le\;\overline{W}_m\,n_{ijmt},
+&\quad& \forall\,(i,j)\in\setA,\ m\in\Mrdij,\ t\in\setT,
+\label{eq:weight_trip}\\
+\zeta_{ijmt}\;\le\; n_{ijmt} \;&\le\;\Mtrip_{ijm}\,\zeta_{ijmt},
+&& \forall\,(i,j)\in\setA,\ m\in\Mrdij,\ t\in\setT,
+\label{eq:trip_link}\\
+\sum_{q\in\Phi_{ij}}\omega_q\,x_{qijmt}
+  &\le\overline{B}_m\,\zeta_{ijmt},
+&& \forall\,(i,j)\in\setA,\ m\in\Moutij,\ t\in\setT,
+\label{eq:out_cap}\\
+\sum_{m\in\setM_{ij}}\zeta_{ijmt} &\le 1,
+&& \forall\,(i,j)\in\setA,\ t\in\setT.
+\label{eq:single_mode}
+\end{alignat}
+\end{subequations}
+$\Mtrip_{ijm}$ is an arc- and mode-specific upper bound on the trip
+count; \Cref{app:impl_notes:bigm} gives the tightening used in the
+implementation.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C7) Fleet management and node activation}
+\label{sec:model:c7}
+
+\begin{subequations}\label{eq:c7}
+\begin{alignat}{2}
+\zeta_{ijmt} &\le\tilde{y}_i,
+&\quad& \forall\,(i,j)\in\setA,\ m\in\setM_{ij},\ t\in\setT,
+\label{eq:endpoint_o}\\
+\zeta_{ijmt} &\le\tilde{y}_j,
+&& \forall\,(i,j)\in\setA,\ m\in\setM_{ij},\ t\in\setT,
+\label{eq:endpoint_d}\\
+\zeta_{ijmt} &\le\kappa_{mt},
+&& \forall\,(i,j)\in\setA,\ m\in\Moutij,\ t\in\setT,
+\label{eq:contract_link}\\
+\sum_{j:(i,j)\in\setA,\,m\in\setM_{ij}}
+  \frac{r_m\,\delta_{ij}}{v_m}\,n_{ijmt}
+  &\le H_m\,N_{im},
+&& \forall\, i\in\setN,\ m\in\setMrd,\ t\in\setT,
+\label{eq:vehicle_hours}\\
+N_{im} &\le\Mveh_{im}\,\tilde{y}_i,
+&& \forall\, i\in\setN,\ m\in\setMrd,
+\label{eq:vehicle_act}\\
+N_{im} &\le\Mveh_{im}\!\!\!\sum_{j:(i,j)\in\setA,\,m\in\setM_{ij}}\sum_{t\in\setT}\!\!\! n_{ijmt},
+&& \forall\, i\in\setN,\ m\in\setMrd,
+\label{eq:vehicle_flow_link}\\
+\sum_{i\in\setN}\sum_{m\in\setMrd}F^{\mathrm{v}}_m\,N_{im} &\le\overline{V}, &&
+\label{eq:fleet_budget}\\
+\sum_{q\in\setQ}\sum_{t\in\setT}
+  \bigl(X^{\mathrm{in}}_{qit}+X^{\mathrm{out}}_{qit}\bigr)
+  &\ge y_i,
+&& \forall\, i\in\setNo.
+\label{eq:min_flow}
+\end{alignat}
+\end{subequations}
+Constraint~\eqref{eq:vehicle_hours} presumes $v_m>0$ and $H_m>0$
+(\Cref{app:impl_notes:degenerate}); $H_m$ is the driving-hour allowance
+per vehicle per period. Constraint~\eqref{eq:min_flow} requires every
+activated node to carry incident flow of some item in some period,
+ruling out degenerate open-but-unused nodes.
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C8) Intermodal hub routing}
+\label{sec:model:c8}
+
+Let $\nu\in\{\mathrm{a},\mathrm{s}\}$ index the hub family (air, sea),
+with hub set $\setH^{\nu}$, mode set $\setM^{\nu}$, and per-arc slices
+$\setM^{\nu}_{ij}\defeq\setM_{ij}\cap\setM^{\nu}$ and
+$\setM^{\neg\nu}_{ij}\defeq\setM_{ij}\setminus\setM^{\nu}$. Hubs are
+mode-switching cross-docking points: access volume arriving by
+non-$\nu$ modes from non-$\nu$ nodes equals transfer volume departing
+to same-family hubs by $\nu$-modes, and symmetrically,
+\begin{subequations}\label{eq:c8}
+\begin{alignat}{2}
+\sum_{i:(i,h)\in\setA_q,\,i\notin\setH^{\nu}}\ \sum_{m\in\setM^{\neg\nu}_{ih}} x_{qihmt}
+  &=\sum_{j:(h,j)\in\setA_q,\,j\in\setH^{\nu}}\ \sum_{m\in\setM^{\nu}_{hj}} x_{qhjmt},
+&\quad& \forall\,\nu,\ q\in\setQ,\ h\in\setH^{\nu},\ t\in\setT,
+\label{eq:hub_ingress}\\
+\sum_{i:(i,h)\in\setA_q,\,i\in\setH^{\nu}}\ \sum_{m\in\setM^{\nu}_{ih}} x_{qihmt}
+  &=\sum_{j:(h,j)\in\setA_q,\,j\notin\setH^{\nu}}\ \sum_{m\in\setM^{\neg\nu}_{hj}} x_{qhjmt},
+&& \forall\,\nu,\ q\in\setQ,\ h\in\setH^{\nu},\ t\in\setT.
+\label{eq:hub_egress}
+\end{alignat}
+\end{subequations}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{(C9) Valid inequality}
+\label{sec:model:c9}
+
+\begin{equation}
+y_f \;\le\;\sum_{g\in\setG}\lambda^{\mathrm{p}}_{fg}
+          +\sum_{\ell\in\setL}\lambda^{\mathrm{r}}_{f\ell},
+\qquad \forall\, f\in\setF .
+\label{eq:vi_tech}
+\end{equation}
+
+\begin{remark}[Validity and purpose]\label{rem:valid_ineq}
+Under the greenfield convention used throughout
+\Cref{sec:experiments}, no arc routes finished product \emph{into} a
+factory, so $X^{\mathrm{in}}_{pft}\equiv0$ and \eqref{eq:bal_factory}
+collapses to
+$\sum_{g\in\setG_p}q^{\mathrm{p}}_{pfgt}+\sum_{\ell\in\setL_p}q^{\mathrm{r}}_{pf\ell t}
+=X^{\mathrm{out}}_{pft}$. A factory installing no technology therefore
+carries zero outbound flow, and \eqref{eq:raw_consumption} and
+\eqref{eq:return_factory} pin its inbound flows to zero as well,
+contradicting \eqref{eq:min_flow} if it is open. Hence
+\eqref{eq:vi_tech} is implied. Note the disjunction is essential: a
+factory engaged purely in remanufacturing satisfies
+\eqref{eq:min_flow} through $q^{\mathrm{r}}$ alone, so the narrower
+inequality $y_f\le\sum_g\lambda^{\mathrm{p}}_{fg}$ is \emph{not} valid.
+\Cref{eq:vi_tech} is retained because it is not redundant in the \LP
+relaxation and tightens the bound the \DBP relies on. A second
+candidate --- aggregate installed capacity covering aggregate demand
+in every period --- is invalid under inventory banking and is
+deliberately excluded (\Cref{app:impl_notes:capdemand}).
+\end{remark}
+
+%- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+\subsubsection{Variable domains}
+\label{sec:model:domains}
+
+\begin{subequations}\label{eq:domains}
+\begin{alignat}{2}
+& y_i\in\bin, &\quad& \forall\, i\in\setNo,
+\nonumber\\
+& \lambda^{\mathrm{p}}_{fg},\ \lambda^{\mathrm{r}}_{f\ell}\in\bin,
+  && \forall\, f\in\setF,\ g\in\setG,\ \ell\in\setL,
+\nonumber\\
+& \rho_{f\ell t}\in\bin, && \forall\, f\in\setF,\ \ell\in\setL,\ t\in\setT,
+\nonumber\\
+& \sigma_{sut}\in\bin, && \forall\, s\in\setS,\ u\in\setU,\ t\in\setT,
+\nonumber\\
+& \kappa_{mt}\in\bin, && \forall\, m\in\setMout,\ t\in\setT,
+\nonumber\\
+& \zeta_{ijmt}\in\bin, && \forall\, (i,j)\in\setA,\ m\in\setM_{ij},\ t\in\setT,
+\label{eq:dom_bin}\\[0.35em]
+& n_{ijmt}\in\Zplus, && \forall\, (i,j)\in\setA,\ m\in\Mrdij,\ t\in\setT,
+\nonumber\\
+& N_{im}\in\Zplus, && \forall\, i\in\setN,\ m\in\setMrd,
+\label{eq:dom_int}\\[0.35em]
+& A_i\in\Rplus, && \forall\, i\in\setF\cup\setW,
+\nonumber\\
+& q^{\mathrm{p}}_{pfgt}\in\Rplus, && \forall\, (p,g)\in\Omega^{\mathrm{p}},\ f\in\setF,\ t\in\setT,
+\nonumber\\
+& q^{\mathrm{r}}_{pf\ell t}\in\Rplus, && \forall\, (p,\ell)\in\Omega^{\mathrm{r}},\ f\in\setF,\ t\in\setT,
+\nonumber\\
+& I_{pit}\in\Rplus, && \forall\, p\in\setP,\ i\in\setNv,\ t\in\setT\cup\{0\},
+\nonumber\\
+& x_{qijmt}\in\Rplus, && \forall\, (i,j)\in\setA,\ q\in\Phi_{ij},\ m\in\setM_{ij},\ t\in\setT.
+\label{eq:dom_cont}
+\end{alignat}
+\end{subequations}
+
+Constraints \eqref{eq:c1}--\eqref{eq:domains} define $\setX$. Together
+with \eqref{eq:cost_inv}--\eqref{eq:emissions} they instantiate the
+follower's problem~\eqref{eq:BL_react}, completing the \BLMIP solved in
+\Cref{sec:methodology}.
+
+% ================================================================
+%  SYMBOL MIGRATION MAP  (old -> new; delete before submission)
+% ----------------------------------------------------------------
+%   \gridstep = \theta      ->  \taxstep = \Delta   [MANDATORY: clashed with \theta_p]
+%   YC_i                    ->  A_i                 [multi-letter italic]
+%   YCT_{it}                ->  A^{u}_{it}          [multi-letter italic]
+%   apu_q                   ->  a^{st}_p            [multi-letter italic]
+%   apur_p                  ->  a^{hd}_p            [multi-letter italic]
+%   s^{inv}_{pit}           ->  I_{pit}             [s clashed with supplier index]
+%   a_{f l t}               ->  \rho_{f l t}        [frees 'a' for area coefficients]
+%   Q_{ijmt}                ->  n_{ijmt}            [Q clashed with \bar Q^p_g and \setQ]
+%   K_{im}                  ->  N_{im}              [K clashed with \setK / index k]
+%   F_i (supplier)          ->  F^{s}_s
+%   F_h (hub)               ->  F^{h}_h
+%   F^{m}_m (vehicle)       ->  F^{v}_m
+%   \bar y_i                ->  \tilde y_i          [overline reserved for bounds]
+%   \bar\setM^{nu}_{ij}     ->  \setM^{nu}_{ij}
+%   \setM^{-nu}_{ij}        ->  \setM^{\neg nu}_{ij}
+%   M^{trip}_m (vehicles)   ->  M^{veh}_{im}        [MANDATORY: unit mismatch]
+%   C1..C10                 ->  C1..C9  [old C5 folded into C4]
+% ================================================================

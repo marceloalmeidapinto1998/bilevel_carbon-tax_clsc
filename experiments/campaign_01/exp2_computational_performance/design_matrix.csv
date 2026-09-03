@@ -1,0 +1,20 @@
+experiment_id,design_point_id,run_code,base_instance_id,execution_mode,algorithm_variant,per_subproblem_time_limit_seconds,per_run_wall_clock_cap_seconds,production_technology_menu,remanufacturing_technology_menu,road_menu,sea_menu,air_menu,seed_offset,valuation_ratio,is_toy,fixed_tax_index,epsilon_emissions,invariant_tax_indices,gurobi_seed,mip_gap,dbp_relative_gap,scale_factor,threads,mip_focus,notes
+exp2,exp2-M0-STD_I17_M4_T3-s0,M0_seed0,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (policy-value P3 / scalability core).
+exp2,exp2-M0-STD_I17_M4_T6-s0,M0_seed0,STD_I17_M4_T6,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (policy-value P3 / scalability core).
+exp2,exp2-M0-STD_I17_M8_T6-s0,M0_seed0,STD_I17_M8_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (policy-value P3 / scalability core).
+exp2,exp2-M0-STD_I25_M4_T6-s0,M0_seed0,STD_I25_M4_T6,bilevel,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (policy-value P3 / scalability core).
+exp2,exp2-M0-STD_I25_M8_T6-s0,M0_seed0,STD_I25_M8_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (policy-value P3 / scalability core).
+exp2,exp2-M0-STD_I25_M8_T12-s0,M0_seed0,STD_I25_M8_T12,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,M0 reference (policy-value P3 / scalability core).
+exp2,exp2-M0-STD_I17_M4_T3-s1,M0_seed1,STD_I17_M4_T3,bilevel,M0,3600.0,28800.0,base,base,base,base,base,1,,False,,,,,1e-06,0.0001,,4,2,Seed-noise check on the M0 reference.
+exp2,exp2-M0-STD_I25_M8_T6-s1,M0_seed1,STD_I25_M8_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,1,,False,,,,,1e-06,0.0001,,4,2,Seed-noise check on the M0 reference.
+exp2,exp2-A1-STD_I17_M4_T3,A1,STD_I17_M4_T3,bilevel,A1,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no in-loop min-tax confirmation (H2.1).
+exp2,exp2-A5-STD_I17_M4_T3,A5,STD_I17_M4_T3,bilevel,A5,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A5: no incumbent cut (H2.2).
+exp2,exp2-A1-STD_I17_M8_T6,A1,STD_I17_M8_T6,bilevel,A1,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no in-loop min-tax confirmation (H2.1).
+exp2,exp2-A5-STD_I17_M8_T6,A5,STD_I17_M8_T6,bilevel,A5,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A5: no incumbent cut (H2.2).
+exp2,exp2-A1-STD_I25_M8_T6,A1,STD_I25_M8_T6,bilevel,A1,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A1: no in-loop min-tax confirmation (H2.1).
+exp2,exp2-A5-STD_I25_M8_T6,A5,STD_I25_M8_T6,bilevel,A5,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,A5: no incumbent cut (H2.2).
+exp2,exp2-scale-STD_I25_M12_T6,escalation_M12,STD_I25_M12_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Scalability escalation probe (escalation_M12) (H2.3).
+exp2,exp2-scale-STD_I25_M16_T6,escalation_M16,STD_I25_M16_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Scalability escalation probe (escalation_M16) (H2.3).
+exp2,exp2-scale-STD_I33_M8_T6,escalation_I33,STD_I33_M8_T6,bilevel,M0,10800.0,50400.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Scalability escalation probe (escalation_I33) (H2.3).
+exp2,exp2-enum-STD_I17_M4_T3,enumeration,STD_I17_M4_T3,enumeration,M0,3600.0,28800.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Exhaustive fine-grid enumeration baseline (H2.4).
+exp2,exp2-enum-STD_I17_M8_T6,enumeration,STD_I17_M8_T6,enumeration,M0,1800.0,7200.0,base,base,base,base,base,0,,False,,,,,1e-06,0.0001,,4,2,Exhaustive fine-grid enumeration baseline (H2.4).

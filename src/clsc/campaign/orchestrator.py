@@ -1,15 +1,20 @@
 """campaign_01 orchestrator: `python -m clsc.campaign.orchestrator <command>`.
 
-Implements the 7-Experiment plan in docs/Experimental_Plan.md. Each experiment's design lives in
-its own module under `clsc/campaign/designs/` (exp1_verification .. exp7_policy_calibration) and
-exposes `build_design_matrix()`. Experiments 6 and 7 are generated in two phases (their second
-stage depends on the first stage's solved results, read back from disk).
+Implements the 4-Experiment plan in docs/Experimental_Plan.md. Each experiment's design lives in
+its own module under `clsc/campaign/designs/` (exp1_verification .. exp4_sensitivity) and exposes
+`build_design_matrix()`. Experiment 3 (policy value & calibration) is generated in stages: local
+plateau refinement depends on Experiment 2's M0 manifests, and the rho*-anchored suite depends on
+its own ratio-sweep results -- both read back from disk.
 
 Bilevel (leader-optimizing) runs solve on a FINE carbon-tax grid (`FINE_GRID_SCALE_FACTOR`) with
-`dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, and DBP Phase 2 (min-tax bisection) ON. The
-ablation experiment (Exp3) selects weakened variants by algorithm_variant -> solver flags
-(`_VARIANT_FLAGS`): A1 no Phase-2, A2 no lexicographic Stage-2 master, A3 no warm start, A4 coarse
-grid, A5 no incumbent objective-upper-bound cut. M0 is the full method.
+`dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, and in-loop min-tax confirmation
+(`confirm_min_tax`, Soares et al. 2021's Lemma-3 stopping rule) ON. The computational-performance
+experiment (Exp2) selects weakened variants by algorithm_variant -> solver flags
+(`_VARIANT_FLAGS`): A1 no min-tax confirmation and A5 no incumbent objective-upper-bound cut are
+scheduled by this campaign's design matrix; A2 (no lexicographic Stage-2 master), A3 (no warm
+start), and A4 (coarse tax grid, via a design point's own scale_factor rather than a solver flag)
+remain supported but are not scheduled (the prior campaign found no measurable A2/A3 effect, and
+A4's coarse-grid aliasing bias is no longer a design-matrix claim). M0 is the full method.
 
 Commands:
   generate   build design_matrix.csv for one/all experiments (experiments/campaign_01/<exp>/)
@@ -47,13 +52,9 @@ from typing import Any
 
 from clsc.campaign.designs import (
     exp1_verification,
-    exp2_solver_config,
-    exp3_ablation,
-    exp4_scalability,
-    exp5_leader_value,
-    exp6_sensitivity,
-    exp7_policy_calibration,
-    exp8_benchmark,
+    exp2_computational_performance,
+    exp3_policy_value,
+    exp4_sensitivity,
 )
 from clsc.campaign.designs._common import FINE_SCALE_FACTOR, DesignPoint, rows_to_csv_dicts
 from clsc.campaign.instances import materialize
@@ -67,45 +68,41 @@ HEARTBEAT_LOG = RESULTS_ROOT / "_heartbeat.log"
 
 EXPERIMENT_MODULES = {
     "exp1": exp1_verification,
-    "exp2": exp2_solver_config,
-    "exp3": exp3_ablation,
-    "exp4": exp4_scalability,
-    "exp5": exp5_leader_value,
-    "exp6": exp6_sensitivity,
-    "exp7": exp7_policy_calibration,
-    "exp8": exp8_benchmark,
+    "exp2": exp2_computational_performance,
+    "exp3": exp3_policy_value,
+    "exp4": exp4_sensitivity,
 }
 
 EXPERIMENT_DIR_NAMES = {
     "exp1": "exp1_verification",
-    "exp2": "exp2_solver_config",
-    "exp3": "exp3_ablation",
-    "exp4": "exp4_scalability",
-    "exp5": "exp5_leader_value",
-    "exp6": "exp6_sensitivity",
-    "exp7": "exp7_policy_calibration",
-    "exp8": "exp8_benchmark",
+    "exp2": "exp2_computational_performance",
+    "exp3": "exp3_policy_value",
+    "exp4": "exp4_sensitivity",
 }
 
-# Experiments whose second-stage design matrix depends on first-stage solved results (read back
-# from disk by the module's build_design_matrix(results_root=...)).
-TWO_PHASE_EXPERIMENTS = ("exp5", "exp6", "exp7")
+# Experiments whose design matrix depends on other solved results, read back from disk by the
+# module's build_design_matrix(results_root=...). Exp3 has two such stages internally (see its
+# module docstring); Exp1/Exp2/Exp4 are fully static.
+TWO_PHASE_EXPERIMENTS = ("exp3",)
 
 BILEVEL_METHOD = "dbp_lex"
 
-# Campaign-wide solver defaults (Exp2 fixes threads/mip_focus; see docs/Experimental_Plan.md §2.3).
+# Campaign-wide solver defaults. Chosen from the prior campaign's solver-configuration experiment
+# and re-confirmed by an ad hoc 2-point spot check on the hardest cell (not a formal experiment in
+# this campaign -- see docs/Experimental_Plan.md's implementation notes).
 DEFAULT_THREADS = 4
 DEFAULT_MIP_FOCUS = 2
 FINE_GRID_SCALE_FACTOR = FINE_SCALE_FACTOR  # single definition lives in designs/_common.py
 CAMPAIGN_DBP_RELATIVE_GAP = 1e-4
 CAMPAIGN_MIP_GAP = 1e-6
-REFINE_MIN_TAX = True
+CONFIRM_MIN_TAX = True
 
 # Ablation variant -> extra solver flags for the bilevel (DBP) subprocess. M0 = full method (no
-# extra flags). A4 (coarse grid) is handled via the point's own scale_factor, not a flag here.
+# extra flags). A4 (coarse grid) is handled via the point's own scale_factor, not a flag here --
+# it has no flag effect of its own, hence the empty list.
 _VARIANT_FLAGS: dict[str, list[str]] = {
     "M0": [],
-    "A1": ["--no-refine-min-tax"],
+    "A1": ["--no-confirm-min-tax"],
     "A2": ["--no-lex-master-stage2"],
     "A3": ["--no-warm-start"],
     "A4": [],
@@ -273,8 +270,8 @@ def _tax_grid_step(point: DesignPoint) -> float:
 
     Applies to EVERY execution mode, not just bilevel: a fixed-tax index means nothing without
     the grid it indexes, so the in-process follower solves must be re-gridded onto the same step
-    the bilevel runs use before their `fixed_tax_index` is interpreted. A4 (coarse grid) is the
-    only variant that deliberately sets its own.
+    the bilevel runs use before their `fixed_tax_index` is interpreted. A design point overrides
+    this via its own `scale_factor` (e.g. the retired A4 coarse-grid variant); none currently do.
     """
     return point.scale_factor if point.scale_factor is not None else FINE_GRID_SCALE_FACTOR
 
@@ -297,8 +294,8 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
                 "--results-root", str(scratch_root),
                 "--scale-factor", str(_tax_grid_step(point)),
             ]
-            if not REFINE_MIN_TAX:
-                cmd += ["--no-refine-min-tax"]
+            if not CONFIRM_MIN_TAX:
+                cmd += ["--no-confirm-min-tax"]
             cmd += _VARIANT_FLAGS.get(point.algorithm_variant, [])
             if point.mip_gap is not None:
                 cmd += ["--mip-gap", str(point.mip_gap)]
@@ -469,13 +466,14 @@ def _solve_epsilon_constraint(point: DesignPoint, instance_path: Path, out_dir: 
 
 
 def _solve_enumeration(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
-    """Exp8's baseline: solve the fixed-tax lexicographic follower at EVERY grid point.
+    """The enumeration execution mode's baseline: solve the fixed-tax lexicographic follower at
+    EVERY grid point.
 
     Exact by construction (no cuts, no theory) -- the naive method a referee would propose as
     DBP's alternative. Reused fields (cost/emissions/tax_index/solution.json) come from
-    `_write_follower_result` so the aggregator reads exp8 rows the same way it reads any other
-    follower-mode row; enumeration-specific fields (follower-solve count, grid coverage, total
-    follower time) ride along in ``extra``.
+    `_write_follower_result` so the aggregator reads enumeration rows the same way it reads any
+    other follower-mode row; enumeration-specific fields (follower-solve count, grid coverage,
+    total follower time) ride along in ``extra``.
     """
     import csv as _csv
 
@@ -688,11 +686,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     gen = sub.add_parser("generate", help="Build design_matrix.csv for one or all experiments.")
-    gen.add_argument("--experiment", default="all", help="Experiment id (exp1..exp7 or 1..7) or 'all'.")
+    gen.add_argument("--experiment", default="all", help="Experiment id (exp1..exp4 or 1..4) or 'all'.")
     gen.add_argument("--dry-run", action="store_true", help="Print counts only; do not write CSVs.")
 
     run_cmd = sub.add_parser("run", help="Materialize instances and solve one or all design points.")
-    run_cmd.add_argument("--experiment", default="all", help="Experiment id (exp1..exp7 or 1..7) or 'all'.")
+    run_cmd.add_argument("--experiment", default="all", help="Experiment id (exp1..exp4 or 1..4) or 'all'.")
     run_cmd.add_argument("--fail-fast", action="store_true")
     run_cmd.add_argument("--overwrite", action="store_true", help="Re-run even if already terminal.")
     run_cmd.add_argument("--base-instance", default=None,

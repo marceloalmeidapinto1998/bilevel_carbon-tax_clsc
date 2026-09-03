@@ -96,7 +96,7 @@ def test_tie_break_prefers_the_smaller_tax_at_equal_emissions(monkeypatch) -> No
     assert result.exact is True
     # Same selection rule DBP's own loop uses: the LEFT edge of the plateau (the first index that
     # reaches the floor, index 2), not the last point visited -- this is the exact quantity the
-    # exp8 comparison needs to match against DBP's own tau*.
+    # the enumeration-benchmark comparison needs to match against DBP's own tau*.
     assert result.incumbent.tax_index == 2
     assert result.incumbent.emissions == pytest.approx(50.0)
 
@@ -127,7 +127,7 @@ def test_follower_seconds_are_accumulated_across_visited_points(monkeypatch) -> 
 # --- regression: plateau tie tolerance (found on real data, STD_I17_M4_T6) --------------------
 
 def test_tie_tolerance_survives_cumulative_solve_noise_on_a_long_scan(monkeypatch) -> None:
-    """Pins the exp8 bug found on STD_I17_M4_T6: emissions=E* held from index 1264 to 2000, but
+    """Pins the enumeration-benchmark bug found on STD_I17_M4_T6: emissions=E* held from index 1264 to 2000, but
     ~1e-8-relative Gurobi solve noise per point crossed the OLD near-machine tolerance (eps=1e-7)
     around index 1900, dragging the reported tau* out from 126.4 to 190.3 USD/t -- while DBP's own
     Phase-2 bisection, visiting O(log n) points instead of O(n), never saw enough accumulated noise
