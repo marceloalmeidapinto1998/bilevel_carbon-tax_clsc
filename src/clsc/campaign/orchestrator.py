@@ -34,12 +34,22 @@ the in-process follower modes. A run stopped by the cap is recorded as `censored
 
 Resumable (plan §10): `run` skips any design point whose `campaign_manifest.json` already records a
 terminal status. `--fail-fast` defaults to False so one run's exception never aborts the batch.
+
+Provenance: `run` refuses to start unless the result-bearing paths (`PROVENANCE_PATHS`: src/,
+data/instances/base/, pyproject.toml) match HEAD, because every manifest records `code_version` as
+a commit hash and a dirty tree makes that hash describe something other than what ran. Each
+manifest carries `code_version`, `code_dirty`, `code_dirty_paths` and two digests of the
+materialized instance: `instance_sha256` (the exact bytes solved) and `instance_content_sha256`
+(only the problem-defining fields, so it is comparable across re-materializations, which rewrite
+`generated_at_utc`). `--allow-dirty` lifts the refusal for development runs and stamps
+`code_dirty: true` on everything it produces.
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import dataclasses
+import hashlib
 import json
 import shutil
 import subprocess
@@ -197,14 +207,167 @@ def generate(experiment_ids: list[str], *, dry_run: bool) -> dict[str, int]:
 # run
 # ---------------------------------------------------------------------------
 
-def _code_version() -> str:
+# Tracked paths whose state can change a run's NUMBERS. A dirty paper/, docs/ or tests/ must not
+# block a campaign -- editing the manuscript while the solver runs is normal and harmless -- but a
+# dirty src/ or data/instances/base/ means the recorded commit hash does not describe the code and
+# data that produced the result, which is exactly the failure this guard exists to prevent.
+# experiments/ is excluded because `run` rebuilds each design matrix in memory rather than reading
+# the committed CSV.
+PROVENANCE_PATHS = ("src", "data/instances/base", "pyproject.toml")
+
+
+class DirtyWorkingTreeError(RuntimeError):
+    """A campaign run was attempted against code or data that matches no commit.
+
+    Every `campaign_manifest.json` records `code_version` as a commit hash. If the working tree
+    differs from that commit, the hash describes something other than what actually ran and the
+    run's provenance is unrecoverable after the fact. Refusing up front is the only point at which
+    this is cheap to fix; `--allow-dirty` exists for development runs whose results are not
+    destined for publication, and stamps `code_dirty: true` on every manifest it produces.
+    """
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class CodeProvenance:
+    """The commit a run was executed at, and whether the tree actually matched it.
+
+    `dirty is None` means git could not be consulted at all (no git, not a repository). That is
+    NOT the same as clean, and is never treated as publication-safe.
+    """
+
+    commit: str
+    dirty: bool | None
+    dirty_paths: tuple[str, ...] = ()
+
+    @property
+    def is_publication_safe(self) -> bool:
+        return self.commit != "unknown" and self.dirty is False
+
+    def as_manifest_fields(self) -> dict[str, Any]:
+        return {
+            "code_version": self.commit,
+            "code_dirty": self.dirty,
+            "code_dirty_paths": list(self.dirty_paths),
+        }
+
+
+def _git(*args: str) -> str | None:
+    """Run a git command in the repo, or return None if git cannot answer.
+
+    Only the trailing newline is stripped, never leading whitespace: `git status --porcelain`
+    puts the index status in column 0 and the worktree status in column 1, and column 0 is a
+    SIGNIFICANT SPACE for an unstaged change. Stripping it shifts every path left by one
+    character, which is silent -- the paths still look plausible.
+    """
     try:
         out = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+            ["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True,
         )
-        return out.stdout.strip()
-    except Exception:  # noqa: BLE001
-        return "unknown"
+    except Exception:  # noqa: BLE001 -- no git, no repository, or a broken index: all "unknown"
+        return None
+    return out.stdout.rstrip(chr(10))
+
+
+def _porcelain_paths(status: str) -> tuple[str, ...]:
+    """Paths named by `git status --porcelain` (v1) output.
+
+    Columns 0-1 are the index/worktree status codes and column 2 is the separator, so the path
+    starts at index 3. A rename is reported as ``old -> new``; the destination is the path that
+    exists now, so that is the one recorded. Paths containing unusual characters come back
+    double-quoted (core.quotepath), hence the unquoting.
+    """
+    paths: list[str] = []
+    for line in status.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:]
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        paths.append(path.strip().strip('"'))
+    return tuple(sorted(set(paths)))
+
+
+def capture_code_provenance() -> CodeProvenance:
+    """Snapshot the commit and the dirtiness of the result-bearing paths, once per campaign.
+
+    Taken once and threaded through every design point so that a whole campaign's manifests
+    describe the same verified snapshot, rather than each run re-asking git and possibly
+    disagreeing with its neighbours.
+    """
+    commit = (_git("rev-parse", "HEAD") or "").strip() or "unknown"
+    status = _git("status", "--porcelain", "--untracked-files=normal", "--", *PROVENANCE_PATHS)
+    if status is None:
+        return CodeProvenance(commit=commit, dirty=None)
+    paths = _porcelain_paths(status)
+    return CodeProvenance(commit=commit, dirty=bool(paths), dirty_paths=paths)
+
+
+def require_clean_worktree(provenance: CodeProvenance) -> None:
+    if provenance.is_publication_safe:
+        return
+    if provenance.dirty is None:
+        raise DirtyWorkingTreeError(
+            "Cannot verify the working tree against a commit (git unavailable or this is not a "
+            "git repository), so the campaign's recorded code_version cannot be trusted. "
+            "Re-run with --allow-dirty to proceed anyway; every manifest will record "
+            "code_dirty: null."
+        )
+    listed = "\n  ".join(provenance.dirty_paths[:20])
+    more = (
+        ""
+        if len(provenance.dirty_paths) <= 20
+        else f"\n  ... and {len(provenance.dirty_paths) - 20} more"
+    )
+    raise DirtyWorkingTreeError(
+        f"Refusing to start: {len(provenance.dirty_paths)} result-bearing path(s) differ from "
+        f"HEAD ({provenance.commit[:12]}), so every manifest would record a commit hash that "
+        f"does not describe the code and data that ran.\n  {listed}{more}\n"
+        "Commit (or stash) these, or re-run with --allow-dirty for a development run whose "
+        "results are not destined for publication."
+    )
+
+
+# Instance fields that DEFINE the optimization problem. Everything else in the file is
+# bookkeeping -- notably `metadata.generated_at_utc`, which materialize() rewrites on every run.
+_INSTANCE_CONTENT_KEYS = ("name", "sets", "parameters")
+
+
+def _sha256_file(path: Path) -> str:
+    """Digest of the exact bytes handed to the solver.
+
+    The instance path alone is not provenance: campaign instances are regenerated in place on
+    every run, so a path recorded today can point at different numbers tomorrow. This pins what
+    was actually read, and is what verifies a run against the committed instance artifact.
+    """
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sha256_instance_content(path: Path) -> str | None:
+    """Digest of the instance's PROBLEM CONTENT, stable across re-materialization.
+
+    `_sha256_file` answers "were these the same bytes?", which materialize() breaks on every run
+    by stamping a fresh `generated_at_utc`: two runs of an identical instance get different file
+    digests for a reason that has nothing to do with the optimization problem. This digest covers
+    only the fields that define that problem, so it answers the question actually being asked --
+    "did these two runs solve the same instance?" -- and stays comparable across regenerations,
+    machines and campaigns.
+
+    Canonicalized with sorted keys and no whitespace. Float formatting is Python's shortest
+    round-trip repr, so the digest is comparable across runs of the same interpreter major
+    version; it is a comparison aid, not a cross-language checksum. Returns None if the file is
+    not the expected JSON shape -- the file digest above is always recorded regardless.
+    """
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        content = {key: payload[key] for key in _INSTANCE_CONTENT_KEYS}
+    except (OSError, json.JSONDecodeError, KeyError, TypeError):
+        return None
+    canonical = json.dumps(content, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _utc_now_iso() -> str:
@@ -515,7 +678,21 @@ def _solve_enumeration(point: DesignPoint, instance_path: Path, out_dir: Path) -
     return summary
 
 
-def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
+def run_point(
+    point: DesignPoint,
+    *,
+    overwrite: bool = False,
+    provenance: CodeProvenance | None = None,
+) -> dict[str, Any]:
+    """Solve one design point and write its `campaign_manifest.json`.
+
+    `provenance` is normally the single snapshot `run_experiment` captured for the whole campaign.
+    When called on its own (a one-off point, a test) it is captured here instead. No cleanliness
+    guard fires at this level: enforcing it belongs to `run_experiment`, so a deliberate single
+    point stays runnable while a campaign does not.
+    """
+    if provenance is None:
+        provenance = capture_code_provenance()
     out_dir = _run_output_dir(point)
     manifest_path = _manifest_path(point)
     if manifest_path.exists() and not overwrite:
@@ -548,7 +725,12 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
         "valuation_ratio": point.valuation_ratio,
         "gurobi_seed": point.gurobi_seed,
         "epsilon_emissions": point.epsilon_emissions,
-        "code_version": _code_version(),
+        **provenance.as_manifest_fields(),
+        # Filled in after materialization; declared here so the "running" manifest already shows
+        # which provenance fields a completed run is expected to carry.
+        "input_instance_path": None,
+        "instance_sha256": None,
+        "instance_content_sha256": None,
         "solver_method": solver_method_by_execution_mode[point.execution_mode],
         # Without the grid step a tax index is uninterpretable, and the two campaign grids are
         # 100x apart -- so it is recorded per run rather than assumed downstream.
@@ -569,6 +751,8 @@ def run_point(point: DesignPoint, *, overwrite: bool = False) -> dict[str, Any]:
         else:
             instance_path = materialize(point, output_root=INSTANCES_ROOT)
         manifest["input_instance_path"] = str(instance_path)
+        manifest["instance_sha256"] = _sha256_file(instance_path)
+        manifest["instance_content_sha256"] = _sha256_instance_content(instance_path)
 
         stashed = _stash_existing_solve_outputs(out_dir, point.design_point_id)
         if stashed:
@@ -653,13 +837,25 @@ def run_experiment(
     fail_fast: bool = False,
     overwrite: bool = False,
     base_instance: str | None = None,
+    allow_dirty: bool = False,
+    provenance: CodeProvenance | None = None,
 ) -> list[dict[str, Any]]:
+    """Solve every design point of one experiment.
+
+    Refuses to start unless the result-bearing paths (`PROVENANCE_PATHS`) match HEAD, so a
+    campaign can never record a commit hash that does not describe what ran. `allow_dirty=True`
+    lifts the refusal for development runs and leaves `code_dirty: true` on every manifest.
+    """
+    if provenance is None:
+        provenance = capture_code_provenance()
+    if not allow_dirty:
+        require_clean_worktree(provenance)
     points = build_design_matrix(experiment_id)
     if base_instance is not None:
         points = [p for p in points if p.base_instance_id == base_instance]
     results = []
     for point in points:
-        manifest = run_point(point, overwrite=overwrite)
+        manifest = run_point(point, overwrite=overwrite, provenance=provenance)
         results.append(manifest)
         if fail_fast and manifest.get("solve_status") == "failed":
             break
@@ -695,6 +891,10 @@ def main(argv: list[str] | None = None) -> int:
     run_cmd.add_argument("--overwrite", action="store_true", help="Re-run even if already terminal.")
     run_cmd.add_argument("--base-instance", default=None,
                           help="Restrict to design points on this base instance only (e.g. for a pilot).")
+    run_cmd.add_argument("--allow-dirty", action="store_true",
+                          help="Run even though src/, data/instances/base/ or pyproject.toml "
+                               "differ from HEAD. Development only: every manifest is stamped "
+                               "code_dirty: true and the results are not publication-safe.")
 
     args = parser.parse_args(argv)
 
@@ -710,10 +910,27 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run":
         experiment_ids = _resolve_experiment_ids(args.experiment)
+        # Captured once for the whole invocation: every manifest written below describes the same
+        # verified snapshot, and the guard is evaluated before any solve starts rather than
+        # part-way through experiment 3.
+        provenance = capture_code_provenance()
+        if not args.allow_dirty:
+            try:
+                require_clean_worktree(provenance)
+            except DirtyWorkingTreeError as error:
+                print(str(error), file=sys.stderr)
+                return 3
+        elif not provenance.is_publication_safe:
+            print(
+                f"WARNING: --allow-dirty; recording code_dirty="
+                f"{'null' if provenance.dirty is None else 'true'} on every manifest. "
+                "These results are not publication-safe.",
+                file=sys.stderr,
+            )
         for experiment_id in experiment_ids:
             results = run_experiment(
                 experiment_id, fail_fast=args.fail_fast, overwrite=args.overwrite,
-                base_instance=args.base_instance,
+                base_instance=args.base_instance, allow_dirty=True, provenance=provenance,
             )
             n_success = sum(1 for r in results if r.get("solve_status") == "success")
             print(f"{experiment_id}: {n_success}/{len(results)} succeeded")

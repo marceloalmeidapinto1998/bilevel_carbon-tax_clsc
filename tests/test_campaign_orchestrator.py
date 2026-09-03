@@ -135,6 +135,22 @@ def test_aggregate_prefers_the_recorded_rate_over_any_recomputation() -> None:
 # Wall-clock enforcement
 # ===========================================================================
 
+def _fake_materialize(tmp_path):
+    """A `materialize` stand-in that actually WRITES the instance file.
+
+    run_point digests the materialized instance (`instance_sha256`) before solving, so a fake
+    that returns a path to nothing aborts the run -- correctly, since the solver would read that
+    same missing file moments later. Writing a real file keeps the fake faithful to the contract
+    materialize() has with its caller.
+    """
+    def _materialize(point, output_root):
+        path = tmp_path / "inst.json"
+        path.write_text('{"name": "fake_instance"}', encoding="utf-8")
+        return path
+
+    return _materialize
+
+
 def _wcc_point(**overrides) -> DesignPoint:
     kwargs = {
         "experiment_id": "exp2",
@@ -174,7 +190,7 @@ def test_cap_is_passed_to_the_solver_and_the_kill_is_only_a_backstop(tmp_path, m
 def test_wall_clock_kill_is_recorded_as_censored_not_failed(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(campaign, "RESULTS_ROOT", tmp_path / "runs")
     monkeypatch.setattr(campaign, "HEARTBEAT_LOG", tmp_path / "runs" / "_heartbeat.log")
-    monkeypatch.setattr(campaign, "materialize", lambda point, output_root: tmp_path / "inst.json")
+    monkeypatch.setattr(campaign, "materialize", _fake_materialize(tmp_path))
 
     def blown_cap(point, instance_path, out_dir):
         raise campaign.WallClockCapExceeded("killed after 50400s wall-clock cap")
@@ -197,7 +213,7 @@ def test_wall_clock_kill_is_recorded_as_censored_not_failed(tmp_path, monkeypatc
 def test_graceful_cap_stop_is_censored_but_keeps_objective_values(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(campaign, "RESULTS_ROOT", tmp_path / "runs")
     monkeypatch.setattr(campaign, "HEARTBEAT_LOG", tmp_path / "runs" / "_heartbeat.log")
-    monkeypatch.setattr(campaign, "materialize", lambda point, output_root: tmp_path / "inst.json")
+    monkeypatch.setattr(campaign, "materialize", _fake_materialize(tmp_path))
 
     # What the solver writes when it stops itself at the cap: a real incumbent plus a gap.
     monkeypatch.setattr(campaign, "_solve_bilevel", lambda point, instance_path, out_dir: {
@@ -321,7 +337,7 @@ def test_exp2_design_matrix_includes_enumeration_points() -> None:
 def test_run_point_dispatches_enumeration_mode(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(campaign, "RESULTS_ROOT", tmp_path / "runs")
     monkeypatch.setattr(campaign, "HEARTBEAT_LOG", tmp_path / "runs" / "_heartbeat.log")
-    monkeypatch.setattr(campaign, "materialize", lambda point, output_root: tmp_path / "inst.json")
+    monkeypatch.setattr(campaign, "materialize", _fake_materialize(tmp_path))
 
     seen = {}
 

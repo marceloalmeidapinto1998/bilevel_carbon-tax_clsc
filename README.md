@@ -63,6 +63,8 @@ python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
 python -m clsc.campaign.orchestrator generate --experiment all
 python -m clsc.campaign.orchestrator run --experiment 1    # resumable; --fail-fast optional
 # (--experiment accepts exp1..exp4 or 1..4 or 'all'; --base-instance restricts to one cell)
+# `run` refuses to start (exit 3) unless src/, data/instances/base/ and pyproject.toml match
+# HEAD -- see "Provenance" below. Add --allow-dirty for a development run.
 
 # --- Post-campaign analysis ---
 python -m clsc.analysis.campaign_01.aggregate
@@ -78,6 +80,32 @@ and the Phase-2 min-tax bisection (`refine_min_tax`, on by default). These are a
 by the orchestrator/CLI; `clsc.config.gap_tol.DEFAULT` holds the neutral coarse-grid fallback
 (1% tolerances) used only when no override is given. Each run's `manifest.json` records
 `tax_grid_scale_factor`, tolerances, and the code version.
+
+## Provenance
+
+Every run writes a `campaign_manifest.json` recording the commit it ran at. That hash only means
+something if the working tree matched it, so `orchestrator run` **refuses to start** (exit code 3)
+while any result-bearing path differs from HEAD:
+
+| Path | Watched | Why |
+|---|---|---|
+| `src/` | yes | the code that produced the numbers |
+| `data/instances/base/` | yes | campaign instances are materialized from these |
+| `pyproject.toml` | yes | dependency pins |
+| `paper/`, `docs/`, `tests/`, `results/`, `experiments/` | no | editing the manuscript mid-campaign is normal and cannot change a result |
+
+`--allow-dirty` lifts the refusal for development runs; it prints a warning and stamps
+`code_dirty: true` on every manifest it produces, so such runs stay identifiable afterwards.
+
+Each manifest (and each row of `master_runs_campaign_01.csv`) carries:
+
+- `code_version` -- the commit, or `"unknown"` if git could not be consulted;
+- `code_dirty` -- `false` (verified clean), `true` (ran anyway), or `null` (unverifiable; **not**
+  the same as clean, and never publication-safe);
+- `code_dirty_paths` -- exactly which paths differed;
+- `instance_sha256` -- the bytes actually solved, for verification against the committed instance;
+- `instance_content_sha256` -- only the problem-defining fields (`name`/`sets`/`parameters`), so
+  it is comparable across re-materializations, which rewrite `metadata.generated_at_utc`.
 
 ## Tests
 

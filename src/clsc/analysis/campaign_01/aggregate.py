@@ -74,6 +74,13 @@ def _flatten(manifest: dict) -> dict:
         "gurobi_seed": manifest.get("gurobi_seed"),
         "valuation_ratio": manifest.get("valuation_ratio"),
         "code_version": manifest.get("code_version"),
+        # Provenance, carried through from the manifest rather than recomputed: a row whose
+        # code_dirty is true (or null) was produced by code that matches no commit, and must not
+        # be quoted in the paper without saying so. Runs written before these fields existed
+        # report None, which is distinct from a verified False.
+        "code_dirty": manifest.get("code_dirty"),
+        "instance_sha256": manifest.get("instance_sha256"),
+        "instance_content_sha256": manifest.get("instance_content_sha256"),
         "solver_method": manifest.get("solver_method"),
         "solve_status": manifest.get("solve_status"),
         "termination_reason": manifest.get("termination_reason"),
