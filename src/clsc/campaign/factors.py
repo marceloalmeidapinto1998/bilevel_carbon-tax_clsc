@@ -1,4 +1,4 @@
-"""Continuous factor registry for campaign_01 (Experiment 6 screening / response surface).
+"""Continuous factor registry for campaign_01 (Experiment 4 sensitivity/robustness screening).
 
 Each factor is a multiplier applied to one or more instance parameters; multiplier == 1.0
 reproduces the baseline. Emission-intensity and capacity factors scale their remanufacturing
@@ -134,7 +134,7 @@ FACTOR_REGISTRY: dict[str, FactorSpec] = {
     )
 }
 
-# The 8 continuous factors screened in Experiment 6 (docs/Experimental_Plan.md §10). Structural
+# The 8 continuous factors screened in Experiment 4 (docs/Experimental_Plan.md §6). Structural
 # menu-breadth factors are handled separately (see clsc.campaign.structural) since they add
 # sets/parameters rather than scale existing ones.
 CONTINUOUS_FACTORS: tuple[str, ...] = (

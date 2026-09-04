@@ -431,6 +431,197 @@ def _build_dbp_timing_summary(
 
 
 # ---------------------------------------------------------------------------
+# DBP loop termination: one function per exit path, each returning the final
+# BilevelSolveResult for that path. Every one is a pure re-packaging of state the loop already
+# holds at the point it fires -- none of them changes a condition, threshold, or the order in
+# which the loop checks them; see the call sites in solve_bilevel_dbp_lex for exactly when each
+# fires. Kept separate from _build_time_limit_result (used by the three time/budget exits above)
+# only because those three already shared one shape; these four do not.
+# ---------------------------------------------------------------------------
+
+def _infeasibility_certified_result(
+    *,
+    iteration: int,
+    incumbent: IncumbentSolution,
+    incumbent_solution: SolveResult | None,
+    upper_bound_certificate: BoundCertificate,
+    iteration_records: list[DbpIterationRecord],
+    iteration_timings: list[DbpIterationTiming],
+    initial_relaxation_seconds: float,
+) -> BilevelSolveResult:
+    """The relaxation master went INFEASIBLE under the incumbent's objective upper bound: every
+    remaining tax_index is provably unable to tie or beat the incumbent's emissions (see the call
+    site's comment on why this also certifies the TAX when confirm_min_tax is in effect --
+    lem:lb_validity). A certificate of optimality by exhaustion: lower_bound == upper_bound ==
+    incumbent.emissions with zero slack, not a closed-gap comparison.
+    """
+    return _build_bilevel_result(
+        method="dbp_lex",
+        mode="exact",
+        termination_reason="relative_gap",
+        exact=True,
+        iterations=iteration,
+        lower_bound=incumbent.emissions,
+        upper_bound=incumbent.emissions,
+        lower_bound_certificate=BoundCertificate(
+            value=incumbent.emissions,
+            exact=True,
+            mip_gap=None,
+            slack=0.0,
+            source="relaxation_infeasible",
+        ),
+        upper_bound_certificate=upper_bound_certificate,
+        incumbent=incumbent,
+        iteration_records=tuple(iteration_records),
+        dbp_timing=_build_dbp_timing_summary(
+            initial_relaxation_seconds=initial_relaxation_seconds,
+            iteration_timings=tuple(iteration_timings),
+        ),
+        incumbent_solution=incumbent_solution,
+    )
+
+
+def _gap_closed_result(
+    *,
+    iteration: int,
+    best_lower_bound: float,
+    incumbent: IncumbentSolution,
+    incumbent_solution: SolveResult | None,
+    upper_bound_certificate: BoundCertificate,
+    relaxation_mip_gap: float | None,
+    iteration_records: list[DbpIterationRecord],
+    iteration_timings: list[DbpIterationTiming],
+    initial_relaxation_seconds: float,
+) -> BilevelSolveResult:
+    """The outer relative gap has closed and, if confirm_min_tax is in effect, the incumbent's tax
+    has already been confirmed grid-minimal by ``_min_tax_confirmed`` (the call site does not reach
+    here otherwise -- it ``continue``s instead). A provably optimal bilevel result.
+    """
+    return _build_bilevel_result(
+        method="dbp_lex",
+        mode="exact",
+        termination_reason="relative_gap",
+        exact=True,
+        iterations=iteration,
+        lower_bound=best_lower_bound,
+        upper_bound=incumbent.emissions,
+        lower_bound_certificate=BoundCertificate(
+            value=best_lower_bound,
+            exact=True,
+            mip_gap=relaxation_mip_gap,
+            slack=0.0,
+            source="relaxation",
+        ),
+        upper_bound_certificate=upper_bound_certificate,
+        incumbent=incumbent,
+        iteration_records=tuple(iteration_records),
+        dbp_timing=_build_dbp_timing_summary(
+            initial_relaxation_seconds=initial_relaxation_seconds,
+            iteration_timings=tuple(iteration_timings),
+        ),
+        incumbent_solution=incumbent_solution,
+    )
+
+
+def _stagnation_result(
+    *,
+    iteration: int,
+    best_lower_bound: float,
+    incumbent: IncumbentSolution,
+    incumbent_solution: SolveResult | None,
+    upper_bound_certificate: BoundCertificate,
+    relaxation_mip_gap: float | None,
+    effective_dbp_relative_gap: float,
+    iteration_records: list[DbpIterationRecord],
+    iteration_timings: list[DbpIterationTiming],
+    initial_relaxation_seconds: float,
+) -> BilevelSolveResult:
+    """``DEFAULT.stagnation_limit`` consecutive iterations moved neither bound: give up and report
+    the best certificate in hand, classified by whether the achieved gap happens to already be
+    within tolerance despite the stall (``_classify_stagnation_stop``) -- in which case this is
+    still reported exact, just under a distinct termination_reason/certificate source so a
+    gap-driven and a stagnation-driven "relative_gap" stop stay distinguishable downstream.
+    """
+    termination_reason, gap_closed = _classify_stagnation_stop(
+        upper_bound=incumbent.emissions,
+        lower_bound=best_lower_bound,
+        dbp_relative_gap=effective_dbp_relative_gap,
+    )
+    lower_bound_certificate = _with_stagnation_context(
+        BoundCertificate(
+            value=best_lower_bound,
+            exact=True,
+            mip_gap=relaxation_mip_gap,
+            slack=0.0,
+            source="relaxation",
+        )
+    )
+    stagnation_upper_bound_certificate = _with_stagnation_context(upper_bound_certificate)
+    return _build_bilevel_result(
+        method="dbp_lex",
+        mode="exact",
+        termination_reason=termination_reason,
+        exact=gap_closed and lower_bound_certificate.exact and stagnation_upper_bound_certificate.exact,
+        iterations=iteration,
+        lower_bound=best_lower_bound,
+        upper_bound=incumbent.emissions,
+        lower_bound_certificate=lower_bound_certificate,
+        upper_bound_certificate=stagnation_upper_bound_certificate,
+        incumbent=incumbent,
+        iteration_records=tuple(iteration_records),
+        dbp_timing=_build_dbp_timing_summary(
+            initial_relaxation_seconds=initial_relaxation_seconds,
+            iteration_timings=tuple(iteration_timings),
+        ),
+        incumbent_solution=incumbent_solution,
+    )
+
+
+def _max_iterations_result(
+    *,
+    max_iterations: int,
+    best_lower_bound: float,
+    incumbent: IncumbentSolution,
+    incumbent_solution: SolveResult | None,
+    upper_bound_certificate: BoundCertificate,
+    relaxation_mip_gap: float | None,
+    iteration_records: list[DbpIterationRecord],
+    iteration_timings: list[DbpIterationTiming],
+    initial_relaxation_seconds: float,
+) -> BilevelSolveResult:
+    """The loop exhausted ``max_iterations`` (the grid size plus one, by default -- practically
+    unreachable, since the finite-grid argument in ``solve_bilevel_dbp_lex``'s docstring bounds the
+    endgame probing sequence well below that) without closing the gap or triggering stagnation.
+    Reported, not raised: still a real incumbent with a real certified lower bound, just not one
+    this run could prove optimal in the iterations it was given.
+    """
+    return _build_bilevel_result(
+        method="dbp_lex",
+        mode="exact",
+        termination_reason="max_iterations",
+        exact=False,
+        iterations=max_iterations,
+        lower_bound=best_lower_bound,
+        upper_bound=incumbent.emissions,
+        lower_bound_certificate=BoundCertificate(
+            value=best_lower_bound,
+            exact=True,
+            mip_gap=relaxation_mip_gap,
+            slack=0.0,
+            source="relaxation",
+        ),
+        upper_bound_certificate=upper_bound_certificate,
+        incumbent=incumbent,
+        iteration_records=tuple(iteration_records),
+        dbp_timing=_build_dbp_timing_summary(
+            initial_relaxation_seconds=initial_relaxation_seconds,
+            iteration_timings=tuple(iteration_timings),
+        ),
+        incumbent_solution=incumbent_solution,
+    )
+
+
+# ---------------------------------------------------------------------------
 # DBP lexicographic solver (leader minimises emissions then tax_index)
 # ---------------------------------------------------------------------------
 
@@ -668,29 +859,14 @@ def solve_bilevel_dbp_lex(
             # tax index would still be feasible here (lem:lb_validity -- cuts
             # never exclude true points). Infeasibility therefore proves no
             # such tied point exists, and in particular none at a smaller tax.
-            return _build_bilevel_result(
-                method="dbp_lex",
-                mode="exact",
-                termination_reason="relative_gap",
-                exact=True,
-                iterations=iteration,
-                lower_bound=incumbent.emissions,
-                upper_bound=incumbent.emissions,
-                lower_bound_certificate=BoundCertificate(
-                    value=incumbent.emissions,
-                    exact=True,
-                    mip_gap=None,
-                    slack=0.0,
-                    source="relaxation_infeasible",
-                ),
-                upper_bound_certificate=upper_bound_certificate,
+            return _infeasibility_certified_result(
+                iteration=iteration,
                 incumbent=incumbent,
-                iteration_records=tuple(iteration_records),
-                dbp_timing=_build_dbp_timing_summary(
-                    initial_relaxation_seconds=initial_relaxation_seconds,
-                    iteration_timings=tuple(iteration_timings),
-                ),
                 incumbent_solution=incumbent_solution,
+                upper_bound_certificate=upper_bound_certificate,
+                iteration_records=iteration_records,
+                iteration_timings=iteration_timings,
+                initial_relaxation_seconds=initial_relaxation_seconds,
             )
         if relaxation.status_name == "TIME_LIMIT":
             # Follower completed OPTIMAL this iteration, so incumbent is guaranteed set.
@@ -762,29 +938,16 @@ def solve_bilevel_dbp_lex(
                 # bound, and their number is finite on the finite grid (the
                 # loop-head wall-clock and max_iterations guards still apply).
                 continue
-            return _build_bilevel_result(
-                method="dbp_lex",
-                mode="exact",
-                termination_reason="relative_gap",
-                exact=True,
-                iterations=iteration,
-                lower_bound=best_lower_bound,
-                upper_bound=incumbent.emissions,
-                lower_bound_certificate=BoundCertificate(
-                    value=best_lower_bound,
-                    exact=True,
-                    mip_gap=relaxation.mip_gap,
-                    slack=0.0,
-                    source="relaxation",
-                ),
-                upper_bound_certificate=upper_bound_certificate,
+            return _gap_closed_result(
+                iteration=iteration,
+                best_lower_bound=best_lower_bound,
                 incumbent=incumbent,
-                iteration_records=tuple(iteration_records),
-                dbp_timing=_build_dbp_timing_summary(
-                    initial_relaxation_seconds=initial_relaxation_seconds,
-                    iteration_timings=tuple(iteration_timings),
-                ),
                 incumbent_solution=incumbent_solution,
+                upper_bound_certificate=upper_bound_certificate,
+                relaxation_mip_gap=relaxation.mip_gap,
+                iteration_records=iteration_records,
+                iteration_timings=iteration_timings,
+                initial_relaxation_seconds=initial_relaxation_seconds,
             )
 
         if incumbent_updated or lower_bound_updated:
@@ -793,64 +956,30 @@ def solve_bilevel_dbp_lex(
             iterations_without_bound_update += 1
 
         if iterations_without_bound_update >= DEFAULT.stagnation_limit:
-            termination_reason, gap_closed = _classify_stagnation_stop(
-                upper_bound=incumbent.emissions,
-                lower_bound=best_lower_bound,
-                dbp_relative_gap=effective_dbp_relative_gap,
-            )
-            lower_bound_certificate = _with_stagnation_context(
-                BoundCertificate(
-                    value=best_lower_bound,
-                    exact=True,
-                    mip_gap=relaxation.mip_gap,
-                    slack=0.0,
-                    source="relaxation",
-                )
-            )
-            stagnation_upper_bound_certificate = _with_stagnation_context(upper_bound_certificate)
-            return _build_bilevel_result(
-                method="dbp_lex",
-                mode="exact",
-                termination_reason=termination_reason,
-                exact=gap_closed and lower_bound_certificate.exact and stagnation_upper_bound_certificate.exact,
-                iterations=iteration,
-                lower_bound=best_lower_bound,
-                upper_bound=incumbent.emissions,
-                lower_bound_certificate=lower_bound_certificate,
-                upper_bound_certificate=stagnation_upper_bound_certificate,
+            return _stagnation_result(
+                iteration=iteration,
+                best_lower_bound=best_lower_bound,
                 incumbent=incumbent,
-                iteration_records=tuple(iteration_records),
-                dbp_timing=_build_dbp_timing_summary(
-                    initial_relaxation_seconds=initial_relaxation_seconds,
-                    iteration_timings=tuple(iteration_timings),
-                ),
                 incumbent_solution=incumbent_solution,
+                upper_bound_certificate=upper_bound_certificate,
+                relaxation_mip_gap=relaxation.mip_gap,
+                effective_dbp_relative_gap=effective_dbp_relative_gap,
+                iteration_records=iteration_records,
+                iteration_timings=iteration_timings,
+                initial_relaxation_seconds=initial_relaxation_seconds,
             )
 
     if incumbent is None or upper_bound_certificate is None:
         raise RuntimeError("DBP lexicographic exact terminated without an incumbent solution")
 
-    return _build_bilevel_result(
-        method="dbp_lex",
-        mode="exact",
-        termination_reason="max_iterations",
-        exact=False,
-        iterations=max_iterations,
-        lower_bound=best_lower_bound,
-        upper_bound=incumbent.emissions,
-        lower_bound_certificate=BoundCertificate(
-            value=best_lower_bound,
-            exact=True,
-            mip_gap=relaxation.mip_gap,
-            slack=0.0,
-            source="relaxation",
-        ),
-        upper_bound_certificate=upper_bound_certificate,
+    return _max_iterations_result(
+        max_iterations=max_iterations,
+        best_lower_bound=best_lower_bound,
         incumbent=incumbent,
-        iteration_records=tuple(iteration_records),
-        dbp_timing=_build_dbp_timing_summary(
-            initial_relaxation_seconds=initial_relaxation_seconds,
-            iteration_timings=tuple(iteration_timings),
-        ),
         incumbent_solution=incumbent_solution,
+        upper_bound_certificate=upper_bound_certificate,
+        relaxation_mip_gap=relaxation.mip_gap,
+        iteration_records=iteration_records,
+        iteration_timings=iteration_timings,
+        initial_relaxation_seconds=initial_relaxation_seconds,
     )

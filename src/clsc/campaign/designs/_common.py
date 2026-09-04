@@ -9,12 +9,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from clsc.config.tax_grid import COARSE_SCALE_FACTOR
+
 # Algorithm variants for Experiment 2 (computational performance / ablation). M0 is the full DBP
 # reference; A1/A5 are claim-carrying and efficiency-only respectively (A1 changes the certified
 # guarantee; A5 is the one efficiency-only variant with a measured effect in the prior campaign).
 # A4 (coarse tax grid) was dropped from the design matrix; the underlying scale_factor override it
-# used (COARSE_SCALE_FACTOR, below) still exists and is still exercised by the grid-consistency
-# tests. See docs/Experimental_Plan.md §2 and the orchestrator's flag mapping.
+# used (COARSE_SCALE_FACTOR, imported above) still exists and is still exercised by the
+# grid-consistency tests. See docs/Experimental_Plan.md §2 and the orchestrator's flag mapping.
 ALGORITHM_VARIANTS = ("M0", "A1", "A5")
 
 # Execution modes understood by the orchestrator.
@@ -28,7 +30,9 @@ EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint"
 # same grid -- mixing the two is what made bilevel tau* and fixed-tax probes silently incomparable.
 TAX_CEILING_USD_PER_KG = 0.2
 FINE_SCALE_FACTOR = 1e-4    # campaign grid: index 0..2000
-COARSE_SCALE_FACTOR = 0.01  # the base instances' native grid (index 0..20)
+# COARSE_SCALE_FACTOR (the base instances' native grid, index 0..20) is imported above from
+# clsc.config.tax_grid -- the single definition -- and re-exported under this name here since
+# callers (including tests) import it from this module.
 FINE_CEILING_INDEX = round(TAX_CEILING_USD_PER_KG / FINE_SCALE_FACTOR)
 
 
@@ -43,7 +47,7 @@ def fine_index(usd_per_kg: float) -> int:
 
 @dataclass(frozen=True, slots=True)
 class DesignPoint:
-    experiment_id: str                                # "exp1".."exp7"
+    experiment_id: str                                # "exp1".."exp4"
     design_point_id: str
     run_code: str
     base_instance_id: str
@@ -53,7 +57,7 @@ class DesignPoint:
     # --- instance-variant knobs ---
     factor_levels: dict[str, float] = field(default_factory=dict)
     seed_offset: int = 0                              # 0 = base instance's own seed
-    valuation_ratio: float | None = None              # Exp7 only: emissions-valuation rescale
+    valuation_ratio: float | None = None              # Exp3 only: emissions-valuation rescale
     is_toy: bool = False                              # Exp1 only: reduced-dimension toy instance
     # structural menu expansions (5-way split; each independent)
     production_technology_menu: str = "base"

@@ -24,50 +24,6 @@ from __future__ import annotations
 import itertools
 import math
 
-# Minimum-aberration resolution-V generators, keyed by factor count. `k0` basic factors get a full
-# 2^k0 factorial; each remaining factor (by position, after the first k0) is the product of the
-# basic columns at the given positions. Defining words all have length >= 5, so every main effect
-# and every two-factor interaction is estimable free of the others (Montgomery ch. 8).
-#   8 factors -> 2^(8-2)_V: basic positions 0-5 (64 runs); pos6=product(0,1,2,3), pos7=product(0,1,4,5).
-#   5 factors -> 2^(5-1)_V: basic positions 0-3 (16 runs); pos4=product(0,1,2,3).
-_RESOLUTION_V_GENERATORS: dict[int, dict[str, object]] = {
-    5: {"k0": 4, "extra": ((0, 1, 2, 3),)},
-    8: {"k0": 6, "extra": ((0, 1, 2, 3), (0, 1, 4, 5))},
-}
-
-
-def resolution_v_signs(factor_names: tuple[str, ...]) -> list[dict[str, int]]:
-    """Resolution-V two-level fractional factorial over `factor_names` (5 or 8 factors).
-
-    Returns one +-1 dict per run. Unlike `fractional_factorial_signs` (fold-over, resolution IV),
-    this uses explicit minimum-aberration generators (assigned positionally) so all two-factor
-    interactions are estimable (required for Experiment 6's interaction hypothesis H6.1).
-    """
-    k = len(factor_names)
-    if k not in _RESOLUTION_V_GENERATORS:
-        raise ValueError(
-            f"No resolution-V generator table entry for k={k} factors "
-            f"(have {sorted(_RESOLUTION_V_GENERATORS)}); add its minimum-aberration generators."
-        )
-    entry = _RESOLUTION_V_GENERATORS[k]
-    k0 = int(entry["k0"])
-    extra_generators = entry["extra"]
-    if len(extra_generators) != k - k0:
-        raise ValueError(f"Generator table for k={k} is inconsistent (k0={k0}, extra={len(extra_generators)})")
-    basic_names = factor_names[:k0]
-    extra_names = factor_names[k0:]
-
-    design: list[dict[str, int]] = []
-    for run in itertools.product((-1, 1), repeat=k0):
-        row: dict[str, int] = dict(zip(basic_names, run))
-        for name, generator in zip(extra_names, extra_generators):
-            product = 1
-            for index in generator:
-                product *= run[index]
-            row[name] = product
-        design.append(row)
-    return design
-
 
 def _generalized_interaction_columns(k0: int) -> list[tuple[int, ...]]:
     """All non-empty subsets of {0..k0-1} of size >= 2, ordered by size then lexicographically.

@@ -5,21 +5,24 @@ policy. A **leader** (regulator) chooses a carbon tax rate `τ` to minimize tota
 emissions — lexicographically preferring the smallest (least-intervention) tax that still
 attains that minimum — and a **follower** (industry) responds by choosing its network
 configuration to minimize cost given the tax. Solved by a Decomposition-Based Procedure (DBP)
-with a lexicographic leader objective and a Phase-2 min-tax bisection.
+with a lexicographic leader objective and in-loop certification of the least-intervention tax,
+benchmarked against exhaustive grid enumeration.
 
 ## Repository layout
 
 ```
 src/clsc/                 # ALL active code (installable package: pip install -e .)
   generator/              #   instance generator (Tautenhain-based sampler; pure data code)
-  config/                 #   solver tolerances (gap_tol.ToleranceConfig)
+  config/                 #   solver tolerances (gap_tol.ToleranceConfig) + the base grid's
+                          #   tax step (tax_grid.COARSE_SCALE_FACTOR)
   models/                 #   instance data model + Gurobi subproblem builders
-  solvers/                #   DBP lexicographic bilevel solver + tax breakpoints
+  solvers/                #   DBP lexicographic bilevel solver (dbp_lex) + the exhaustive-grid
+                          #   exact baseline it is benchmarked against (enumeration)
   solver_cli/             #   batch runner CLI (core.py; run via solve_batch)
   campaign/               #   experimental campaign layer (campaign_01)
     orchestrator.py       #     generate / run, keyed by experiment (exp1..exp4)
     designs/              #     one spec module per experiment (exp1_verification .. exp4_sensitivity)
-    doe/                  #     generic DOE primitives (fractional factorials, tax-grid sweeps)
+    doe/                  #     generic DOE primitives (fractional_factorial, frontier_sweep)
     instances.py          #     instance materialization for design points
     toy.py                #     hand-verifiable toy instances (Experiment 1)
     factors.py            #     continuous factor registry (Experiment 4)
@@ -27,20 +30,21 @@ src/clsc/                 # ALL active code (installable package: pip install -e
                            #     not used by campaign_01's own design points)
     valuation.py          #     emissions-valuation rescale (Experiment 3's rho sweep)
     scenarios/            #     scenario instance builders
-  analysis/               #   aggregation, integrity checks, paper tables (analysis/campaign_01)
+  analysis/               #   run aggregation -> master table, plus the paper tables
 data/instances/           # base + campaign instances (DATA only; generator lives in src/clsc/generator)
 experiments/              # generated design matrices (experiments/<campaign>/<experiment>/)
 results/                  # solve outputs (git-ignored except README)
+scripts/                  # figure and table drivers for the paper
 tests/                    # pytest suite
-docs/                     # notes
-archive/                  # superseded, INERT (not a package): legacy scenario dashboard
+docs/                     # notes (Experimental_Plan.md: the campaign specification)
 paper/                    # LaTeX manuscript
-pyproject.toml            # packaging + pytest config  (CITATION.cff: how to cite)
+pyproject.toml            # packaging + pytest config  (LICENSE/CITATION.cff: still TODO)
 ```
 
 ## Environment
 
-- Python 3.14, Gurobi 13 (academic licence). Virtualenv: `.venv_py314_gurobi13`.
+- Developed on Python 3.14 with Gurobi 13 (academic licence); virtualenv `.venv_py314_gurobi13`.
+  The package itself declares `requires-python = ">=3.12"`.
 - Install (editable, from repo root): `pip install -e .` — puts the `clsc` package on
   the path so every `python -m clsc.*` command below works from any directory.
   (`requirements.txt` mirrors the runtime deps declared in `pyproject.toml`.)
@@ -75,11 +79,20 @@ python -m clsc.analysis.tables.iterations
 ## Solver configuration (campaign method)
 
 Bilevel (leader-optimizing) solves use a **fine carbon-tax grid** (`--scale-factor 0.0001`,
-index {0..2000} over 0–200 USD/t) with `dbp_relative_gap = 1e-4`, per-MILP `mip_gap = 1e-6`,
-and the Phase-2 min-tax bisection (`refine_min_tax`, on by default). These are applied per-run
+index {0..2000} over 0-200 USD/t) with `dbp_relative_gap = 1e-4` and per-MILP `mip_gap = 1e-6`
+(`CAMPAIGN_*` in `clsc.campaign.orchestrator`). These are applied per-run
 by the orchestrator/CLI; `clsc.config.gap_tol.DEFAULT` holds the neutral coarse-grid fallback
 (1% tolerances) used only when no override is given. Each run's `manifest.json` records
 `tax_grid_scale_factor`, tolerances, and the code version.
+
+The least-intervention tax is certified **inside** the DBP loop (`confirm_min_tax`, on by
+default): once the emissions gap has closed, the loop keeps iterating until the relaxation
+master's Stage-2 minimal-tax proposal is confirmed -- Soares et al. (2021)'s Lemma-3 stopping
+rule applied to the lexicographic leader. There is **no separate refinement phase and no
+bisection**; the earlier two-phase workflow (`lf_lex_exact`) was retired.
+`--no-confirm-min-tax` disables confirmation (ablation A1) and reports the incumbent's tax, an
+upper bound on the true minimum; confirmation also requires the Stage-2 lexicographic master
+(`use_lex_master_stage2`, ablation A2).
 
 ## Provenance
 
@@ -113,3 +126,7 @@ Each manifest (and each row of `master_runs_campaign_01.csv`) carries:
 python -m pytest              # full suite (slow/gurobi tests included)
 python -m pytest -m "not slow"  # fast subset
 ```
+
+CI (`.github/workflows/tests.yml`) runs the fast subset on every push/PR to `main`; every `gurobi`-marked
+test is also `slow` in this suite, so CI never touches the optimizer and needs no Gurobi licence. The
+`slow`/`gurobi` tests remain a local, licensed-machine responsibility.

@@ -1,9 +1,16 @@
-"""Structural menu-breadth expansions (Experiment 6 structural half-fraction).
+"""Structural menu-breadth expansions.
 
 Technology and transport menu breadth add new technologies/modes (sets + their parameters), so
 they cannot go through a multiplier `FactorSpec`. Each of the five structural factors expands only
 its own technology type or transport-mode family via the shared, validated scenario generators
 under `clsc.campaign.scenarios`.
+
+Not scheduled by any of campaign_01's four experiments: this was a separate 5-factor structural
+half-fraction stage in an earlier (v3) plan revision, explicitly dropped from Experiment 4 when the
+campaign was cut down to 4 experiments (docs/Experimental_Plan.md §6 -- structural breadth is
+already partially exercised by the testbed's own I/M variation in Experiments 1-2). The module
+stays live: `clsc.campaign.instances.materialize()` imports it unconditionally, and it is exercised
+directly by `tests/test_generator.py` and `tests/test_campaign_instances.py`.
 """
 from __future__ import annotations
 

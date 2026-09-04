@@ -6,12 +6,11 @@ from pathlib import Path
 from typing import Any
 
 from clsc.config.gap_tol import DEFAULT
+from clsc.config.tax_grid import COARSE_SCALE_FACTOR as SCALE_FACTOR
 
-
-# Mirrors clsc.generator.config.SCALE_FACTOR; duplicated here (rather than
-# imported) to avoid a model-layer dependency on the generator package.
-# Keep both values in sync if this is ever changed.
-SCALE_FACTOR = 0.01  # USD/kg CO2e per integer tax_index step: tax_rate = SCALE_FACTOR * tax_index
+# SCALE_FACTOR: USD/kg CO2e per integer tax_index step: tax_rate = SCALE_FACTOR * tax_index.
+# Single definition lives in clsc.config.tax_grid; re-exported under this name since it is
+# part of this module's public API (imported elsewhere as clsc.models.instance.SCALE_FACTOR).
 # Fallback for instances generated before 2026-08-11, which carry no
 # product_rotation_per_period. Those were built reading Mota's 4.5 turns/year
 # as a per-period count, and must keep it so archived runs stay reproducible.

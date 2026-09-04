@@ -10,10 +10,6 @@ import shutil
 import sys
 import time
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
 from clsc.config.gap_tol import DEFAULT
 from clsc.models.subproblems import (
     build_fixed_tax_follower_master,
