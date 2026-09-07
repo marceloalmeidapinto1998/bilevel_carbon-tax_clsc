@@ -121,8 +121,12 @@ def test_aggregate_prefers_the_recorded_rate_over_any_recomputation() -> None:
     # Same index, different grids -> different rates. A global constant cannot get both right.
     fine = {"leader_tax": 80, "tax_grid_step_usd_per_kg": FINE_SCALE_FACTOR}
     coarse = {"leader_tax": 80, "tax_grid_step_usd_per_kg": COARSE_SCALE_FACTOR}
-    assert _effective_tax_usd_per_kg(fine) == pytest.approx(0.008)
-    assert _effective_tax_usd_per_kg(coarse) == pytest.approx(0.8)
+    # Derived from the constants, not hard-coded: the claim is that the two grids disagree at the
+    # same index, which holds at any resolution, and a literal here silently breaks whenever the
+    # campaign grid is re-tuned (it did, when FINE_SCALE_FACTOR moved 1e-4 -> 5e-4).
+    assert _effective_tax_usd_per_kg(fine) == pytest.approx(80 * FINE_SCALE_FACTOR)
+    assert _effective_tax_usd_per_kg(coarse) == pytest.approx(80 * COARSE_SCALE_FACTOR)
+    assert _effective_tax_usd_per_kg(fine) != pytest.approx(_effective_tax_usd_per_kg(coarse))
 
     # The solver's own reported rate wins over anything derived.
     assert _effective_tax_usd_per_kg({**fine, "effective_tax_usd_per_kg": 0.1673}) == 0.1673

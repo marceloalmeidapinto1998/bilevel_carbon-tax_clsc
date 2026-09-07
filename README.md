@@ -59,7 +59,7 @@ python -m clsc.generator benchmark --output-dir data/instances/base
 
 # --- Solve one instance on the campaign's fine tax grid + Phase-2 min-tax ---
 python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
-    --method dbp_lex --scale-factor 0.0001 \
+    --method dbp_lex --scale-factor 0.0005 \
     --mip-gap 1e-6 --dbp-relative-gap 1e-4 --threads 4 --mip-focus 2 \
     --time-limit 10800 --results-root results/runs
 
@@ -78,8 +78,9 @@ python -m clsc.analysis.tables.iterations
 
 ## Solver configuration (campaign method)
 
-Bilevel (leader-optimizing) solves use a **fine carbon-tax grid** (`--scale-factor 0.0001`,
-index {0..2000} over 0-200 USD/t) with `dbp_relative_gap = 1e-4` and per-MILP `mip_gap = 1e-6`
+Bilevel (leader-optimizing) solves use a **fine carbon-tax grid** (`--scale-factor 0.0005`,
+index {0..400} over 0-200 USD/t, i.e. 0.5 USD/t per step) with `dbp_relative_gap = 1e-4` and
+per-MILP `mip_gap = 1e-6`
 (`CAMPAIGN_*` in `clsc.campaign.orchestrator`). These are applied per-run
 by the orchestrator/CLI; `clsc.config.gap_tol.DEFAULT` holds the neutral coarse-grid fallback
 (1% tolerances) used only when no override is given. Each run's `manifest.json` records

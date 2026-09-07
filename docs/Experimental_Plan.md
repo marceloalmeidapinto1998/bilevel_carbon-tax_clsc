@@ -116,8 +116,14 @@ Tolerances: `dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, Phase-2 min-ta
 `threads = 4`, `MIPFocus = 2` (see §5). One machine, one fixed software stack; solver version and
 code commit recorded per run.
 
-The leader's tax grid is `[0, 200]` USD/t CO2e on the campaign's fine grid (index 0..2000,
-`FINE_SCALE_FACTOR = 1e-4`). The base instances' native coarse grid (index 0..20,
+The leader's tax grid is `[0, 200]` USD/t CO2e on the campaign's fine grid (index 0..400,
+`FINE_SCALE_FACTOR = 5e-4`, i.e. 0.5 USD/t per step). The grid was 1e-4 (index 0..2000, 0.1 USD/t)
+until the DBP loop was found not to converge at that resolution: on STD_TOY6 it exhausted
+max_iterations and reported a tax on the emissions plateau but far from its least-intervention
+edge. The failure is a threshold, not a gradient -- 401 indices converge in 4-6 iterations and
+certify exact, 1001 and above never do -- and tightening `dbp_relative_gap` 100x does not help.
+0.5 USD/t is finer than any carbon price is set in practice; the underlying non-convergence
+remains undiagnosed and is a known limitation at finer resolutions. The base instances' native coarse grid (index 0..20,
 `COARSE_SCALE_FACTOR = 1e-2`) remains available to any design point via `scale_factor`, but no
 scheduled point in this campaign uses it — the prior campaign's A4 variant, which tested
 grid-resolution sensitivity this way, was dropped from the design matrix.

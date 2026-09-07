@@ -155,9 +155,9 @@ def build_parser() -> argparse.ArgumentParser:
             "When set, each in-memory instance's tax grid is refined to this step "
             "WHILE PRESERVING its real tax range [underline_tau, overline_tau]: the "
             "index bounds are recomputed as round(tau / theta) so overline_tax_index "
-            "becomes overline_tau/theta (e.g. 0.2/0.0001 = 2000). The stored instance "
+            "becomes overline_tau/theta (e.g. 0.2/0.0005 = 400). The stored instance "
             "files are never touched. Omit to use each instance's stored grid "
-            "(theta = 0.01, index {0..20}). The campaign uses --scale-factor 0.0001."
+            "(theta = 0.01, index {0..20}). The campaign uses --scale-factor 0.0005."
         ),
     )
     parser.add_argument(

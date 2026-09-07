@@ -10,6 +10,6 @@ from __future__ import annotations
 # dependency on generator/models/campaign, so this does not introduce the generator -> models
 # coupling that the original duplication was trying to avoid.
 #
-# The campaign's finer solve grid (FINE_SCALE_FACTOR = 1e-4) is a separate, deliberately
+# The campaign's finer solve grid (FINE_SCALE_FACTOR = 5e-4) is a separate, deliberately
 # different constant -- see clsc.campaign.designs._common -- not a candidate for merging here.
 COARSE_SCALE_FACTOR = 0.01

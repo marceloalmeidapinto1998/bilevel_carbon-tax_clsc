@@ -29,7 +29,20 @@ EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint"
 # its indices on the fine campaign grid, and the orchestrator puts every execution mode on that
 # same grid -- mixing the two is what made bilevel tau* and fixed-tax probes silently incomparable.
 TAX_CEILING_USD_PER_KG = 0.2
-FINE_SCALE_FACTOR = 1e-4    # campaign grid: index 0..2000
+# Campaign grid: index 0..400, i.e. 0.5 USD/tonne per step over the 0-200 USD/t span.
+#
+# Was 1e-4 (index 0..2000, 0.1 USD/t). At that resolution the DBP loop does not converge: on
+# STD_TOY6 it exhausted max_iterations (2002) and reported tau* = 1471 against a true tau* of 1027
+# -- a tax that is on the emissions plateau but nowhere near its least-intervention edge, which is
+# the paper's central claim. The failure is a threshold in grid resolution, not a gradual
+# degradation: <=401 indices converge in 4-6 iterations and certify exact; >=1001 indices always
+# run to max_iterations. Tightening dbp_relative_gap by 100x does not help, so the outer tolerance
+# is not the lever; the underlying cause is not yet diagnosed.
+#
+# 5e-4 is the coarsest-but-one resolution measured to work, and 0.5 USD/tonne is finer than any
+# carbon price is set in practice. Verified at this step on STD_TOY6 (6 iterations, correct tau*
+# against brute force) and on the STD_I17_M4_T3 base cell (4 iterations, exact, 228s).
+FINE_SCALE_FACTOR = 5e-4
 # COARSE_SCALE_FACTOR (the base instances' native grid, index 0..20) is imported above from
 # clsc.config.tax_grid -- the single definition -- and re-exported under this name here since
 # callers (including tests) import it from this module.
