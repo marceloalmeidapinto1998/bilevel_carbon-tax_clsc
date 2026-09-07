@@ -14,6 +14,18 @@ from .instance import InstanceData
 
 
 EMISSIONS_SCALE = 1_000_000.0  # kg to kilotonnes
+
+# NumericFocus for the DBP relaxation master ONLY -- the one non-convex (NonConvex=2) model in
+# the suite. At Gurobi's default its spatial branch-and-bound returns solutions it labels OPTIMAL
+# that are not: on STD_TOY6 the Stage-1 minimum DROPPED by 1,076 kg when a cut was ADDED, which a
+# valid relaxation cannot do, and two of three cut configurations reported a lower bound ABOVE a
+# genuinely feasible point -- an invalid certificate, reported with no error of any kind. The
+# trigger is this model's coefficient range: `follower_expr` multiplies the bilinear product by
+# EMISSIONS_SCALE (1e6) while the leader's objective is kilotonne-scale. NumericFocus=3 restores
+# both monotonicity and bound validity, at roughly 2.2x the master's wall-clock cost on STD_TOY6.
+# Not applied to the follower/fixed-tax models: those are linear and show no such failure.
+# Pinned by test_dbp_algorithm.py's monotonicity regression.
+DBP_MASTER_NUMERIC_FOCUS = 3
 BOUND_SNAP_TOL = max(DEFAULT.eps, 1e-6)
 INTEGER_SNAP_TOL = max(DEFAULT.eps, 1e-5)
 
@@ -736,6 +748,7 @@ def build_dbp_relaxation_master(
     # spatial tree finite). ONE bilinear term for the whole model, so every
     # value-function cut added later stays LINEAR.
     model.Params.NonConvex = 2
+    model.Params.NumericFocus = DBP_MASTER_NUMERIC_FOCUS
     tau_emissions_product = model.addVar(
         lb=0.0,
         ub=(scale_factor * upper_tax_index) * emissions_upper_bound_scaled,

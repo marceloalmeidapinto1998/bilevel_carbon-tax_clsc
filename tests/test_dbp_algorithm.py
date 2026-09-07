@@ -19,6 +19,11 @@ Per-coefficient model correctness lives in `test_subproblems.py`; this file is a
     replaces both with a single in-loop mechanism (Soares et al. 2021's Lemma-3 stopping rule) that
     needs no monotonicity assumption, so it is validated against exhaustive enumeration on both an
     undiscounted and a discounted instance.
+  * **Relaxation monotonicity.** The master is the suite's one non-convex model, and at Gurobi's
+    default NumericFocus its spatial branch-and-bound returned solutions labelled OPTIMAL that
+    were not -- silently, with no status to distinguish them. The observable symptom is a
+    monotonicity violation (adding a cut LOWERED the Stage-1 minimum) and, downstream, a reported
+    lower bound ABOVE a genuinely feasible point. Pinned below against a known feasible witness.
   * **Golden-master toy solve.** The six toy instances in `clsc.campaign.toy` are described as
     "hand-verifiable," but nothing pinned their solved values in a fast regression test -- they
     were only ever checked once, manually, during a full campaign run. This solves the smallest
@@ -37,7 +42,16 @@ from clsc.generator import ArcConnectivityConfig, GeneratorConfig, generate_inst
 from clsc.generator.benchmark import build_base_benchmark_specs
 from clsc.generator.instance import generate_instance as generate_instance_from_config
 from clsc.models.instance import InstanceData
-from clsc.models.subproblems import is_discounted
+from clsc.models.subproblems import (
+    DbpFollowerCut,
+    add_dbp_relaxation_cut,
+    build_dbp_relaxation_master,
+    build_fixed_tax_follower_master,
+    is_discounted,
+    set_dbp_relaxation_objective_upper_bound,
+    solve_dbp_relaxation_lexicographic,
+    solve_fixed_tax_lexicographic,
+)
 from clsc.solvers.dbp_lex import solve_bilevel_dbp_lex
 from clsc.solvers.enumeration import enumerate_tax_grid
 
@@ -76,6 +90,73 @@ def test_solve_bilevel_dbp_lex_lower_bound_never_exceeds_upper_bound() -> None:
 
     tolerance = max(1e-6, 1e-6 * abs(result.upper_bound))
     assert result.lower_bound <= result.upper_bound + tolerance
+
+
+# ===========================================================================
+# Relaxation monotonicity / lower-bound validity
+# ===========================================================================
+
+@pytest.mark.gurobi
+@pytest.mark.slow
+def test_adding_a_cut_never_lowers_the_relaxation_minimum() -> None:
+    """Adding a constraint to a minimisation cannot reduce its optimum. The DBP master is the one
+    non-convex model here (NonConvex=2, a bilinear tau*E term), and at Gurobi's default
+    NumericFocus its spatial branch-and-bound violated exactly this on STD_TOY6: the Stage-1
+    minimum fell by 1,076 kg when the fourth cut was added. Nothing in the result distinguished
+    those solves from correct ones -- they came back OPTIMAL -- so this invariant is the only
+    cheap signal that the master has stopped being trustworthy.
+
+    Both facts asserted here (monotonicity, and the bound never exceeding a known feasible point)
+    FAIL on this instance without DBP_MASTER_NUMERIC_FOCUS.
+    """
+    instance = InstanceData.from_dict(
+        build_toy_instance(TOY_SPECS_BY_NAME["STD_TOY6"]).to_dict()
+    ).with_tax_grid_step(1e-4)
+
+    follower_master = build_fixed_tax_follower_master(instance)
+    relaxation_master = build_dbp_relaxation_master(instance)
+
+    # A feasible point is an upper bound on the true optimum, so no valid lower bound may exceed
+    # it. Taken from the tax ceiling, where this instance's emissions plateau sits.
+    witness = solve_fixed_tax_lexicographic(
+        follower_master, instance.upper_tax_index, mip_gap=1e-6,
+    )
+    assert witness.emissions is not None
+
+    incumbent = math.inf
+    previous_minimum: float | None = None
+    for iteration, tax_index in enumerate((0, 714, 992, 1025), start=1):
+        follower = solve_fixed_tax_lexicographic(follower_master, tax_index, mip_gap=1e-6)
+        incumbent = min(incumbent, follower.emissions)
+        add_dbp_relaxation_cut(
+            relaxation_master,
+            DbpFollowerCut(
+                tax_index=tax_index,
+                cost=follower.cost,
+                emissions=follower.emissions,
+                tax_base=follower.tax_base,
+                iteration=iteration,
+            ),
+        )
+        set_dbp_relaxation_objective_upper_bound(relaxation_master, incumbent)
+
+        relaxation = solve_dbp_relaxation_lexicographic(relaxation_master, mip_gap=1e-6)
+        assert relaxation.status_name == "OPTIMAL"
+        minimum = relaxation.emissions
+
+        tolerance = max(1.0, 1e-6 * abs(minimum))
+        assert minimum <= witness.emissions + tolerance, (
+            f"iteration {iteration} (tax_index={tax_index}): relaxation lower bound "
+            f"{minimum:,.2f} exceeds a genuinely feasible point at {witness.emissions:,.2f} -- "
+            f"the certificate is invalid, not merely loose"
+        )
+        if previous_minimum is not None:
+            assert minimum >= previous_minimum - tolerance, (
+                f"iteration {iteration} (tax_index={tax_index}): adding a cut LOWERED the "
+                f"relaxation minimum, {previous_minimum:,.2f} -> {minimum:,.2f}; a valid "
+                f"relaxation cannot do this, so the master's solves are unreliable"
+            )
+        previous_minimum = minimum
 
 
 # ===========================================================================
