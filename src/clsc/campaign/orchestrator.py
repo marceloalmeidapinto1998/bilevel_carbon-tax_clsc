@@ -6,7 +6,7 @@ its own module under `clsc/campaign/designs/` (exp1_verification .. exp4_sensiti
 plateau refinement depends on Experiment 2's M0 manifests, and the rho*-anchored suite depends on
 its own ratio-sweep results -- both read back from disk.
 
-Bilevel (leader-optimizing) runs solve on a FINE carbon-tax grid (`FINE_GRID_SCALE_FACTOR`) with
+Bilevel (leader-optimizing) runs solve on the project's one carbon-tax grid (`TAX_GRID_SCALE_FACTOR`) with
 `dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, and in-loop min-tax confirmation
 (`confirm_min_tax`, Soares et al. 2021's Lemma-3 stopping rule) ON. The computational-performance
 experiment (Exp2) selects weakened variants by algorithm_variant -> solver flags
@@ -66,7 +66,8 @@ from clsc.campaign.designs import (
     exp3_policy_value,
     exp4_sensitivity,
 )
-from clsc.campaign.designs._common import FINE_SCALE_FACTOR, DesignPoint, rows_to_csv_dicts
+from clsc.campaign.designs._common import DesignPoint, rows_to_csv_dicts
+from clsc.config.tax_grid import TAX_GRID_SCALE_FACTOR
 from clsc.campaign.instances import materialize
 
 CAMPAIGN_ID = "campaign_01"
@@ -102,7 +103,6 @@ BILEVEL_METHOD = "dbp_lex"
 # this campaign -- see docs/Experimental_Plan.md's implementation notes).
 DEFAULT_THREADS = 4
 DEFAULT_MIP_FOCUS = 2
-FINE_GRID_SCALE_FACTOR = FINE_SCALE_FACTOR  # single definition lives in designs/_common.py
 CAMPAIGN_DBP_RELATIVE_GAP = 1e-4
 CAMPAIGN_MIP_GAP = 1e-6
 CONFIRM_MIN_TAX = True
@@ -436,7 +436,7 @@ def _tax_grid_step(point: DesignPoint) -> float:
     the bilevel runs use before their `fixed_tax_index` is interpreted. A design point overrides
     this via its own `scale_factor` (e.g. the retired A4 coarse-grid variant); none currently do.
     """
-    return point.scale_factor if point.scale_factor is not None else FINE_GRID_SCALE_FACTOR
+    return point.scale_factor if point.scale_factor is not None else TAX_GRID_SCALE_FACTOR
 
 
 def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:

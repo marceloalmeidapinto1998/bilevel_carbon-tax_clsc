@@ -49,25 +49,28 @@ class ToleranceConfig:
     # kept as the fallback for coarse-grid solves and the unit-test suite, NOT changed here,
     # because the production bilevel campaign OVERRIDES them per-run (see
     # clsc.campaign.orchestrator: CAMPAIGN_MIP_GAP = 1e-6,
-    # CAMPAIGN_DBP_RELATIVE_GAP = 1e-4) alongside --scale-factor 0.0001. Under that fine-grid
-    # method the two are DELIBERATELY UNEQUAL: the fine grid's emissions plateau needs an outer
-    # dbp_relative_gap (1e-4) far tighter than 1%, and a still-tighter per-MILP mip_gap (1e-6) so
-    # the follower can certify that outer gap. The earlier "dbp_relative_gap == mip_gap" invariant
-    # therefore holds only for the coarse fallback, not for the campaign. A dbp_lex solve that
-    # forgets --scale-factor silently runs the coarse grid at these 1% tolerances; the run is not
-    # hidden (manifest.json records tax_grid_scale_factor), but it is NOT the campaign method.
+    # CAMPAIGN_DBP_RELATIVE_GAP = 1e-4). Under that method the two are DELIBERATELY UNEQUAL: the
+    # tax grid's emissions plateau needs an outer dbp_relative_gap (1e-4) far tighter than 1%, and
+    # a still-tighter per-MILP mip_gap (1e-6) so the follower can certify that outer gap. The
+    # earlier "dbp_relative_gap == mip_gap" invariant therefore holds only for this fallback, not
+    # for the campaign. A dbp_lex solve run without CAMPAIGN_* overrides falls back to these 1%
+    # tolerances; the run is not hidden (manifest.json records the tolerances used), but it is
+    # NOT the campaign method.
     mip_gap: float = 1e-2
     dbp_relative_gap: float = 1e-2
     lex_epsilon_prime: float = 1e-6
     dbp_cut_epsilon: float = 1e-6
     dbp_cut_epsilon_relative: float = 1e-7
-    # Raised 10 -> 20 (2026-07-07) after several bilevel solves (STD_I25_M8_T3's baseline, some
-    # Family D large-instance cells) hit stagnation_limit_gap_not_closed in the outer DBP loop
-    # well before the 1% mip_gap target -- a failure mode MIPFocus cannot address, since it
-    # governs the outer bilevel loop's bound progress, not any single sub-MILP's solve. Doubling
-    # gives stalled points more DBP iterations to find a bound improvement before giving up; cost
-    # is more wall-clock time on cases that were already the slowest to converge.
-    stagnation_limit: int = 20
+    # Was raised 10 -> 20 (2026-07-07) after several bilevel solves (STD_I25_M8_T3's baseline,
+    # some Family D large-instance cells) hit stagnation_limit_gap_not_closed in the outer DBP
+    # loop well before the 1% mip_gap target. Reverted to 10 (2026-09-09) to match Soares et al.
+    # (2021)'s own auxiliary stopping condition exactly ("if both UB_F and LB_F remain unchanged
+    # over 10 iterations, then the DBP algorithm terminates with the incumbent solution", their
+    # Section 7) -- a calibration choice, not a correctness one; the doubling addressed a
+    # symptom of the master's earlier non-convex QCP formulation (see
+    # build_dbp_relaxation_master), which no longer applies now that tau*emissions is linearised
+    # exactly by a one-hot disaggregation instead of McCormick + spatial branch-and-bound.
+    stagnation_limit: int = 10
     elastic_penalty_mult: float = 10.0
 
     # ----- Gurobi pass-through (3) -----

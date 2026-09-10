@@ -1,7 +1,7 @@
 {
   "name": "STD_TOY4__exp1_toy_STD_TOY4",
   "metadata": {
-    "generated_at_utc": "2026-09-02T15:42:54.148863+00:00",
+    "generated_at_utc": "2026-09-09T15:10:45.260708+00:00",
     "seed": 3,
     "source_model": "paper/bilevel_model.tex",
     "sampling_rules_module": "clsc.generator.tautenhain_data",
@@ -1064,7 +1064,7 @@
     "underline_tau": 0.0,
     "overline_tau": 0.2,
     "underline_tax_index": 0,
-    "overline_tax_index": 20,
+    "overline_tax_index": 400,
     "d_i_j": {
       "air1": {
         "f1": 603.466,

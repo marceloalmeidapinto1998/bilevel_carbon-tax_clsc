@@ -13,8 +13,8 @@ benchmarked against exhaustive grid enumeration.
 ```
 src/clsc/                 # ALL active code (installable package: pip install -e .)
   generator/              #   instance generator (Tautenhain-based sampler; pure data code)
-  config/                 #   solver tolerances (gap_tol.ToleranceConfig) + the base grid's
-                          #   tax step (tax_grid.COARSE_SCALE_FACTOR)
+  config/                 #   solver tolerances (gap_tol.ToleranceConfig) + the project's one
+                          #   carbon-tax grid step (tax_grid.TAX_GRID_SCALE_FACTOR)
   models/                 #   instance data model + Gurobi subproblem builders
   solvers/                #   DBP lexicographic bilevel solver (dbp_lex) + the exhaustive-grid
                           #   exact baseline it is benchmarked against (enumeration)
@@ -86,14 +86,27 @@ by the orchestrator/CLI; `clsc.config.gap_tol.DEFAULT` holds the neutral coarse-
 (1% tolerances) used only when no override is given. Each run's `manifest.json` records
 `tax_grid_scale_factor`, tolerances, and the code version.
 
-The least-intervention tax is certified **inside** the DBP loop (`confirm_min_tax`, on by
-default): once the emissions gap has closed, the loop keeps iterating until the relaxation
-master's Stage-2 minimal-tax proposal is confirmed -- Soares et al. (2021)'s Lemma-3 stopping
-rule applied to the lexicographic leader. There is **no separate refinement phase and no
-bisection**; the earlier two-phase workflow (`lf_lex_exact`) was retired.
-`--no-confirm-min-tax` disables confirmation (ablation A1) and reports the incumbent's tax, an
-upper bound on the true minimum; confirmation also requires the Stage-2 lexicographic master
-(`use_lex_master_stage2`, ablation A2).
+The least-intervention tax is checked **inside** the DBP loop (`confirm_min_tax`, on by default),
+at the exact point the emissions gap closes. The gap is the gate, exactly as in Soares et al.
+(2021)'s Step 6: a run that reaches the check has already closed `UB - LB <= dbp_relative_gap`
+and is **epsilon-optimal** whatever follows. What the check adds is the upgrade to a certified
+optimum, and it is their Lemma 3 verbatim -- one condition, `x^{u(K+1)} = x^{uK}`: the master,
+re-solved with every accumulated cut, proposes a tax no lower than the confirmed one.
+
+When the proposal *does* undercut the incumbent, the loop **probes it** rather than stopping:
+the master's proposal is a certified lower bound on the least-intervention tax, so a smaller
+proposal is a direction to search, not a reason to quit. This is the one place the workflow
+extends Soares et al. rather than following them, and it exists because their leader has no
+second criterion to certify. The probe is budgeted (`stagnation_limit`), because an unbounded
+one has no limit short of the grid: it once took STD_TOY6 2002 iterations. Runs that exhaust
+the budget report `termination_reason="relative_gap_tax_unconfirmed"`, `exact=False`, and carry
+`tax_lower_bound` -- the bracket `[tax_lower_bound, tax_index]` containing the true minimum,
+rather than a bare "unconfirmed".
+
+There is **no separate refinement phase and no bisection**; the earlier two-phase workflow
+(`lf_lex_exact`) was retired. `--no-confirm-min-tax` disables the check entirely (ablation A1)
+and reports the incumbent's tax, an upper bound on the true minimum; confirmation also requires
+the Stage-2 lexicographic master (`use_lex_master_stage2`, ablation A2).
 
 ## Provenance
 

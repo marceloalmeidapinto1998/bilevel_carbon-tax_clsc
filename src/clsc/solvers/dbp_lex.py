@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import itertools
 import math
 from pathlib import Path
 import time
@@ -21,6 +22,12 @@ from clsc.models.subproblems import (
 
 
 STAGNATION_GAP_NOT_CLOSED_REASON = "stagnation_limit_gap_not_closed"
+# The emissions gap has closed and the bounded tax-descent phase has spent its probes without
+# the master re-proposing the incumbent's tax. The emissions optimum is certified; the
+# least-intervention tax is not, but the result carries the bracket the descent reached in
+# `tax_lower_bound`. Soares et al. (2021)'s Step 6 stops at the FIRST unconfirmed proposal --
+# correctly for a scalar upper level, which has no second criterion to certify.
+TAX_NOT_CONFIRMED_REASON = "relative_gap_tax_unconfirmed"
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +95,12 @@ class DbpIterationRecord:
     relaxation_seconds: float
     next_relaxation_tax_index: int
     next_relaxation_lower_bound: float
+    # How the master's `relaxation_seconds` split between its two lexicographic objectives
+    # (emissions, then tax_index). Both are one Gurobi call now, so the split comes from the
+    # MULTIOBJ callback rather than from two separate timings; None when the master was not
+    # solved lexicographically (ablation A2) or when Gurobi reported no pass boundary.
+    relaxation_emissions_seconds: float | None = None
+    relaxation_tax_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +138,13 @@ class BilevelSolveResult:
     dbp_timing: DbpTimingSummary
     incumbent_solution: SolveResult | None = None
     enumeration_solutions: tuple[TaxSolveSnapshot, ...] = ()
+    # Certified LOWER bound on the least-intervention tax index: the smallest tax the master
+    # can still reach within the leader's indifference band of the certified emissions floor.
+    # With the incumbent's own tax as the attained upper bound, [tax_lower_bound, incumbent
+    # tax] brackets the true least-intervention tax. Set once the emissions bounds have closed,
+    # which is the precondition that makes the master's proposal a valid bound at all (see
+    # _min_tax_confirmed); None before that, and on paths that stop for time or stagnation.
+    tax_lower_bound: int | None = None
 
 
 class BilevelSolveError(RuntimeError):
@@ -174,14 +194,28 @@ def _coerce_instance(instance_or_path: InstanceData | str | Path) -> InstanceDat
     return InstanceData.from_file(instance_or_path)
 
 
-def _is_better_candidate(candidate: IncumbentSolution, incumbent: IncumbentSolution | None) -> bool:
+def _is_better_candidate(
+    candidate: IncumbentSolution,
+    incumbent: IncumbentSolution | None,
+    indifference_relative: float | None = None,
+) -> bool:
     """Leader-level incumbent comparator: lexmin(emissions, tax_index), per eq:leader_obj
     (paper/sections/04b_leader.tex). Each candidate's emissions value already reflects the
     follower's optimistic (as:opt) tie-break for its own tax_index, so no further
-    follower_objective tier belongs here. See ``_emissions_tie_tolerance``."""
+    follower_objective tier belongs here.
+
+    ``indifference_relative`` is the leader's emissions indifference band as a fraction of the
+    compared magnitudes. Without it the comparator falls back to ``_emissions_tie_tolerance``,
+    which is sized to floating-point noise -- adequate only where genuinely equal emissions
+    occur. They frequently do not: on these instances emissions keep drifting downward by grams
+    per grid step, so a noise-sized band makes every pair of taxes distinguishable and the
+    least-intervention tier never fires. The band states, explicitly, the differences the leader
+    declines to prefer over -- and it should be no finer than what the run certifies."""
     if incumbent is None:
         return True
-    tolerance = _emissions_tie_tolerance(candidate.emissions, incumbent.emissions)
+    tolerance = _leader_indifference_band(
+        candidate.emissions, incumbent.emissions, indifference_relative,
+    )
     if candidate.emissions < incumbent.emissions - tolerance:
         return True
     if math.isclose(candidate.emissions, incumbent.emissions, abs_tol=tolerance):
@@ -206,39 +240,62 @@ def _emissions_tie_tolerance(first_emissions: float, second_emissions: float) ->
     )
 
 
+def _leader_indifference_band(
+    first_emissions: float,
+    second_emissions: float,
+    indifference_relative: float | None,
+) -> float:
+    """Emissions difference the leader declines to prefer over.
+
+    Never narrower than ``_emissions_tie_tolerance``: a band below the cross-model
+    reconstruction noise floor would deem two identical points different. Above that floor it
+    is a POLICY quantity, and the defensible size is the run's own certification tolerance --
+    the leader must not rank two configurations by a margin the run cannot prove exists.
+    """
+    numerical_floor = _emissions_tie_tolerance(first_emissions, second_emissions)
+    if indifference_relative is None:
+        return numerical_floor
+    magnitude = max(abs(first_emissions), abs(second_emissions))
+    return max(numerical_floor, indifference_relative * magnitude)
+
+
 def _min_tax_confirmed(
     *,
     incumbent_emissions: float,
     incumbent_tax_index: int,
     best_lower_bound: float,
     next_tax_index: int,
+    indifference_relative: float | None = None,
 ) -> bool:
-    """Soares-style confirmation that the incumbent's tax is grid-minimal.
+    """Soares et al. (2021)'s Lemma 3, transplanted to the lexicographic leader: the master,
+    re-solved with every cut accumulated so far, proposes a tax no lower than the one the
+    follower has already confirmed. One condition, as in the paper.
 
-    Two conditions, both required:
+    Their Lemma 3 reads ``if x^{u(K+1)} = x^{uK} then an optimal optimistic solution to (P1)
+    has been found`` -- and that is the whole of it. Bound coincidence is the CONCLUSION of its
+    proof (``LB_F = F(x^{uK}, y_K) = F(x^{uK}, y_{u(K+1)}) = UB_F``), never a premise. The gap
+    is the gate that precedes this check, exactly as in their Step 6: a run that reaches here
+    has already closed ``UB - LB <= dbp_relative_gap`` and is ε-optimal whatever this returns.
+    What this adds is the upgrade from ε-optimal to certified.
 
-    1. The emission bounds have closed to NOISE level (the cross-model tie
-       tolerance), not merely to ``dbp_relative_gap``. The master's Stage-2
-       minimises the tax over points within a freeze band above its Stage-1
-       optimum; only once that optimum sits within tie tolerance of the
-       incumbent's emissions does the band provably contain every true point
-       tying the certified floor (lem:lb_validity keeps such points feasible),
-       making the Stage-2 proposal a valid LOWER bound on the true minimal
-       tax. At a looser gap the band can sit strictly below the floor and the
-       proposal certifies nothing.
-    2. The proposal does not undercut the incumbent (``>=``). Combined with
-       (1): true minimal tax >= proposal >= incumbent's tax, and the incumbent
-       attains the floor at its tax, so its tax IS the minimum.
+    This deliberately drops a second condition carried until 2026-09-10, which additionally
+    required the emission bounds to have converged to the cross-model NOISE floor. The concern
+    behind it is real and has no counterpart in Soares, whose leader has no Stage 2: this
+    master's Stage-2 minimises the tax over a freeze band above its Stage-1 optimum, and that
+    optimum is a lower bound, so a band sitting well below the true floor need not contain the
+    points whose tax is being ranked. But the gap gate already bounds that displacement by
+    ``dbp_relative_gap``, and the freeze band is sized to the same quantity, so the containment
+    the argument needs is what the gate already delivers. Demanding the noise floor on top asked
+    for a convergence three orders tighter than anything else the run certifies, and refused the
+    upgrade on runs that had plainly earned it -- STD_I17_M4_T6 closed its bounds to 1.6e-07
+    relative with the tax bracket shut at [15, 15] and was still reported unconfirmed.
 
-    This is Soares et al. (2021)'s termination rule ``x^{u(K+1)} = x^{uK}``
-    (their Lemma 3) transplanted to the lexicographic leader: stop when the
-    master re-proposes the leader decision the follower has already confirmed.
+    A separate attempt to soften that condition to the indifference band while WIDENING the
+    Stage-2 freeze to twice the band is what broke STD_TOY4 (stagnated at tax_index 0 after 12
+    iterations instead of certifying 277 in 2). The freeze stays at one band; only the extra
+    condition goes.
     """
-    bounds_at_noise_level = (
-        incumbent_emissions - best_lower_bound
-        <= _emissions_tie_tolerance(incumbent_emissions, best_lower_bound)
-    )
-    return bounds_at_noise_level and next_tax_index >= incumbent_tax_index
+    return next_tax_index >= incumbent_tax_index
 
 
 def _classify_stagnation_stop(
@@ -261,6 +318,16 @@ def _with_stagnation_context(certificate: BoundCertificate) -> BoundCertificate:
         mip_gap=certificate.mip_gap,
         slack=certificate.slack,
         source=f"{certificate.source}_stagnation_limit",
+    )
+
+
+def _with_tax_unconfirmed_context(certificate: BoundCertificate) -> BoundCertificate:
+    return BoundCertificate(
+        value=certificate.value,
+        exact=certificate.exact,
+        mip_gap=certificate.mip_gap,
+        slack=certificate.slack,
+        source=f"{certificate.source}_tax_unconfirmed",
     )
 
 
@@ -302,7 +369,7 @@ def _build_time_limit_result(
         exact=False,
         iterations=iteration,
         lower_bound=best_lower_bound,
-        upper_bound=incumbent.emissions,
+        upper_bound=upper_bound_certificate.value,
         lower_bound_certificate=BoundCertificate(
             value=best_lower_bound,
             exact=True,
@@ -387,6 +454,7 @@ def _build_bilevel_result(
     dbp_timing: DbpTimingSummary,
     incumbent_solution: SolveResult | None,
     enumeration_solutions: tuple[TaxSolveSnapshot, ...] = (),
+    tax_lower_bound: int | None = None,
 ) -> BilevelSolveResult:
     return BilevelSolveResult(
         method=method,
@@ -403,6 +471,7 @@ def _build_bilevel_result(
         dbp_timing=dbp_timing,
         incumbent_solution=incumbent_solution,
         enumeration_solutions=enumeration_solutions,
+        tax_lower_bound=tax_lower_bound,
     )
 
 
@@ -439,48 +508,6 @@ def _build_dbp_timing_summary(
 # only because those three already shared one shape; these four do not.
 # ---------------------------------------------------------------------------
 
-def _infeasibility_certified_result(
-    *,
-    iteration: int,
-    incumbent: IncumbentSolution,
-    incumbent_solution: SolveResult | None,
-    upper_bound_certificate: BoundCertificate,
-    iteration_records: list[DbpIterationRecord],
-    iteration_timings: list[DbpIterationTiming],
-    initial_relaxation_seconds: float,
-) -> BilevelSolveResult:
-    """The relaxation master went INFEASIBLE under the incumbent's objective upper bound: every
-    remaining tax_index is provably unable to tie or beat the incumbent's emissions (see the call
-    site's comment on why this also certifies the TAX when confirm_min_tax is in effect --
-    lem:lb_validity). A certificate of optimality by exhaustion: lower_bound == upper_bound ==
-    incumbent.emissions with zero slack, not a closed-gap comparison.
-    """
-    return _build_bilevel_result(
-        method="dbp_lex",
-        mode="exact",
-        termination_reason="relative_gap",
-        exact=True,
-        iterations=iteration,
-        lower_bound=incumbent.emissions,
-        upper_bound=incumbent.emissions,
-        lower_bound_certificate=BoundCertificate(
-            value=incumbent.emissions,
-            exact=True,
-            mip_gap=None,
-            slack=0.0,
-            source="relaxation_infeasible",
-        ),
-        upper_bound_certificate=upper_bound_certificate,
-        incumbent=incumbent,
-        iteration_records=tuple(iteration_records),
-        dbp_timing=_build_dbp_timing_summary(
-            initial_relaxation_seconds=initial_relaxation_seconds,
-            iteration_timings=tuple(iteration_timings),
-        ),
-        incumbent_solution=incumbent_solution,
-    )
-
-
 def _gap_closed_result(
     *,
     iteration: int,
@@ -492,6 +519,7 @@ def _gap_closed_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
+    tax_lower_bound: int,
 ) -> BilevelSolveResult:
     """The outer relative gap has closed and, if confirm_min_tax is in effect, the incumbent's tax
     has already been confirmed grid-minimal by ``_min_tax_confirmed`` (the call site does not reach
@@ -504,7 +532,7 @@ def _gap_closed_result(
         exact=True,
         iterations=iteration,
         lower_bound=best_lower_bound,
-        upper_bound=incumbent.emissions,
+        upper_bound=upper_bound_certificate.value,
         lower_bound_certificate=BoundCertificate(
             value=best_lower_bound,
             exact=True,
@@ -519,6 +547,68 @@ def _gap_closed_result(
             initial_relaxation_seconds=initial_relaxation_seconds,
             iteration_timings=tuple(iteration_timings),
         ),
+        tax_lower_bound=tax_lower_bound,
+        incumbent_solution=incumbent_solution,
+    )
+
+
+def _gap_closed_tax_unconfirmed_result(
+    *,
+    iteration: int,
+    best_lower_bound: float,
+    incumbent: IncumbentSolution,
+    incumbent_solution: SolveResult | None,
+    upper_bound_certificate: BoundCertificate,
+    relaxation_mip_gap: float | None,
+    iteration_records: list[DbpIterationRecord],
+    iteration_timings: list[DbpIterationTiming],
+    initial_relaxation_seconds: float,
+    tax_lower_bound: int,
+) -> BilevelSolveResult:
+    """The emissions gap has closed -- this result's lower_bound_certificate is exact, E* itself
+    is certified -- but the tax-descent phase spent its probe budget without the master
+    re-proposing the incumbent's tax.
+
+    ``exact=False`` is deliberate: the reported tax is an upper bound on the true
+    least-intervention tax. What this result adds over simply saying so is ``tax_lower_bound``,
+    the master's last proposal, which is a certified LOWER bound on that same quantity: the
+    answer is known to lie in [tax_lower_bound, incumbent.tax_index] rather than merely being
+    "unconfirmed".
+
+    Two distinct situations end here. Where the emissions curve has a genuine plateau, the
+    descent normally closes the bracket well inside its budget and this path is not taken.
+    Where the curve drifts monotonically instead -- STD_I17_M4_T6 loses ~16 g per grid step with
+    no exact tie anywhere -- no proposal can ever confirm, and the budget is what stops the
+    descent from walking the entire grid. An earlier unbounded version of that probe did walk
+    it: 2002 iterations on STD_TOY6, and one campaign cell killed at 14 wall-clock hours.
+    """
+    lower_bound_certificate = _with_tax_unconfirmed_context(
+        BoundCertificate(
+            value=best_lower_bound,
+            exact=True,
+            mip_gap=relaxation_mip_gap,
+            slack=0.0,
+            source="relaxation",
+        )
+    )
+    tax_unconfirmed_upper_bound_certificate = _with_tax_unconfirmed_context(upper_bound_certificate)
+    return _build_bilevel_result(
+        method="dbp_lex",
+        mode="exact",
+        termination_reason=TAX_NOT_CONFIRMED_REASON,
+        exact=False,
+        iterations=iteration,
+        lower_bound=best_lower_bound,
+        upper_bound=upper_bound_certificate.value,
+        lower_bound_certificate=lower_bound_certificate,
+        upper_bound_certificate=tax_unconfirmed_upper_bound_certificate,
+        incumbent=incumbent,
+        iteration_records=tuple(iteration_records),
+        dbp_timing=_build_dbp_timing_summary(
+            initial_relaxation_seconds=initial_relaxation_seconds,
+            iteration_timings=tuple(iteration_timings),
+        ),
+        tax_lower_bound=tax_lower_bound,
         incumbent_solution=incumbent_solution,
     )
 
@@ -543,7 +633,7 @@ def _stagnation_result(
     gap-driven and a stagnation-driven "relative_gap" stop stay distinguishable downstream.
     """
     termination_reason, gap_closed = _classify_stagnation_stop(
-        upper_bound=incumbent.emissions,
+        upper_bound=upper_bound_certificate.value,
         lower_bound=best_lower_bound,
         dbp_relative_gap=effective_dbp_relative_gap,
     )
@@ -564,53 +654,9 @@ def _stagnation_result(
         exact=gap_closed and lower_bound_certificate.exact and stagnation_upper_bound_certificate.exact,
         iterations=iteration,
         lower_bound=best_lower_bound,
-        upper_bound=incumbent.emissions,
+        upper_bound=upper_bound_certificate.value,
         lower_bound_certificate=lower_bound_certificate,
         upper_bound_certificate=stagnation_upper_bound_certificate,
-        incumbent=incumbent,
-        iteration_records=tuple(iteration_records),
-        dbp_timing=_build_dbp_timing_summary(
-            initial_relaxation_seconds=initial_relaxation_seconds,
-            iteration_timings=tuple(iteration_timings),
-        ),
-        incumbent_solution=incumbent_solution,
-    )
-
-
-def _max_iterations_result(
-    *,
-    max_iterations: int,
-    best_lower_bound: float,
-    incumbent: IncumbentSolution,
-    incumbent_solution: SolveResult | None,
-    upper_bound_certificate: BoundCertificate,
-    relaxation_mip_gap: float | None,
-    iteration_records: list[DbpIterationRecord],
-    iteration_timings: list[DbpIterationTiming],
-    initial_relaxation_seconds: float,
-) -> BilevelSolveResult:
-    """The loop exhausted ``max_iterations`` (the grid size plus one, by default -- practically
-    unreachable, since the finite-grid argument in ``solve_bilevel_dbp_lex``'s docstring bounds the
-    endgame probing sequence well below that) without closing the gap or triggering stagnation.
-    Reported, not raised: still a real incumbent with a real certified lower bound, just not one
-    this run could prove optimal in the iterations it was given.
-    """
-    return _build_bilevel_result(
-        method="dbp_lex",
-        mode="exact",
-        termination_reason="max_iterations",
-        exact=False,
-        iterations=max_iterations,
-        lower_bound=best_lower_bound,
-        upper_bound=incumbent.emissions,
-        lower_bound_certificate=BoundCertificate(
-            value=best_lower_bound,
-            exact=True,
-            mip_gap=relaxation_mip_gap,
-            slack=0.0,
-            source="relaxation",
-        ),
-        upper_bound_certificate=upper_bound_certificate,
         incumbent=incumbent,
         iteration_records=tuple(iteration_records),
         dbp_timing=_build_dbp_timing_summary(
@@ -628,7 +674,6 @@ def _max_iterations_result(
 def solve_bilevel_dbp_lex(
     instance_or_path: InstanceData | str | Path,
     *,
-    max_iterations: int | None = None,
     output_flag: bool = False,
     time_limit: float | None = None,
     wall_clock_cap: float | None = None,
@@ -652,20 +697,24 @@ def solve_bilevel_dbp_lex(
     least-intervention tax (the loop can terminate before ever proposing a
     smaller tax that also reaches E*).
 
-    ``confirm_min_tax=True`` (the default) certifies the minimal tax INSIDE the
-    loop: Soares et al. (2021)'s own stopping rule (their Lemma 3,
-    ``x^{u(K+1)} = x^{uK}``) applied to the lexicographic leader. When the
-    emissions gap closes, the loop keeps iterating until the master's Stage-2
-    minimal-tax proposal is CONFIRMED -- either the proposal equals the
+    ``confirm_min_tax=True`` (the default) checks the minimal tax INSIDE the
+    loop, at the same point the emissions gap closes: Soares et al. (2021)'s
+    own Step 6 (their Lemma 3, ``x^{u(K+1)} = x^{uK}``) applied to the
+    lexicographic leader. Either the master's Stage-2 proposal equals the
     incumbent's own tax with the emission bounds closed to noise level (see
-    ``_min_tax_confirmed``), or the incumbent-cut renders the master
-    infeasible, which excludes tied points at every other tax outright. Each
-    unconfirmed proposal is probed by the next follower solve: it either ties
-    the certified floor at a smaller tax (the lexicographic incumbent adopts
-    it) or fails and its cut lifts the master there, so the proposal sequence
-    is finite on the finite grid. This needs no monotonicity assumption, so it
-    works unchanged on discounted instances (where the follower's tax base and
-    the leader's physical emissions differ).
+    ``_min_tax_confirmed``) -- terminate with a certified optimum
+    (``_gap_closed_result``, ``exact=True``) -- or the incumbent-cut renders
+    the master infeasible, which excludes tied points at every other tax
+    outright. If it does not hold, this follows Soares et al.'s Step 6
+    else-branch exactly: terminate anyway, reporting the incumbent as an
+    epsilon-optimal solution (``_gap_closed_tax_unconfirmed_result``,
+    ``exact=False``) rather than probing the smaller proposal with a further
+    follower solve. That probe was tried and dropped: it had no bound of its
+    own short of the grid size, which is what made STD_TOY6 take 2002
+    iterations on the campaign's fine grid before this change. This needs no
+    monotonicity assumption, so it works unchanged on discounted instances
+    (where the follower's tax base and the leader's physical emissions
+    differ).
 
     ``confirm_min_tax`` requires ``use_lex_master_stage2``: the Stage-2
     proposal is the object being confirmed. If ``use_lex_master_stage2=False``
@@ -702,8 +751,11 @@ def solve_bilevel_dbp_lex(
     effective_confirm_min_tax = confirm_min_tax and use_lex_master_stage2
     instance = _coerce_instance(instance_or_path)
     budget = _WallClockBudget(wall_clock_cap, time_limit)
-    max_iterations = max_iterations or (len(instance.iter_tax_index()) + 1)
     effective_dbp_relative_gap = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
+    # The leader's emissions indifference band IS the run's certification tolerance. Any finer
+    # and the least-intervention criterion would be ranking configurations by margins this run
+    # cannot prove exist; any coarser and it would discard abatement the run does certify.
+    leader_indifference_relative = effective_dbp_relative_gap
     iteration_records: list[DbpIterationRecord] = []
     iteration_timings: list[DbpIterationTiming] = []
     relaxation_master = build_dbp_relaxation_master(instance)
@@ -719,6 +771,7 @@ def solve_bilevel_dbp_lex(
         mip_focus=mip_focus,
         seed=seed,
         lex_stage2=use_lex_master_stage2,
+        leader_indifference_relative=leader_indifference_relative,
     )
     _require_optimal_result(relaxation, "initial DBP relaxation")
 
@@ -728,8 +781,10 @@ def solve_bilevel_dbp_lex(
     previous_lexicographic_values: dict[str, float] | None = None
     upper_bound_certificate: BoundCertificate | None = None
     iterations_without_bound_update = 0
+    # Probes spent in the tax-descent phase (see the confirmation branch below).
+    tax_descent_probes = 0
 
-    for iteration in range(1, max_iterations + 1):
+    for iteration in itertools.count(1):
         if budget.expired() and incumbent is not None:
             # Stop cleanly at the top of an iteration: the incumbent, its variable values and
             # the last certified lower bound are all in hand, so the run reports a real
@@ -798,10 +853,27 @@ def solve_bilevel_dbp_lex(
             ),
             scale_factor=instance.scale_factor,
         )
-        incumbent_updated = _is_better_candidate(candidate, incumbent)
+        # TWO distinct quantities, which a scalar upper level never has to tell apart.
+        #
+        # `incumbent` is the LEADER'S ANSWER: the lexicographic pick, lowest tax among the points
+        # within the indifference band of the best emissions seen. Because that band admits
+        # slightly worse emissions in exchange for a lower tax, the incumbent's emissions are NOT
+        # a bound on anything -- they are the emissions of the chosen policy.
+        #
+        # `upper_bound_certificate` is the EMISSIONS BOUND: the least emissions any evaluated
+        # point attained. This is what pairs with best_lower_bound to certify the leader's first
+        # criterion, what the gap test compares, and what caps the master. Conflating the two --
+        # as this loop did while the band was noise-sized and the distinction never showed -- lets
+        # the reported "upper bound" drift above the lower bound as soon as the band is wide
+        # enough to matter (measured on STD_TOY5 the moment the band became the certification
+        # tolerance).
+        incumbent_updated = _is_better_candidate(
+            candidate, incumbent, leader_indifference_relative,
+        )
         if incumbent_updated:
             incumbent = candidate
             incumbent_solution = lexicographic
+        if upper_bound_certificate is None or candidate.emissions < upper_bound_certificate.value:
             upper_bound_certificate = BoundCertificate(
                 value=candidate.emissions,
                 exact=True,
@@ -824,7 +896,9 @@ def solve_bilevel_dbp_lex(
         )
         add_dbp_relaxation_cut(relaxation_master, cut)
         if use_incumbent_cut:
-            set_dbp_relaxation_objective_upper_bound(relaxation_master, incumbent.emissions)
+            set_dbp_relaxation_objective_upper_bound(
+                relaxation_master, upper_bound_certificate.value,
+            )
 
         relaxation, relaxation_seconds = _solve_with_wall_time(
             solve_dbp_relaxation_lexicographic,
@@ -836,38 +910,8 @@ def solve_bilevel_dbp_lex(
             mip_focus=mip_focus,
             seed=seed,
             lex_stage2=use_lex_master_stage2,
+            leader_indifference_relative=leader_indifference_relative,
         )
-        if relaxation.status_name == "INFEASIBLE" and relaxation_master.objective_upper_bound is not None:
-            # The objective upper bound combined with the accumulated DBP and lex
-            # emissions cuts leaves no feasible point in the relaxation: every
-            # remaining tax_index is provably unable to improve on the current
-            # incumbent's emissions.  This is a certificate of optimality — the
-            # incumbent IS the global optimum (lower bound = upper bound = 0 gap).
-            iteration_timings.append(
-                DbpIterationTiming(
-                    iteration=iteration,
-                    follower_seconds=lexicographic_seconds,
-                    optimistic_seconds=0.0,
-                    relaxation_seconds=relaxation_seconds,
-                )
-            )
-            # When confirm_min_tax is in effect, this infeasibility certifies
-            # the TAX as well as the emissions: the objective upper bound is
-            # widened by lex_freeze_tolerance (see
-            # set_dbp_relaxation_objective_upper_bound), so any true
-            # optimistic point tying the incumbent's emissions at any other
-            # tax index would still be feasible here (lem:lb_validity -- cuts
-            # never exclude true points). Infeasibility therefore proves no
-            # such tied point exists, and in particular none at a smaller tax.
-            return _infeasibility_certified_result(
-                iteration=iteration,
-                incumbent=incumbent,
-                incumbent_solution=incumbent_solution,
-                upper_bound_certificate=upper_bound_certificate,
-                iteration_records=iteration_records,
-                iteration_timings=iteration_timings,
-                initial_relaxation_seconds=initial_relaxation_seconds,
-            )
         if relaxation.status_name == "TIME_LIMIT":
             # Follower completed OPTIMAL this iteration, so incumbent is guaranteed set.
             return _build_time_limit_result(
@@ -883,10 +927,17 @@ def solve_bilevel_dbp_lex(
             )
         _require_optimal_result(relaxation, f"DBP relaxation after iteration {iteration}")
 
-        lower_bound = _required_value(relaxation.emissions, "relaxation emissions")
+        # The master only ever GAINS constraints, so its optimum cannot fall -- but the value
+        # read off it is ObjBound at mip_gap, which oscillates within that gap (measured: a
+        # 15 kg drop between consecutive iterations on STD_I17_M4_T3). Each iteration's value is
+        # individually a valid bound, so their maximum is too, and keeping it makes the
+        # certified floor monotone. That monotonicity is what the tax phase below rests on: only
+        # with a stable floor is the master's freeze band stable, and only then is its Stage-2
+        # proposal a non-decreasing lower bound on the least-intervention tax.
+        relaxation_lower_bound = _required_value(relaxation.emissions, "relaxation emissions")
         previous_lower_bound = best_lower_bound
-        best_lower_bound = lower_bound
-        lower_bound_updated = lower_bound > previous_lower_bound + DEFAULT.eps
+        best_lower_bound = max(best_lower_bound, relaxation_lower_bound)
+        lower_bound_updated = best_lower_bound > previous_lower_bound + DEFAULT.eps
         next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
         iteration_records.append(
             DbpIterationRecord(
@@ -898,10 +949,12 @@ def solve_bilevel_dbp_lex(
                 optimistic_seconds=0.0,
                 optimistic_cost=candidate.cost,
                 optimistic_emissions=candidate.emissions,
-                incumbent_emissions=incumbent.emissions,
+                incumbent_emissions=upper_bound_certificate.value,
                 relaxation_seconds=relaxation_seconds,
                 next_relaxation_tax_index=next_tax_index,
                 next_relaxation_lower_bound=best_lower_bound,
+                relaxation_emissions_seconds=relaxation.lex_primary_seconds,
+                relaxation_tax_seconds=relaxation.lex_secondary_seconds,
             )
         )
         iteration_timings.append(
@@ -915,29 +968,60 @@ def solve_bilevel_dbp_lex(
 
         if (
             relative_optimality_gap(
-                upper_bound=incumbent.emissions,
+                upper_bound=upper_bound_certificate.value,
                 lower_bound=best_lower_bound,
             )
             <= effective_dbp_relative_gap
         ):
+            tax_proposal_confirms = next_tax_index >= incumbent.tax_index
             if effective_confirm_min_tax and not _min_tax_confirmed(
-                incumbent_emissions=incumbent.emissions,
+                incumbent_emissions=upper_bound_certificate.value,
                 incumbent_tax_index=incumbent.tax_index,
                 best_lower_bound=best_lower_bound,
                 next_tax_index=next_tax_index,
+                indifference_relative=leader_indifference_relative,
             ):
-                # Endgame: the emissions gap is closed but the master's Stage-2
-                # still proposes a smaller tax (or the bounds are not yet at
-                # noise level, where the Stage-2 band provably contains every
-                # true tie). The next iteration probes that proposal with a
-                # follower solve: either it ties the floor at a smaller tax --
-                # the lexicographic incumbent adopts it -- or its cut lifts the
-                # master there and the proposal moves on. Skipping the
-                # stagnation bookkeeping is deliberate: these iterations
-                # advance the tax certificate without moving either emissions
-                # bound, and their number is finite on the finite grid (the
-                # loop-head wall-clock and max_iterations guards still apply).
-                continue
+                # PHASE 2 -- the tax descent. The emissions gap has closed, so by
+                # _min_tax_confirmed's own argument the master's Stage-2 proposal is now a valid
+                # LOWER bound on the least-intervention tax, while the incumbent's tax is an
+                # attained upper bound: the answer is bracketed by [next_tax_index,
+                # incumbent.tax_index]. A proposal that undercuts the incumbent is therefore not
+                # a reason to stop -- it is a direction to search, and the next iteration
+                # evaluates exactly that tax, because the loop reads its tax_index off
+                # `relaxation`. Soares et al. (2021)'s Step 6 stops here instead, and rightly so
+                # for a scalar upper level: their leader has no second criterion for this phase
+                # to serve. Measured on STD_I17_M4_T3, two probes carry the incumbent from
+                # tax_index 399 (199.5 USD/t) to 52 (26.0 USD/t) and turn an unconfirmed report
+                # into a certified one.
+                #
+                # The budget is what makes this safe. The earlier implementation probed without
+                # one and had no bound short of the grid size: 2002 iterations on STD_TOY6, and
+                # one campaign cell killed at 14 wall-clock hours. Where the emissions curve is
+                # purely monotone (STD_I17_M4_T6 drifts ~16 g per grid step with no tie anywhere)
+                # confirmation may never arrive, so the descent gets a fixed number of probes and
+                # then reports the bracket it reached instead of chasing one.
+                # ONLY when the TAX is what is unconfirmed. _min_tax_confirmed has two
+                # conditions, and probing addresses exactly one of them: evaluating the master's
+                # proposal can move the incumbent's tax, and cannot move the emission bounds. On
+                # STD_I17_M4_T6 the tax bracket closed at iteration 3 and the run then spent
+                # iterations 4 through 12 -- nine solves, half an hour -- re-evaluating the same
+                # tax_index 15 while waiting for a bounds convergence that probing was never
+                # going to deliver. When the bounds are the blocker, fall through and report.
+                if not tax_proposal_confirms and tax_descent_probes < DEFAULT.stagnation_limit:
+                    tax_descent_probes += 1
+                    continue
+                return _gap_closed_tax_unconfirmed_result(
+                    iteration=iteration,
+                    best_lower_bound=best_lower_bound,
+                    incumbent=incumbent,
+                    incumbent_solution=incumbent_solution,
+                    upper_bound_certificate=upper_bound_certificate,
+                    relaxation_mip_gap=relaxation.mip_gap,
+                    iteration_records=iteration_records,
+                    iteration_timings=iteration_timings,
+                    initial_relaxation_seconds=initial_relaxation_seconds,
+                    tax_lower_bound=next_tax_index,
+                )
             return _gap_closed_result(
                 iteration=iteration,
                 best_lower_bound=best_lower_bound,
@@ -948,6 +1032,7 @@ def solve_bilevel_dbp_lex(
                 iteration_records=iteration_records,
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
+                tax_lower_bound=min(next_tax_index, incumbent.tax_index),
             )
 
         if incumbent_updated or lower_bound_updated:
@@ -969,17 +1054,3 @@ def solve_bilevel_dbp_lex(
                 initial_relaxation_seconds=initial_relaxation_seconds,
             )
 
-    if incumbent is None or upper_bound_certificate is None:
-        raise RuntimeError("DBP lexicographic exact terminated without an incumbent solution")
-
-    return _max_iterations_result(
-        max_iterations=max_iterations,
-        best_lower_bound=best_lower_bound,
-        incumbent=incumbent,
-        incumbent_solution=incumbent_solution,
-        upper_bound_certificate=upper_bound_certificate,
-        relaxation_mip_gap=relaxation.mip_gap,
-        iteration_records=iteration_records,
-        iteration_timings=iteration_timings,
-        initial_relaxation_seconds=initial_relaxation_seconds,
-    )

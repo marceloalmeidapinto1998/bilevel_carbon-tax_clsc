@@ -46,6 +46,7 @@ SUMMARY_FIELDNAMES = [
     "termination_reason",
     "iterations",
     "tax_index",
+    "tax_index_lower_bound",
     "effective_tax",
     "cost",
     "emissions",
@@ -70,6 +71,8 @@ TRACE_FIELDNAMES = [
     "follower_objective",
     "incumbent_emissions",
     "relaxation_seconds",
+    "relaxation_emissions_seconds",
+    "relaxation_tax_seconds",
     "next_relaxation_tax_index",
     "next_relaxation_lower_bound",
 ]
@@ -96,7 +99,6 @@ def build_parser() -> argparse.ArgumentParser:
             "the relaxation master -- no separate tax-tiebreak phase."
         ),
     )
-    parser.add_argument("--max-iterations", type=int, help="Maximum DBP iterations.")
     parser.add_argument("--time-limit", type=float, help="Per-subproblem Gurobi time limit in seconds.")
     parser.add_argument(
         "--wall-clock-cap",
@@ -151,13 +153,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--scale-factor",
         type=float,
         help=(
-            "Fine-grid resolution theta (USD/kg CO2e per integer tax_index step). "
+            "Grid-resolution override theta (USD/kg CO2e per integer tax_index step). "
             "When set, each in-memory instance's tax grid is refined to this step "
             "WHILE PRESERVING its real tax range [underline_tau, overline_tau]: the "
             "index bounds are recomputed as round(tau / theta) so overline_tax_index "
             "becomes overline_tau/theta (e.g. 0.2/0.0005 = 400). The stored instance "
-            "files are never touched. Omit to use each instance's stored grid "
-            "(theta = 0.01, index {0..20}). The campaign uses --scale-factor 0.0005."
+            "files are never touched. Omit to use each instance's stored grid, which "
+            "is already the project's one grid (theta = 0.0005, index {0..400}) for "
+            "every base instance -- this flag exists for a deliberate probe at a "
+            "different resolution, not for routine campaign use."
         ),
     )
     parser.add_argument(
@@ -319,7 +323,6 @@ def main() -> int:
             if args.method == "dbp_lex":
                 result = solve_bilevel_dbp_lex(
                     instance,
-                    max_iterations=args.max_iterations,
                     output_flag=args.solver_output,
                     time_limit=args.time_limit,
                     wall_clock_cap=args.wall_clock_cap,
@@ -512,7 +515,6 @@ def build_manifest(
     solver_manifest: dict[str, object] = {
         "method": args.method,
         "mode": args.dbp_mode,
-        "max_iterations": args.max_iterations,
         "time_limit": args.time_limit,
         "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
@@ -563,6 +565,9 @@ def build_summary_record(
         "termination_reason": result.termination_reason,
         "iterations": result.iterations,
         "tax_index": result.incumbent.tax_index,
+        # Certified lower bound on the least-intervention tax: with tax_index above it, the two
+        # bracket the true answer. None where the run stopped before that bound became valid.
+        "tax_index_lower_bound": getattr(result, "tax_lower_bound", None),
         "effective_tax": result.incumbent.tax_rate,
         "cost": result.incumbent.cost,
         "emissions": result.incumbent.emissions,
@@ -711,6 +716,8 @@ def build_dbp_trace_row(record) -> dict[str, object]:
         "follower_objective": record.follower_objective,
         "incumbent_emissions": record.incumbent_emissions,
         "relaxation_seconds": record.relaxation_seconds,
+        "relaxation_emissions_seconds": getattr(record, "relaxation_emissions_seconds", None),
+        "relaxation_tax_seconds": getattr(record, "relaxation_tax_seconds", None),
         "next_relaxation_tax_index": record.next_relaxation_tax_index,
         "next_relaxation_lower_bound": record.next_relaxation_lower_bound,
     }

@@ -1,7 +1,7 @@
 {
   "name": "STD_I25_M12_T6",
   "metadata": {
-    "generated_at_utc": "2026-09-03T09:44:58.338817+00:00",
+    "generated_at_utc": "2026-09-09T11:02:29.548087+00:00",
     "seed": 1031604543,
     "source_model": "paper/bilevel_model.tex",
     "sampling_rules_module": "clsc.generator.tautenhain_data",
@@ -9165,7 +9165,7 @@
     "underline_tau": 0.0,
     "overline_tau": 0.2,
     "underline_tax_index": 0,
-    "overline_tax_index": 20,
+    "overline_tax_index": 400,
     "d_i_j": {
       "air1": {
         "air2": 280.788,

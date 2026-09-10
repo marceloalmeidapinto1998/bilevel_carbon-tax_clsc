@@ -1,7 +1,7 @@
 {
   "name": "STD_I17_M8_T12",
   "metadata": {
-    "generated_at_utc": "2026-09-01T15:48:11.934361+00:00",
+    "generated_at_utc": "2026-09-09T10:59:37.534942+00:00",
     "seed": 1819218960,
     "source_model": "paper/bilevel_model.tex",
     "sampling_rules_module": "clsc.generator.tautenhain_data",
@@ -4328,7 +4328,7 @@
     "underline_tau": 0.0,
     "overline_tau": 0.2,
     "underline_tax_index": 0,
-    "overline_tax_index": 20,
+    "overline_tax_index": 400,
     "d_i_j": {
       "air1": {
         "air2": 414.112,

@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2080 1040" width="2080" height="1040" role="img" aria-label="Horizontal flowchart of the Deterministic Bounding Procedure: initialize, solve the follower at the proposed tax, update the incumbent, add the additional constraint, re-solve the high point relaxation, then test whether the bound gap still exceeds epsilon. If it does, a stagnation counter is updated and the loop either terminates with the incumbent or iterates again. If the gap has closed, a test on whether the master re-proposes the same leader decision decides between terminating with an optimal solution and terminating with an epsilon-optimal solution.">
+<title>Deterministic Bounding Procedure — control flow and termination</title>
+<desc>The procedure alternates between the high point relaxation with additional constraints, which proposes a carbon tax and yields one bound, and an exact follower solve at that tax, which yields the other bound and a new additional constraint. Once the bound gap falls within the optimality tolerance, a test on whether the master re-proposes the same leader decision decides whether the reported solution is optimal or only epsilon-optimal. A stagnation counter provides an auxiliary termination when neither bound moves for twenty consecutive iterations.</desc>
+
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<!-- ============ Step 1 — initialize ============ -->
+<rect x="40" y="120" width="260" height="140" rx="7" fill="#E9EDF0" stroke="#6E7A84" stroke-width="1.2"/>
+<text x="58" y="142" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" letter-spacing="0.09em" fill="#7C8791">STEP 1</text>
+<text x="170" y="166" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="600" fill="#131A20">Initialization</text>
+<text x="170" y="188" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">build the HPR and the follower;</text>
+<text x="170" y="204" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">solve the HPR (P2)</text>
+<text x="170" y="222" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">→ first bound and proposal τ¹</text>
+<line x1="300" y1="190" x2="322" y2="190" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+
+<!-- ============ Steps 2–3 — follower ============ -->
+<rect x="330" y="120" width="260" height="140" rx="3" fill="#F1E6D6" stroke="#8A5A25" stroke-width="1.3"/>
+<text x="348" y="142" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" letter-spacing="0.09em" fill="#A07A44">STEPS 2–3</text>
+<text x="460" y="166" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#6B4419">Solve the follower at τᵏ</text>
+<text x="460" y="188" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">(P3) → f ᵘ*, then (P4-ε′)</text>
+<text x="460" y="204" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">picks the best tied response</text>
+<text x="460" y="222" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">for the leader — optimistic</text>
+<line x1="590" y1="190" x2="612" y2="190" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+
+<!-- ============ Step 4 — incumbent ============ -->
+<rect x="620" y="120" width="260" height="140" rx="3" fill="#E9EDF0" stroke="#6E7A84" stroke-width="1.2"/>
+<text x="638" y="142" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" letter-spacing="0.09em" fill="#7C8791">STEP 4</text>
+<text x="750" y="166" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="600" fill="#131A20">Bounding evaluation</text>
+<text x="750" y="188" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">set the incumbent (x*, y*)</text>
+<text x="750" y="204" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">on lexmin (emissions, τ)</text>
+<text x="750" y="222" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">→ the follower-side bound</text>
+<line x1="880" y1="190" x2="902" y2="190" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+
+<!-- ============ Step 5a — additional constraint ============ -->
+<rect x="910" y="120" width="260" height="140" rx="3" fill="#E9EDF0" stroke="#6E7A84" stroke-width="1.2"/>
+<text x="928" y="142" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" letter-spacing="0.09em" fill="#7C8791">STEP 5</text>
+<text x="1040" y="166" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#131A20">Add the additional constraint</text>
+<text x="1040" y="188" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">f(x,y) ≤ f(x,yᵏ) + ε′,  ∀k</text>
+<text x="1040" y="204" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">valid for every x, so it</text>
+<text x="1040" y="222" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">eliminates no true solution</text>
+<line x1="1170" y1="190" x2="1192" y2="190" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+
+<!-- ============ Step 5b — re-solve HPR ============ -->
+<rect x="1200" y="120" width="260" height="140" rx="3" fill="#DDEAEC" stroke="#12525F" stroke-width="1.3"/>
+<text x="1218" y="142" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" letter-spacing="0.09em" fill="#4E8B99">STEP 5</text>
+<text x="1330" y="166" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#0E3F49">Re-solve the HPR (P5-ε′)</text>
+<text x="1330" y="188" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">stage 1 — min emissions</text>
+<text x="1330" y="204" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">stage 2 — min τ among ties</text>
+<text x="1330" y="222" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">→ master-side bound, τᵏ⁺¹</text>
+<line x1="1460" y1="190" x2="1482" y2="190" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+
+<!-- ============ Step 6 — gap test ============ -->
+<polygon points="1600,120 1710,190 1600,260 1490,190" fill="#FFFFFF" stroke="#12525F" stroke-width="1.4"/>
+<text x="1600" y="162" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" letter-spacing="0.09em" fill="#7C8791">STEP 6</text>
+<text x="1600" y="188" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#131A20">UB − LB</text>
+<text x="1600" y="208" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#131A20">&gt; ε ?</text>
+
+<!-- gap still open -> stagnation counter -->
+<path d="M1710 190 L1900 190 L1900 278" fill="none" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1800" y="180" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">yes</text>
+
+<!-- ============ stagnation counter ============ -->
+<rect x="1770" y="280" width="260" height="100" rx="3" fill="#F4E7D9" stroke="#8A5A25" stroke-width="1.2"/>
+<text x="1900" y="306" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#6B4419">Update the counter</text>
+<text x="1900" y="330" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">if neither UB nor LB moved</text>
+<text x="1900" y="346" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">this iteration:  n ← n + 1</text>
+<text x="1900" y="366" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">otherwise:  n ← 0</text>
+<line x1="1900" y1="380" x2="1900" y2="428" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+
+<!-- ============ auxiliary stopping condition ============ -->
+<polygon points="1900,430 2030,500 1900,570 1770,500" fill="#FFFFFF" stroke="#8A5A25" stroke-width="1.4"/>
+<text x="1900" y="492" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#131A20">n ≥ 20 ?</text>
+<text x="1900" y="514" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" fill="#4E5A64">consecutive iterations</text>
+<text x="1900" y="530" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" fill="#4E5A64">with no bound update</text>
+
+<line x1="1900" y1="570" x2="1900" y2="618" stroke="#8A5A25" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1912" y="600" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">yes</text>
+
+<rect x="1750" y="620" width="300" height="120" rx="7" fill="#F4E7D9" stroke="#8A5A25" stroke-width="1.6"/>
+<text x="1768" y="648" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#6B4419">Terminate —</text>
+<text x="1768" y="668" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#6B4419">incumbent solution</text>
+<text x="1768" y="692" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">auxiliary stopping condition:</text>
+<text x="1768" y="708" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">the bounds have stalled, so</text>
+<text x="1768" y="724" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#8A5A25">convergence is not ensured</text>
+
+<!-- ============ loop back ============ -->
+<path d="M1770 500 L1710 500 L1710 790 L460 790 L460 262" fill="none" stroke="#6E7A84" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1740" y="490" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">no</text>
+<text x="1000" y="780" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">k ← k + 1, go to Step 2 — with τᵏ⁺¹ as the new proposal</text>
+
+<!-- ============ gap closed -> leader-decision test ============ -->
+<line x1="1600" y1="260" x2="1600" y2="328" stroke="#12525F" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1612" y="300" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">no</text>
+
+<polygon points="1600,330 1745,400 1600,470 1455,400" fill="#FFFFFF" stroke="#A5372A" stroke-width="1.8"/>
+<text x="1600" y="392" text-anchor="middle" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13.5" font-weight="600" fill="#A5372A">xᵘ⁽ᵏ⁺¹⁾ = xᵘᵏ ?</text>
+<text x="1600" y="414" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" fill="#A5372A">the master re-proposes</text>
+<text x="1600" y="430" text-anchor="middle" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="10.5" fill="#A5372A">the same leader decision</text>
+
+<!-- yes -> optimal solution -->
+<line x1="1600" y1="470" x2="1600" y2="538" stroke="#12525F" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1612" y="510" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">yes</text>
+
+<rect x="1350" y="540" width="330" height="100" rx="7" fill="#DDEAEC" stroke="#12525F" stroke-width="2"/>
+<text x="1368" y="566" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="600" fill="#0E3F49">Terminate — optimal solution</text>
+<text x="1368" y="588" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">an optimal optimistic solution to the</text>
+<text x="1368" y="606" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">bilevel problem has been found;</text>
+<text x="1368" y="626" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">here, also the least-intervention τ</text>
+
+<!-- no -> epsilon-optimal solution -->
+<path d="M1455 400 L1100 400 L1100 538" fill="none" stroke="#12525F" stroke-width="1.6" marker-end="url(#a)"/>
+<text x="1425" y="390" text-anchor="end" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">no</text>
+
+<rect x="930" y="540" width="340" height="100" rx="7" fill="#E9EDF0" stroke="#12525F" stroke-width="1.4"/>
+<text x="948" y="566" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="600" fill="#0E3F49">Terminate — ε-optimal solution</text>
+<text x="948" y="588" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">the gap has closed but the master</text>
+<text x="948" y="606" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">moved on; report the incumbent, since</text>
+<text x="948" y="626" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#12525F">the bounding solution may be infeasible</text>
+
+<!-- ============ legend — shapes and outcomes ============ -->
+<line x1="40" y1="838" x2="2040" y2="838" stroke="#CBD3D9" stroke-width="1"/>
+<rect x="40" y="854" width="26" height="15" rx="2" fill="#E9EDF0" stroke="#6E7A84" stroke-width="1.1"/>
+<text x="74" y="866" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">step</text>
+<polygon points="155,854 182,861.5 155,869 128,861.5" fill="#FFFFFF" stroke="#12525F" stroke-width="1.1"/>
+<text x="190" y="866" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">test</text>
+<rect x="242" y="854" width="26" height="15" rx="6" fill="#DDEAEC" stroke="#12525F" stroke-width="1.6"/>
+<text x="276" y="866" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">optimal solution</text>
+<rect x="418" y="854" width="26" height="15" rx="6" fill="#E9EDF0" stroke="#12525F" stroke-width="1.2"/>
+<text x="452" y="866" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">ε-optimal solution</text>
+<rect x="612" y="854" width="26" height="15" rx="6" fill="#F4E7D9" stroke="#8A5A25" stroke-width="1.6"/>
+<text x="646" y="866" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="11" fill="#4E5A64">incumbent — convergence not ensured</text>
+
+<!-- ============ legend — subproblems ============ -->
+<line x1="40" y1="892" x2="2040" y2="892" stroke="#CBD3D9" stroke-width="1"/>
+<text x="40" y="918" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="11.5" font-weight="600" letter-spacing="0.1em" fill="#7C8791">SUBPROBLEMS</text>
+
+<text x="200" y="918" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="12" font-weight="600" fill="#131A20">HPR (P2)</text>
+<text x="330" y="918" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" fill="#4E5A64">high point relaxation — minimise the leader's emissions over the constraints of both levels, with the follower's optimality requirement dropped. Solved once, at Step 1.</text>
+
+<text x="200" y="942" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="12" font-weight="600" fill="#131A20">(P3)</text>
+<text x="330" y="942" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" fill="#4E5A64">the follower's own problem at the fixed tax τᵏ — minimise cost + τᵏ·emissions. Its optimal value is f ᵘ*.</text>
+
+<text x="200" y="966" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="12" font-weight="600" fill="#131A20">(P4-ε′)</text>
+<text x="330" y="966" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" fill="#4E5A64">among the follower's responses within ε′ of f ᵘ*, the one the leader prefers — the optimistic tie-break. Gives the follower-side bound.</text>
+
+<text x="200" y="990" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="12" font-weight="600" fill="#131A20">(P5-ε′)</text>
+<text x="330" y="990" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" fill="#4E5A64">the HPR plus every additional constraint collected so far. Re-solved each iteration; gives the master-side bound and the next proposal τᵏ⁺¹.</text>
+
+<text x="200" y="1014" font-family="IBM Plex Mono, Consolas, Menlo, monospace" font-size="12" font-weight="600" fill="#131A20">ε  ·  ε′</text>
+<text x="330" y="1014" font-family="IBM Plex Sans, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" fill="#4E5A64">ε is the optimality tolerance on the bound gap; ε′ is the slack added to the additional constraints' right-hand side.</text>
+</svg>

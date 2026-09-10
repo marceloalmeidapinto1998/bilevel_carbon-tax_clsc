@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from clsc.config.gap_tol import DEFAULT
-from clsc.config.tax_grid import COARSE_SCALE_FACTOR as SCALE_FACTOR
+from clsc.config.tax_grid import TAX_GRID_SCALE_FACTOR as SCALE_FACTOR
 
 # SCALE_FACTOR: USD/kg CO2e per integer tax_index step: tax_rate = SCALE_FACTOR * tax_index.
-# Single definition lives in clsc.config.tax_grid; re-exported under this name since it is
-# part of this module's public API (imported elsewhere as clsc.models.instance.SCALE_FACTOR).
+# The one carbon-tax grid in the project (clsc.config.tax_grid.TAX_GRID_SCALE_FACTOR),
+# re-exported under this name since it is part of this module's public API (imported elsewhere
+# as clsc.models.instance.SCALE_FACTOR).
 # Fallback for instances generated before 2026-08-11, which carry no
 # product_rotation_per_period. Those were built reading Mota's 4.5 turns/year
 # as a per-period count, and must keep it so archived runs stay reproducible.
@@ -118,10 +119,12 @@ class InstanceData:
     sets: dict[str, Any]
     parameters: dict[str, Any]
     source_path: Path | None = None
-    # Optional fine-grid override (theta, USD/kg CO2e per integer tax_index step). When None the
-    # tax grid is read from the stored parameters (coarse step 0.01, index {0..20}); when set, the
-    # index bounds and scale_factor are DERIVED from it over the same real tau range, without
-    # touching `parameters`. Set only via with_tax_grid_step(); see that method for the rationale.
+    # Optional grid-resolution override (theta, USD/kg CO2e per integer tax_index step). When None
+    # the tax grid is read from the stored parameters (the project's one grid, TAX_GRID_SCALE_FACTOR,
+    # index {0..400}); when set, the index bounds and scale_factor are DERIVED from it over the same
+    # real tau range, without touching `parameters`. Set only via with_tax_grid_step(); a caller
+    # deliberately probing a different resolution (e.g. the retired coarse grid, as a robustness
+    # check) rather than something any current base instance needs at rest.
     tax_grid_step: float | None = None
 
     @classmethod
@@ -232,12 +235,12 @@ class InstanceData:
 
     @property
     def scale_factor(self) -> float:
-        """USD/kg CO2e per integer tax_index step. When a fine-grid override is in
+        """USD/kg CO2e per integer tax_index step. When a resolution override is in
         effect (see :meth:`with_tax_grid_step`) the override step is returned
         directly, exactly. Otherwise it is DERIVED from this instance's own stored
         grid (``overline_tau``/``overline_tax_index``) rather than the module
-        constant, so stored files (overline_tau=0.2, overline_tax_index=20) yield
-        0.2/20 = 0.01 = the module SCALE_FACTOR and existing behaviour is
+        constant, so a base instance (overline_tau=0.2, overline_tax_index=400)
+        yields 0.2/400 = 5e-4 = the module SCALE_FACTOR and existing behaviour is
         unchanged. Falls back to the module constant for a degenerate single-point
         grid."""
         if self.tax_grid_step is not None:
@@ -256,14 +259,18 @@ class InstanceData:
         This is the immutable, first-class replacement for mutating the stored
         ``*_tax_index`` parameters in place. The refined index bounds are DERIVED
         (``round(tau / theta)``) from the step rather than stored, so overline_tau
-        = 0.2 with theta = 0.0001 exposes ``upper_tax_index = 2000`` (index
-        {0..2000}, 0.1 USD/t over the same 0-200 USD/t span). ``parameters`` and
-        the on-disk file are untouched.
+        = 0.2 with theta = 0.001 exposes ``upper_tax_index = 200`` (index
+        {0..200}, 1 USD/t over the same 0-200 USD/t span). ``parameters`` and
+        the on-disk file are untouched. Every base instance is generated directly
+        at the project's one grid (``TAX_GRID_SCALE_FACTOR``), so calling this
+        with that same step is a no-op; it exists for the rare deliberate probe
+        at a different resolution (e.g. a coarser robustness check), not as a
+        load-bearing rescale in the normal path.
 
         No re-validation is run: ``validate()``'s tau/index consistency check
-        assumes the stored coarse step (0.01) and is only meaningful for the grid
-        as loaded; the refined view is a derived projection of an already-validated
-        instance, so re-validating it would spuriously reject the widened index.
+        assumes the stored step and is only meaningful for the grid as loaded;
+        the refined view is a derived projection of an already-validated
+        instance, so re-validating it would spuriously reject a widened index.
         """
         if scale_factor <= 0.0:
             raise ValueError(f"tax grid step must be positive, got {scale_factor}")
@@ -360,7 +367,7 @@ def _tax_rate_to_tax_index(rate: Any) -> int:
     numeric_rate = float(rate)
     scaled = round(numeric_rate / SCALE_FACTOR)
     if abs(numeric_rate - scaled * SCALE_FACTOR) > DEFAULT.eps:
-        raise InstanceValidationError("Tax bounds must be multiples of 0.01 USD/kg CO2e")
+        raise InstanceValidationError(f"Tax bounds must be multiples of {SCALE_FACTOR} USD/kg CO2e")
     return int(scaled)
 
 

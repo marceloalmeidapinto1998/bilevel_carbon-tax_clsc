@@ -27,7 +27,7 @@ import json
 from pathlib import Path
 
 from clsc.campaign.designs._cells import HARD_CELLS, MEDIUM_CELLS, cell_id, time_limits
-from clsc.campaign.designs._common import FINE_CEILING_INDEX, DesignPoint
+from clsc.campaign.designs._common import TAX_CEILING_INDEX, DesignPoint
 from clsc.campaign.doe.frontier_sweep import tax_grid
 
 EXPERIMENT_ID = "exp3"
@@ -40,8 +40,8 @@ POLICY_CELLS = (ANCHOR_CELL, MEDIUM_CELLS[0], HARD_CELLS[0], cell_id(25, 8, 12))
 # would duplicate P1 on this grid, per the prior campaign's finding.)
 POLICY_RULES = {
     "P0_no_tax": 0,
-    "P1_ceiling": FINE_CEILING_INDEX,
-    "P2_mid": FINE_CEILING_INDEX // 2,
+    "P1_ceiling": TAX_CEILING_INDEX,
+    "P2_mid": TAX_CEILING_INDEX // 2,
 }
 
 # Local refinement around tau*: fewer points than the prior campaign (2 below + 2 above instead of
@@ -54,7 +54,7 @@ REFINEMENT_ABOVE_SPAN = 4  # points above tau* span up to tau* * this factor (cl
 RATIO_VALUES = (1.0, 10.0, 50.0, 100.0, 200.0)
 # 11-point tax-indexed frontier over the same real tax range as the bilevel runs.
 FRONTIER_TAX_INDICES = tuple(
-    tax_grid(FINE_CEILING_INDEX, n_points=11, step=FINE_CEILING_INDEX // 10)
+    tax_grid(TAX_CEILING_INDEX, n_points=11, step=TAX_CEILING_INDEX // 10)
 )
 
 
@@ -100,7 +100,7 @@ def _refinement_points(results_root: Path) -> list[DesignPoint]:
         sub, wall = time_limits(cell)
 
         below = _geometric_indices(max(1, tau_star // 8), max(1, tau_star - 1), REFINEMENT_BELOW_N)
-        above_hi = min(FINE_CEILING_INDEX - 1, tau_star * REFINEMENT_ABOVE_SPAN)
+        above_hi = min(TAX_CEILING_INDEX - 1, tau_star * REFINEMENT_ABOVE_SPAN)
         above = _geometric_indices(tau_star + 1, max(tau_star + 1, above_hi), REFINEMENT_ABOVE_N)
 
         for tax_index in below + above:

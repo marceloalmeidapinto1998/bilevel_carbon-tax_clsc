@@ -9,53 +9,41 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from clsc.config.tax_grid import COARSE_SCALE_FACTOR
+from clsc.config.tax_grid import TAX_GRID_SCALE_FACTOR
 
 # Algorithm variants for Experiment 2 (computational performance / ablation). M0 is the full DBP
 # reference; A1/A5 are claim-carrying and efficiency-only respectively (A1 changes the certified
 # guarantee; A5 is the one efficiency-only variant with a measured effect in the prior campaign).
-# A4 (coarse tax grid) was dropped from the design matrix; the underlying scale_factor override it
-# used (COARSE_SCALE_FACTOR, imported above) still exists and is still exercised by the
-# grid-consistency tests. See docs/Experimental_Plan.md §2 and the orchestrator's flag mapping.
+# A4 (coarse tax grid) was dropped from the design matrix. There is no longer a second, pre-named
+# grid constant for it to point to -- the project has exactly one (TAX_GRID_SCALE_FACTOR); a
+# rescheduled A4 would pick its own coarser step explicitly via InstanceData.with_tax_grid_step().
+# See docs/Experimental_Plan.md §2 and the orchestrator's flag mapping.
 ALGORITHM_VARIANTS = ("M0", "A1", "A5")
 
 # Execution modes understood by the orchestrator.
 EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint", "enumeration")
 
 # --- Carbon-tax grid -------------------------------------------------------------------------
-# Both grids span the SAME real tax range [0, TAX_CEILING_USD_PER_KG]; only the resolution differs.
-# A tax RATE is therefore comparable across grids, but a tax INDEX is not: index 20 on the coarse
-# grid is 0.2 USD/kg, index 20 on the fine grid is 0.002 USD/kg. Every design point below states
-# its indices on the fine campaign grid, and the orchestrator puts every execution mode on that
-# same grid -- mixing the two is what made bilevel tau* and fixed-tax probes silently incomparable.
+# The project's one carbon-tax grid: TAX_GRID_SCALE_FACTOR (clsc.config.tax_grid), imported above.
+# Every base instance is generated at this resolution and every execution mode (bilevel,
+# fixed_tax, enumeration) solves on it -- there is no separate "native" instance grid and
+# "campaign" solve grid to keep in sync. That used to be two grids spanning the same real range
+# [0, TAX_CEILING_USD_PER_KG] at different resolutions, and mixing them (a tax RATE is comparable
+# across grids, a tax INDEX is not) is what once made bilevel tau* and fixed-tax probes silently
+# incomparable -- see docs/Experimental_Plan.md and clsc.config.tax_grid's own docstring for why
+# 5e-4 (0.5 USD/t, 401 points) is the resolution, not the earlier 1e-4 (2001 points, where the DBP
+# loop does not converge).
 TAX_CEILING_USD_PER_KG = 0.2
-# Campaign grid: index 0..400, i.e. 0.5 USD/tonne per step over the 0-200 USD/t span.
-#
-# Was 1e-4 (index 0..2000, 0.1 USD/t). At that resolution the DBP loop does not converge: on
-# STD_TOY6 it exhausted max_iterations (2002) and reported tau* = 1471 against a true tau* of 1027
-# -- a tax that is on the emissions plateau but nowhere near its least-intervention edge, which is
-# the paper's central claim. The failure is a threshold in grid resolution, not a gradual
-# degradation: <=401 indices converge in 4-6 iterations and certify exact; >=1001 indices always
-# run to max_iterations. Tightening dbp_relative_gap by 100x does not help, so the outer tolerance
-# is not the lever; the underlying cause is not yet diagnosed.
-#
-# 5e-4 is the coarsest-but-one resolution measured to work, and 0.5 USD/tonne is finer than any
-# carbon price is set in practice. Verified at this step on STD_TOY6 (6 iterations, correct tau*
-# against brute force) and on the STD_I17_M4_T3 base cell (4 iterations, exact, 228s).
-FINE_SCALE_FACTOR = 5e-4
-# COARSE_SCALE_FACTOR (the base instances' native grid, index 0..20) is imported above from
-# clsc.config.tax_grid -- the single definition -- and re-exported under this name here since
-# callers (including tests) import it from this module.
-FINE_CEILING_INDEX = round(TAX_CEILING_USD_PER_KG / FINE_SCALE_FACTOR)
+TAX_CEILING_INDEX = round(TAX_CEILING_USD_PER_KG / TAX_GRID_SCALE_FACTOR)
 
 
-def fine_index(usd_per_kg: float) -> int:
-    """The fine-grid tax index for a tax rate in USD/kg CO2e."""
+def grid_index(usd_per_kg: float) -> int:
+    """The tax index for a tax rate in USD/kg CO2e, on the project's one grid."""
     if not 0.0 <= usd_per_kg <= TAX_CEILING_USD_PER_KG:
         raise ValueError(
             f"tax rate {usd_per_kg} USD/kg outside the grid [0, {TAX_CEILING_USD_PER_KG}]"
         )
-    return round(usd_per_kg / FINE_SCALE_FACTOR)
+    return round(usd_per_kg / TAX_GRID_SCALE_FACTOR)
 
 
 @dataclass(frozen=True, slots=True)

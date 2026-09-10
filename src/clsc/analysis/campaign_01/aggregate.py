@@ -27,10 +27,12 @@ _STRUCTURAL_MENU_FIELDS = (
 def _effective_tax_usd_per_kg(manifest: dict) -> float | None:
     """The run's carbon tax as a RATE, which is the only form comparable across runs.
 
-    A `tax_index` is meaningless without its grid step, and the campaign uses two grids 100x
-    apart (fine 1e-4 for the bilevel runs, coarse 1e-2 natively) -- so the rate is taken from
-    what the solver actually applied, never recomputed from a global constant. Runs solved
-    before the grid step was recorded in the manifest are recovered from their solve output.
+    A `tax_index` is meaningless without its grid step. The project now has one grid
+    (TAX_GRID_SCALE_FACTOR), but manifests from runs solved under an earlier grid step (the
+    campaign's own 1e-4 predecessor, or the base instances' pre-unification native 1e-2) remain
+    on disk and must still resolve correctly -- so the rate is always taken from what the solver
+    actually applied, never recomputed from today's global constant. Runs solved before the grid
+    step was recorded in the manifest are recovered from their solve output.
     """
     rate = manifest.get("effective_tax_usd_per_kg")
     if rate is not None:
