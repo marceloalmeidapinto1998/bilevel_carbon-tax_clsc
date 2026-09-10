@@ -71,7 +71,7 @@ _DBP_MASTER_NUMERIC_FOCUS_DOES_NOT_WORK = 3
 
 
 @dataclass(frozen=True, slots=True)
-class DbpFollowerCut:
+class ValueFunctionCut:
     tax_index: int
     cost: float
     emissions: float
@@ -418,7 +418,7 @@ def lex_freeze_tolerance(primary_optimum: float, primary_mip_gap: float | None) 
 
 def solve_leader_master(
     instance_or_master: InstanceData | LeaderMaster,
-    cuts: list[DbpFollowerCut] | None = None,
+    cuts: list[ValueFunctionCut] | None = None,
     *,
     output_flag: bool = False,
     time_limit: float | None = None,
@@ -445,7 +445,7 @@ def solve_leader_master(
 
 def solve_leader_master_lexicographic(
     instance_or_master: InstanceData | LeaderMaster,
-    cuts: list[DbpFollowerCut] | None = None,
+    cuts: list[ValueFunctionCut] | None = None,
     *,
     output_flag: bool = False,
     time_limit: float | None = None,
@@ -933,7 +933,7 @@ def build_leader_master(
     )
 
 
-def add_value_function_cut(master: LeaderMaster, cut: DbpFollowerCut) -> None:
+def add_value_function_cut(master: LeaderMaster, cut: ValueFunctionCut) -> None:
     if cut.iteration in master.applied_cut_iterations:
         return
 
@@ -977,7 +977,7 @@ def add_value_function_cut(master: LeaderMaster, cut: DbpFollowerCut) -> None:
     master.applied_cut_iterations.add(cut.iteration)
 
 
-def _dbp_cut_epsilon(master: LeaderMaster, cut: DbpFollowerCut) -> float:
+def _dbp_cut_epsilon(master: LeaderMaster, cut: ValueFunctionCut) -> float:
     # master.epsilon_prime is a fixed absolute floor (DEFAULT.dbp_cut_epsilon
     # at master-build time); scale it by the cut's own cost magnitude so the
     # guard stays round-off-scale regardless of an instance's cost scale,
@@ -1034,7 +1034,7 @@ def set_emissions_cap(
     master.emissions_cap = tolerant_upper_bound
 
 
-def _synchronize_leader_master(master: LeaderMaster, cuts: Iterable[DbpFollowerCut]) -> None:
+def _synchronize_leader_master(master: LeaderMaster, cuts: Iterable[ValueFunctionCut]) -> None:
     added_cut = False
     for cut in cuts:
         if cut.iteration in master.applied_cut_iterations:

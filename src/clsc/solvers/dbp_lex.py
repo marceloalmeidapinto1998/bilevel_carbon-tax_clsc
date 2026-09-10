@@ -13,7 +13,7 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   (P2)   HPR              leader master, no cuts yet        build_leader_master
   (P5)   HPR + cuts       the SAME master, k cuts later     add_value_function_cut
   (P3)+(P4-eps')          follower at a fixed tax           solve_follower_lexicographic
-  y_k                     the point that generates cut k    ValueFunctionCut *
+  y_k                     the point that generates cut k    ValueFunctionCut
   eps                     loop stopping criterion           dbp_relative_gap
   eps'                    subproblem feasibility slack      lex_freeze_tolerance
   Lemma 1                 the follower's point is           _is_better_candidate
@@ -22,7 +22,7 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   Lemma 3                 master re-proposes the same       _min_tax_confirmed
                           tax => optimum
 
-  * still spelled DbpFollowerCut in the code.
+  * still spelled ValueFunctionCut in the code.
 
 (P2) and (P5) are the SAME Python object -- one LeaderMaster that starts without
 cuts and accumulates one per iteration. The distinction is how many cuts it carries,
@@ -50,7 +50,7 @@ import time
 from clsc.config.gap_tol import DEFAULT
 from clsc.models.instance import SCALE_FACTOR, InstanceData
 from clsc.models.subproblems import (
-    DbpFollowerCut,
+    ValueFunctionCut,
     SolveResult,
     add_value_function_cut,
     build_leader_master,
@@ -924,7 +924,7 @@ def solve_bilevel_dbp_lex(
             )
 
         follower_objective_upper = follower_objective_cap(candidate.follower_objective, lexicographic.mip_gap)
-        cut = DbpFollowerCut(
+        cut = ValueFunctionCut(
             tax_index=tax_index,
             cost=candidate.cost + max(0.0, follower_objective_upper - candidate.follower_objective),
             emissions=candidate.emissions,
