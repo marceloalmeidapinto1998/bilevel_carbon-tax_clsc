@@ -108,7 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
             "solve: each subproblem's limit is clamped to the budget that remains and the loop "
             "stops between iterations once it is exhausted, so an exhausted budget still "
             "reports the incumbent, its variable values and the certified gap "
-            "(termination_reason=wall_clock_cap). Only supported with --method dbp_lex."
+            "(termination_reason=incumbent_wall_clock_cap). Only supported with --method dbp_lex."
         ),
     )
     parser.add_argument(

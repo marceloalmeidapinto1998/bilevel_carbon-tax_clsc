@@ -164,7 +164,7 @@ def enumerate_tax_grid(
     return EnumerationResult(
         incumbent=incumbent,
         incumbent_solution=incumbent_solution,
-        termination_reason="exhausted" if exhausted else "wall_clock_cap",
+        termination_reason="optimal_exhaustive" if exhausted else "incumbent_wall_clock_cap",
         exact=exhausted,
         points_visited=len(records),
         points_total=len(grid),

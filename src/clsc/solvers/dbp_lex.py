@@ -62,13 +62,24 @@ from clsc.models.subproblems import (
 )
 
 
-STAGNATION_GAP_NOT_CLOSED_REASON = "stagnation_limit_gap_not_closed"
+# TERMINATION REASONS. The first word is the STATUS of the result -- what you have -- and the
+# rest is why the run stopped there. Sorting a results column by this groups by strength of
+# claim, which is the question a reader of 282 rows actually asks:
+#
+#   optimal_*          certified. Gap closed AND Lemma 3 confirmed the tax.
+#   epsilon_optimal_*  within dbp_relative_gap, with the tax bracket reported.
+#   incumbent_*        the best point found; the gap did NOT close.
+#
+# The wording follows the reference: "terminates with the optimal solution(s)" /
+# "terminates with the epsilon-optimal solution" (Soares et al. 2021, Step 6).
+OPTIMAL_REASON = "optimal"
+STAGNATION_REASON = "incumbent_stagnation"
 # The emissions gap has closed and the bounded tax-descent phase has spent its probes without
 # the master re-proposing the incumbent's tax. The emissions optimum is certified; the
 # least-intervention tax is not, but the result carries the bracket the descent reached in
 # `tax_index_lower_bound`. Soares et al. (2021)'s Step 6 stops at the FIRST unconfirmed proposal --
 # correctly for a scalar upper level, which has no second criterion to certify.
-TAX_NOT_CONFIRMED_REASON = "relative_gap_tax_unconfirmed"
+TAX_NOT_CONFIRMED_REASON = "epsilon_optimal_tax_unconfirmed"
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +360,7 @@ def _classify_stagnation_stop(
     threshold = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
     if achieved_gap <= threshold:
         return "relative_gap", True
-    return STAGNATION_GAP_NOT_CLOSED_REASON, False
+    return STAGNATION_REASON, False
 
 
 def _with_stagnation_context(certificate: BoundCertificate) -> BoundCertificate:
@@ -379,7 +390,7 @@ def _require_optimal_result(result: SolveResult, label: str) -> None:
 
 def _timeout_reason(budget: "_WallClockBudget") -> str:
     """Which budget ran out: the run's wall-clock cap, or one subproblem's own limit."""
-    return "wall_clock_cap" if budget.expired() else "time_limit"
+    return "incumbent_wall_clock_cap" if budget.expired() else "incumbent_time_limit"
 
 
 def _build_time_limit_result(
@@ -569,7 +580,7 @@ def _gap_closed_result(
     return _build_bilevel_result(
         method="dbp_lex",
         mode="exact",
-        termination_reason="relative_gap",
+        termination_reason=OPTIMAL_REASON,
         exact=True,
         iterations=iteration,
         emissions_leader_lb=emissions_leader_lb,
@@ -775,7 +786,7 @@ def solve_bilevel_dbp_lex(
     ``time_limit`` bounds ONE subproblem; ``wall_clock_cap`` bounds the whole DBP run. The cap
     is enforced from inside: each subproblem's limit is clamped to the budget that remains, and
     the loop stops between iterations once it is exhausted, returning
-    ``termination_reason="wall_clock_cap"`` with the incumbent, its variable values and the
+    ``termination_reason="incumbent_wall_clock_cap"`` with the incumbent, its variable values and the
     certified bounds. This is why the cap is not enforced by killing the process from outside --
     a killed run reports nothing at all.
 
@@ -839,7 +850,7 @@ def solve_bilevel_dbp_lex(
                 iteration_records=iteration_records,
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
-                termination_reason="wall_clock_cap",
+                termination_reason="incumbent_wall_clock_cap",
             )
 
         current_relaxation_lower_bound = emissions_leader_lb

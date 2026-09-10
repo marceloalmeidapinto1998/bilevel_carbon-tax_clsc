@@ -139,7 +139,7 @@ def t1_testbed(df: pd.DataFrame) -> None:
             "Flow vars": flows,
             "Runtime (s)": f"{r.runtime_seconds:.0f}",
             "Cert. gap": f"{r.mip_gap:.1e}",
-            "Status": "certified" if r.termination_reason == "relative_gap" else str(r.termination_reason),
+            "Status": "certified" if str(r.termination_reason).startswith("optimal") else str(r.termination_reason),
         })
     write(pd.DataFrame(rows), "t1_testbed",
           "Structural testbed: instance dimensions and DBP reference solve (seed 0). "

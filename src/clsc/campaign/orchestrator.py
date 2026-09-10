@@ -30,7 +30,7 @@ Two time budgets bound every design point. `per_subproblem_time_limit_seconds` i
 and bounds ONE MILP; `per_run_wall_clock_cap_seconds` bounds the whole run and is enforced here --
 by killing the DBP subprocess for bilevel points, and by clamping the single solve's own limit for
 the in-process follower modes. A run stopped by the cap is recorded as `censored` with
-`termination_reason="wall_clock_cap"`.
+`termination_reason="incumbent_wall_clock_cap"`.
 
 Resumable (plan §10): `run` skips any design point whose `campaign_manifest.json` already records a
 terminal status. `--fail-fast` defaults to False so one run's exception never aborts the batch.
