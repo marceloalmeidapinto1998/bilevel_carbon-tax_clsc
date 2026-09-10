@@ -8,7 +8,7 @@ objective while the physical network is unchanged.
 
 Convention (decided 2026-07-23): the paper reports Experiment 3 by scaling the emission
 *quantities* (e_prod_g / e_rem_l / e_raw_s_u / e_ship_m), as implemented here. This is
-mathematically interchangeable with scaling the tax grid (SCALE_FACTOR) by ρ for τ*(ρ) up to the
+mathematically interchangeable with scaling the tax resolution (SCALE_FACTOR) by ρ for τ*(ρ) up to the
 index mapping, but the quantity-scaling convention is the one every absolute USD/t statement in the
 section is derived from.
 """

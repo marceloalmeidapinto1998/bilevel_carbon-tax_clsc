@@ -8,7 +8,7 @@ hard gate for the rest of the campaign.
 from __future__ import annotations
 
 from clsc.campaign.designs._cells import ALL_CELLS, FAST_CELLS, HARD_CELLS, time_limits
-from clsc.campaign.designs._common import DesignPoint, grid_index
+from clsc.campaign.designs._common import DesignPoint, tax_index_for
 from clsc.campaign.toy import TOY_SPECS
 
 EXPERIMENT_ID = "exp1"
@@ -18,7 +18,7 @@ EXPERIMENT_ID = "exp1"
 # probes sit on the same grid as the bilevel tau* they are compared against.
 INVARIANT_CELLS = (FAST_CELLS[0], HARD_CELLS[0])
 INVARIANT_TAX_RATES_USD_PER_KG = (0.0, 0.2)
-INVARIANT_TAX_INDICES = tuple(grid_index(rate) for rate in INVARIANT_TAX_RATES_USD_PER_KG)
+INVARIANT_TAX_INDICES = tuple(tax_index_for(rate) for rate in INVARIANT_TAX_RATES_USD_PER_KG)
 
 # Gurobi-seed invariance probe: 1 fast cell at seed in {1, 2} (seed 0 is the base-cell run).
 SEED_PROBE_CELLS = (FAST_CELLS[0],)

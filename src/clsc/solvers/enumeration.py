@@ -94,7 +94,7 @@ def enumerate_tax_grid(
 
     ``instance_or_master`` may be a pre-built :class:`FixedTaxFollowerMaster` (reused across calls,
     mirroring DBP's own follower-master reuse) or the bare instance; ``instance`` is always the
-    plain :class:`InstanceData`, needed for its tax-grid bounds regardless of which form the solve
+    plain :class:`InstanceData`, needed for its tax-scale bounds regardless of which form the solve
     target takes. ``plateau_relative_gap`` is the tie tolerance for incumbent selection -- see the
     module docstring; the default matches DBP's own Phase-2 bisection and the campaign's plateau
     definition, so both methods report tau* on the same footing.

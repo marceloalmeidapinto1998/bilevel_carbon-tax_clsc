@@ -208,7 +208,7 @@ def _is_better_candidate(
     compared magnitudes. Without it the comparator falls back to ``_emissions_tie_tolerance``,
     which is sized to floating-point noise -- adequate only where genuinely equal emissions
     occur. They frequently do not: on these instances emissions keep drifting downward by grams
-    per grid step, so a noise-sized band makes every pair of taxes distinguishable and the
+    per scale factor, so a noise-sized band makes every pair of taxes distinguishable and the
     least-intervention tier never fires. The band states, explicitly, the differences the leader
     declines to prefer over -- and it should be no finer than what the run certifies."""
     if incumbent is None:
@@ -577,7 +577,7 @@ def _gap_closed_tax_unconfirmed_result(
 
     Two distinct situations end here. Where the emissions curve has a genuine plateau, the
     descent normally closes the bracket well inside its budget and this path is not taken.
-    Where the curve drifts monotonically instead -- STD_I17_M4_T6 loses ~16 g per grid step with
+    Where the curve drifts monotonically instead -- STD_I17_M4_T6 loses ~16 g per scale factor with
     no exact tie anywhere -- no proposal can ever confirm, and the budget is what stops the
     descent from walking the entire grid. An earlier unbounded version of that probe did walk
     it: 2002 iterations on STD_TOY6, and one campaign cell killed at 14 wall-clock hours.
@@ -997,7 +997,7 @@ def solve_bilevel_dbp_lex(
                 # The budget is what makes this safe. The earlier implementation probed without
                 # one and had no bound short of the grid size: 2002 iterations on STD_TOY6, and
                 # one campaign cell killed at 14 wall-clock hours. Where the emissions curve is
-                # purely monotone (STD_I17_M4_T6 drifts ~16 g per grid step with no tie anywhere)
+                # purely monotone (STD_I17_M4_T6 drifts ~16 g per scale factor with no tie anywhere)
                 # confirmation may never arrive, so the descent gets a fixed number of probes and
                 # then reports the bracket it reached instead of chasing one.
                 # ONLY when the TAX is what is unconfirmed. _min_tax_confirmed has two

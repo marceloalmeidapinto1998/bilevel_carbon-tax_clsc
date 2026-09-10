@@ -9,13 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from clsc.config.tax_grid import TAX_GRID_SCALE_FACTOR
+from clsc.config.tax_scale import TAX_SCALE_FACTOR
 
 # Algorithm variants for Experiment 2 (computational performance / ablation). M0 is the full DBP
 # reference; A1/A5 are claim-carrying and efficiency-only respectively (A1 changes the certified
 # guarantee; A5 is the one efficiency-only variant with a measured effect in the prior campaign).
-# A4 (coarse tax grid) was dropped from the design matrix. There is no longer a second, pre-named
-# grid constant for it to point to -- the project has exactly one (TAX_GRID_SCALE_FACTOR); a
+# A4 (coarse tax resolution) was dropped from the design matrix. There is no longer a second, pre-named
+# grid constant for it to point to -- the project has exactly one (TAX_SCALE_FACTOR); a
 # rescheduled A4 would pick its own coarser step explicitly via InstanceData.with_tax_grid_step().
 # See docs/Experimental_Plan.md §2 and the orchestrator's flag mapping.
 ALGORITHM_VARIANTS = ("M0", "A1", "A5")
@@ -23,27 +23,27 @@ ALGORITHM_VARIANTS = ("M0", "A1", "A5")
 # Execution modes understood by the orchestrator.
 EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint", "enumeration")
 
-# --- Carbon-tax grid -------------------------------------------------------------------------
-# The project's one carbon-tax grid: TAX_GRID_SCALE_FACTOR (clsc.config.tax_grid), imported above.
+# --- Carbon-tax resolution -------------------------------------------------------------------------
+# The project's one tax resolution: TAX_SCALE_FACTOR (clsc.config.tax_scale), imported above.
 # Every base instance is generated at this resolution and every execution mode (bilevel,
 # fixed_tax, enumeration) solves on it -- there is no separate "native" instance grid and
 # "campaign" solve grid to keep in sync. That used to be two grids spanning the same real range
 # [0, TAX_CEILING_USD_PER_KG] at different resolutions, and mixing them (a tax RATE is comparable
 # across grids, a tax INDEX is not) is what once made bilevel tau* and fixed-tax probes silently
-# incomparable -- see docs/Experimental_Plan.md and clsc.config.tax_grid's own docstring for why
+# incomparable -- see docs/Experimental_Plan.md and clsc.config.tax_scale's own docstring for why
 # 5e-4 (0.5 USD/t, 401 points) is the resolution, not the earlier 1e-4 (2001 points, where the DBP
 # loop does not converge).
 TAX_CEILING_USD_PER_KG = 0.2
-TAX_CEILING_INDEX = round(TAX_CEILING_USD_PER_KG / TAX_GRID_SCALE_FACTOR)
+TAX_CEILING_INDEX = round(TAX_CEILING_USD_PER_KG / TAX_SCALE_FACTOR)
 
 
-def grid_index(usd_per_kg: float) -> int:
-    """The tax index for a tax rate in USD/kg CO2e, on the project's one grid."""
+def tax_index_for(usd_per_kg: float) -> int:
+    """The leader's integer tax_index for a tax rate in USD/kg CO2e."""
     if not 0.0 <= usd_per_kg <= TAX_CEILING_USD_PER_KG:
         raise ValueError(
             f"tax rate {usd_per_kg} USD/kg outside the grid [0, {TAX_CEILING_USD_PER_KG}]"
         )
-    return round(usd_per_kg / TAX_GRID_SCALE_FACTOR)
+    return round(usd_per_kg / TAX_SCALE_FACTOR)
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from clsc.config.gap_tol import DEFAULT
-from clsc.config.tax_grid import TAX_GRID_SCALE_FACTOR as SCALE_FACTOR
+from clsc.config.tax_scale import TAX_SCALE_FACTOR as SCALE_FACTOR
 
 # SCALE_FACTOR: USD/kg CO2e per integer tax_index step: tax_rate = SCALE_FACTOR * tax_index.
-# The one carbon-tax grid in the project (clsc.config.tax_grid.TAX_GRID_SCALE_FACTOR),
+# The one carbon-tax resolution in the project (clsc.config.tax_scale.TAX_SCALE_FACTOR),
 # re-exported under this name since it is part of this module's public API (imported elsewhere
 # as clsc.models.instance.SCALE_FACTOR).
 # Fallback for instances generated before 2026-08-11, which carry no
@@ -120,7 +120,7 @@ class InstanceData:
     parameters: dict[str, Any]
     source_path: Path | None = None
     # Optional grid-resolution override (theta, USD/kg CO2e per integer tax_index step). When None
-    # the tax grid is read from the stored parameters (the project's one grid, TAX_GRID_SCALE_FACTOR,
+    # the tax resolution is read from the stored parameters (the project's one grid, TAX_SCALE_FACTOR,
     # index {0..400}); when set, the index bounds and scale_factor are DERIVED from it over the same
     # real tau range, without touching `parameters`. Set only via with_tax_grid_step(); a caller
     # deliberately probing a different resolution (e.g. the retired coarse grid, as a robustness
@@ -252,7 +252,7 @@ class InstanceData:
         return span_rate / span_index
 
     def with_tax_grid_step(self, scale_factor: float) -> "InstanceData":
-        """Return a NEW instance whose carbon-tax grid is refined to resolution
+        """Return a NEW instance whose carbon-tax resolution is refined to resolution
         ``scale_factor`` (theta, USD/kg CO2e per integer tax_index step), while
         PRESERVING the real tax range ``[underline_tau, overline_tau]``.
 
@@ -262,7 +262,7 @@ class InstanceData:
         = 0.2 with theta = 0.001 exposes ``upper_tax_index = 200`` (index
         {0..200}, 1 USD/t over the same 0-200 USD/t span). ``parameters`` and
         the on-disk file are untouched. Every base instance is generated directly
-        at the project's one grid (``TAX_GRID_SCALE_FACTOR``), so calling this
+        at the project's one grid (``TAX_SCALE_FACTOR``), so calling this
         with that same step is a no-op; it exists for the rare deliberate probe
         at a different resolution (e.g. a coarser robustness check), not as a
         load-bearing rescale in the normal path.
@@ -273,14 +273,14 @@ class InstanceData:
         instance, so re-validating it would spuriously reject a widened index.
         """
         if scale_factor <= 0.0:
-            raise ValueError(f"tax grid step must be positive, got {scale_factor}")
+            raise ValueError(f"tax resolution step must be positive, got {scale_factor}")
         underline_tau = float(self.parameters["underline_tau"])
         overline_tau = float(self.parameters["overline_tau"])
         lower_index = round(underline_tau / scale_factor)
         upper_index = round(overline_tau / scale_factor)
         if upper_index <= lower_index:
             raise ValueError(
-                f"tax grid step {scale_factor} collapses the grid of {self.name} "
+                f"tax resolution step {scale_factor} collapses the grid of {self.name} "
                 f"(tau range [{underline_tau}, {overline_tau}] -> index "
                 f"[{lower_index}, {upper_index}])"
             )

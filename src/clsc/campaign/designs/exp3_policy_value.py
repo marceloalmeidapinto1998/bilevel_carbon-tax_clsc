@@ -81,7 +81,7 @@ def _geometric_indices(lo: int, hi: int, n: int) -> list[int]:
 
     Geometric rather than linear spacing because tau* itself spans nearly three orders of
     magnitude across cells: linear spacing anchored to the smallest cells would place every point
-    within 1-2 grid steps of tau* on the largest ones.
+    within 1-2 scale factors of tau* on the largest ones.
     """
     if lo >= hi:
         return [lo] if 0 <= lo <= hi or lo == hi else []

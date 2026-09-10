@@ -27,8 +27,8 @@ _STRUCTURAL_MENU_FIELDS = (
 def _effective_tax_usd_per_kg(manifest: dict) -> float | None:
     """The run's carbon tax as a RATE, which is the only form comparable across runs.
 
-    A `tax_index` is meaningless without its grid step. The project now has one grid
-    (TAX_GRID_SCALE_FACTOR), but manifests from runs solved under an earlier grid step (the
+    A `tax_index` is meaningless without its scale factor. The project now has one resolution
+    (TAX_SCALE_FACTOR), but manifests from runs solved under an earlier scale factor (the
     campaign's own 1e-4 predecessor, or the base instances' pre-unification native 1e-2) remain
     on disk and must still resolve correctly -- so the rate is always taken from what the solver
     actually applied, never recomputed from today's global constant. Runs solved before the grid
@@ -39,7 +39,7 @@ def _effective_tax_usd_per_kg(manifest: dict) -> float | None:
         return float(rate)
 
     tax_index = manifest.get("leader_tax")
-    step = manifest.get("tax_grid_step_usd_per_kg")
+    step = manifest.get("tax_step_usd_per_kg")
     if step is not None and tax_index is not None:
         return float(step) * float(tax_index)
 
@@ -91,7 +91,7 @@ def _flatten(manifest: dict) -> dict:
         "emissions": objective_values.get("emissions"),
         "follower_objective": objective_values.get("follower_objective"),
         "leader_tax_index": tax_index,
-        "tax_grid_step_usd_per_kg": manifest.get("tax_grid_step_usd_per_kg"),
+        "tax_step_usd_per_kg": manifest.get("tax_step_usd_per_kg"),
         "leader_tax_usd_per_tonne": (
             effective_tax * KG_PER_TONNE if effective_tax is not None else None
         ),

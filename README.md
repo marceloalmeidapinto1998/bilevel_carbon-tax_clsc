@@ -14,7 +14,7 @@ benchmarked against exhaustive grid enumeration.
 src/clsc/                 # ALL active code (installable package: pip install -e .)
   generator/              #   instance generator (Tautenhain-based sampler; pure data code)
   config/                 #   solver tolerances (gap_tol.ToleranceConfig) + the project's one
-                          #   carbon-tax grid step (tax_grid.TAX_GRID_SCALE_FACTOR)
+                          #   carbon-tax scale factor (tax_scale.TAX_SCALE_FACTOR)
   models/                 #   instance data model + Gurobi subproblem builders
   solvers/                #   DBP lexicographic bilevel solver (dbp_lex) + the exhaustive-grid
                           #   exact baseline it is benchmarked against (enumeration)
@@ -57,7 +57,7 @@ Run from the repo root (the venv Python is used in examples).
 # --- Generate a fresh instance base set (deterministic) ---
 python -m clsc.generator benchmark --output-dir data/instances/base
 
-# --- Solve one instance on the campaign's fine tax grid + Phase-2 min-tax ---
+# --- Solve one instance on the project's tax resolution + Phase-2 min-tax ---
 python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
     --method dbp_lex --scale-factor 0.0005 \
     --mip-gap 1e-6 --dbp-relative-gap 1e-4 --threads 4 --mip-focus 2 \
@@ -78,7 +78,7 @@ python -m clsc.analysis.tables.iterations
 
 ## Solver configuration (campaign method)
 
-Bilevel (leader-optimizing) solves use a **fine carbon-tax grid** (`--scale-factor 0.0005`,
+Bilevel (leader-optimizing) solves use a **single tax resolution** (`--scale-factor 0.0005`,
 index {0..400} over 0-200 USD/t, i.e. 0.5 USD/t per step) with `dbp_relative_gap = 1e-4` and
 per-MILP `mip_gap = 1e-6`
 (`CAMPAIGN_*` in `clsc.campaign.orchestrator`). These are applied per-run

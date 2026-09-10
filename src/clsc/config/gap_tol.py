@@ -44,13 +44,13 @@ class ToleranceConfig:
     # ----- Primary algorithm knobs (8) -----
     eps: float = 1e-7
     # NEUTRAL / COARSE-GRID FALLBACK, not the campaign setting. These 1% defaults date from the
-    # original coarse tax grid (theta = 0.01, index {0..20}), aligned then with Tautenhain et al.
+    # original coarse tax resolution (theta = 0.01, index {0..20}), aligned then with Tautenhain et al.
     # (2021)'s explicit CPLEX stopping criterion ("GAP ... less than or equal to 1%"). They are
     # kept as the fallback for coarse-grid solves and the unit-test suite, NOT changed here,
     # because the production bilevel campaign OVERRIDES them per-run (see
     # clsc.campaign.orchestrator: CAMPAIGN_MIP_GAP = 1e-6,
     # CAMPAIGN_DBP_RELATIVE_GAP = 1e-4). Under that method the two are DELIBERATELY UNEQUAL: the
-    # tax grid's emissions plateau needs an outer dbp_relative_gap (1e-4) far tighter than 1%, and
+    # tax resolution's emissions plateau needs an outer dbp_relative_gap (1e-4) far tighter than 1%, and
     # a still-tighter per-MILP mip_gap (1e-6) so the follower can certify that outer gap. The
     # earlier "dbp_relative_gap == mip_gap" invariant therefore holds only for this fallback, not
     # for the campaign. A dbp_lex solve run without CAMPAIGN_* overrides falls back to these 1%

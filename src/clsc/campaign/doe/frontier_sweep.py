@@ -1,4 +1,4 @@
-"""Fixed-tax grid for the cost-emissions frontier (Family B).
+"""Fixed-tax sweep for the cost-emissions frontier (Family B).
 
 Unlike Families A/C/D/E/F/G, Family B does not run the bilevel leader-follower procedure at
 all — it fixes `tax_index` and solves the follower's MILP once per grid point

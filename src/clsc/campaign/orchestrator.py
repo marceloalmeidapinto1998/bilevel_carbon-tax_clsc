@@ -6,13 +6,13 @@ its own module under `clsc/campaign/designs/` (exp1_verification .. exp4_sensiti
 plateau refinement depends on Experiment 2's M0 manifests, and the rho*-anchored suite depends on
 its own ratio-sweep results -- both read back from disk.
 
-Bilevel (leader-optimizing) runs solve on the project's one carbon-tax grid (`TAX_GRID_SCALE_FACTOR`) with
+Bilevel (leader-optimizing) runs solve on the project's one tax resolution (`TAX_SCALE_FACTOR`) with
 `dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, and in-loop min-tax confirmation
 (`confirm_min_tax`, Soares et al. 2021's Lemma-3 stopping rule) ON. The computational-performance
 experiment (Exp2) selects weakened variants by algorithm_variant -> solver flags
 (`_VARIANT_FLAGS`): A1 no min-tax confirmation and A5 no incumbent objective-upper-bound cut are
 scheduled by this campaign's design matrix; A2 (no lexicographic Stage-2 master), A3 (no warm
-start), and A4 (coarse tax grid, via a design point's own scale_factor rather than a solver flag)
+start), and A4 (coarse tax resolution, via a design point's own scale_factor rather than a solver flag)
 remain supported but are not scheduled (the prior campaign found no measurable A2/A3 effect, and
 A4's coarse-grid aliasing bias is no longer a design-matrix claim). M0 is the full method.
 
@@ -67,7 +67,7 @@ from clsc.campaign.designs import (
     exp4_sensitivity,
 )
 from clsc.campaign.designs._common import DesignPoint, rows_to_csv_dicts
-from clsc.config.tax_grid import TAX_GRID_SCALE_FACTOR
+from clsc.config.tax_scale import TAX_SCALE_FACTOR
 from clsc.campaign.instances import materialize
 
 CAMPAIGN_ID = "campaign_01"
@@ -429,14 +429,14 @@ def _salvage_partial_dbp_trace(scratch_root: Path, out_dir: Path) -> None:
 
 
 def _tax_grid_step(point: DesignPoint) -> float:
-    """The tax-grid step (USD/kg CO2e per index) this design point is solved on.
+    """The tax-scale step (USD/kg CO2e per index) this design point is solved on.
 
     Applies to EVERY execution mode, not just bilevel: a fixed-tax index means nothing without
     the grid it indexes, so the in-process follower solves must be re-gridded onto the same step
     the bilevel runs use before their `fixed_tax_index` is interpreted. A design point overrides
     this via its own `scale_factor` (e.g. the retired A4 coarse-grid variant); none currently do.
     """
-    return point.scale_factor if point.scale_factor is not None else TAX_GRID_SCALE_FACTOR
+    return point.scale_factor if point.scale_factor is not None else TAX_SCALE_FACTOR
 
 
 def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
@@ -732,9 +732,9 @@ def run_point(
         "instance_sha256": None,
         "instance_content_sha256": None,
         "solver_method": solver_method_by_execution_mode[point.execution_mode],
-        # Without the grid step a tax index is uninterpretable, and the two campaign grids are
+        # Without the scale factor a tax index is uninterpretable, and the two campaign grids are
         # 100x apart -- so it is recorded per run rather than assumed downstream.
-        "tax_grid_step_usd_per_kg": _tax_grid_step(point),
+        "tax_step_usd_per_kg": _tax_grid_step(point),
         "time_limit_seconds": point.per_subproblem_time_limit_seconds,
         "wall_clock_cap_seconds": point.per_run_wall_clock_cap_seconds,
         "created_at_utc": _utc_now_iso(),

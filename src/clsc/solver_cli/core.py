@@ -154,7 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Grid-resolution override theta (USD/kg CO2e per integer tax_index step). "
-            "When set, each in-memory instance's tax grid is refined to this step "
+            "When set, each in-memory instance's tax resolution is refined to this step "
             "WHILE PRESERVING its real tax range [underline_tau, overline_tau]: the "
             "index bounds are recomputed as round(tau / theta) so overline_tax_index "
             "becomes overline_tau/theta (e.g. 0.2/0.0005 = 400). The stored instance "
@@ -518,7 +518,7 @@ def build_manifest(
         "time_limit": args.time_limit,
         "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
-        "tax_grid_scale_factor": args.scale_factor,
+        "tax_scale_factor": args.scale_factor,
         "confirm_min_tax": bool(args.confirm_min_tax),
         "gurobi_seed": args.seed,
         "use_warm_start": bool(args.use_warm_start),

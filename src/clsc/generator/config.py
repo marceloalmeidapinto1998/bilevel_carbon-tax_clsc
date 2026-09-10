@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from clsc.config.tax_grid import TAX_GRID_SCALE_FACTOR as SCALE_FACTOR
+from clsc.config.tax_scale import TAX_SCALE_FACTOR as SCALE_FACTOR
 
 
 DEFAULT_TRUCKS = 2

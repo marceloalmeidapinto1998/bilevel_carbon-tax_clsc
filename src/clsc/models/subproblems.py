@@ -130,7 +130,7 @@ class SolveResult:
     lex_secondary_mip_gap: float | None = None
     # Wall-clock seconds per lexicographic stage: each stage's own Gurobi runtime. Recorded
     # because the two stages ask very different questions of the same model -- Stage 1 finds
-    # the emissions optimum, Stage 2 searches the tax grid for the least index tied to it --
+    # the emissions optimum, Stage 2 searches the tax resolution for the least index tied to it --
     # and only the split says which of the two a slow master solve is actually spending on.
     lex_primary_seconds: float | None = None
     lex_secondary_seconds: float | None = None
@@ -323,7 +323,7 @@ def solve_fixed_rate_lexicographic(
 
     Currently unused: its only caller was the parametric breakpoint tracer,
     removed in favour of a single solution method (DBP). Retained because it is
-    the only way to probe the follower off the leader's tax grid, which is what
+    the only way to probe the follower off the leader's tax resolution, which is what
     a grid-calibration study needs.
     """
     artifacts = master.artifacts
@@ -481,7 +481,7 @@ def solve_dbp_relaxation_lexicographic(
     confirm, so the reported tax is only an upper bound on the true minimum.
 
     This replaces a post-hoc tax-tiebreak search (e.g. bisection) over the
-    leader's tax grid. Every cut added to the master is valid for *every*
+    leader's tax resolution. Every cut added to the master is valid for *every*
     ``tax_index`` (the follower's feasible region does not depend on the tax,
     see ``lem:lb_validity``), so the true optimistic-optimal point at any
     tax index that genuinely ties the global emissions optimum is itself
@@ -565,7 +565,7 @@ def solve_dbp_relaxation_lexicographic(
     # lex_freeze_tolerance sizes the band to floating-point and MIP-gap noise, which is what it
     # is for; but the leader's secondary criterion (least intervention) is a statement about
     # which emission differences are worth preferring over, and on these instances the emissions
-    # curve keeps drifting downward by GRAMS per grid step with no exact tie anywhere. A band
+    # curve keeps drifting downward by GRAMS per scale factor with no exact tie anywhere. A band
     # sized to noise therefore leaves Stage 2 minimising the tax over a set of one element -- the
     # highest tax -- and the criterion never decides anything. Sized to the caller's own
     # certification tolerance instead, Stage 2 returns the least tax among every point the run
@@ -951,7 +951,7 @@ def add_dbp_relaxation_cut(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> 
     # identical constraint. They are NOT the same numerically. base_v is an emissions aggregate
     # in kg -- tens of millions -- while tax_rate is a price per kg confined to [0, 0.2]; the
     # product is an ordinary six-figure number of USD reached by multiplying a huge coefficient
-    # by a tiny variable. Folding the grid step into the coefficient rescales the pair without
+    # by a tiny variable. Folding the scale factor into the coefficient rescales the pair without
     # touching the product: on STD_TOY5's first cut, 3.7e7 becomes 1.8e4 against a variable that
     # runs 0..400 instead of 0..0.2.
     #
