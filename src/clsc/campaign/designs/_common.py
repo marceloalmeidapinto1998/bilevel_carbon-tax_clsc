@@ -18,7 +18,7 @@ from clsc.config.tax_scale import TAX_SCALE_FACTOR
 # grid constant for it to point to -- the project has exactly one (TAX_SCALE_FACTOR); a
 # rescheduled A4 would pick its own coarser step explicitly via InstanceData.with_tax_grid_step().
 # See docs/Experimental_Plan.md §2 and the orchestrator's flag mapping.
-ALGORITHM_VARIANTS = ("M0", "A1", "A5")
+ALGORITHM_VARIANTS = ("full", "no_tax_confirmation", "no_emissions_cap")
 
 # Execution modes understood by the orchestrator.
 EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint", "enumeration")
@@ -67,7 +67,7 @@ class DesignPoint:
     sea_menu: str = "base"
     air_menu: str = "base"
     # --- solver knobs ---
-    algorithm_variant: str = "M0"                     # Exp3: selects DBP ablation flags
+    algorithm_variant: str = "full"                     # Exp3: selects DBP ablation flags
     tax_index: int | None = None                # fixed_tax mode
     epsilon_emissions: float | None = None            # epsilon_constraint mode
     invariant_tax_indices: tuple[int, ...] = ()       # Exp1 structural-invariant probe points

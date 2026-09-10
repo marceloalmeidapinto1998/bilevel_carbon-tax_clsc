@@ -30,8 +30,8 @@ EXPERIMENT_ID = "exp2"
 # Ablation variants, both on the same 3 cells across tiers: A1 changes the certified guarantee
 # (claim-carrying); A5 is the one efficiency-only variant with a measured effect in the prior
 # campaign.
-CLAIM_CARRYING_VARIANTS = ("A1",)
-EFFICIENCY_VARIANTS = ("A5",)
+CLAIM_CARRYING_VARIANTS = ("no_tax_confirmation",)
+EFFICIENCY_VARIANTS = ("no_emissions_cap",)
 ABLATION_CELLS = (FAST_CELLS[0], MEDIUM_CELLS[0], HARD_CELLS[0])
 
 # Light seed-noise check on the M0 reference: 1 fast + 1 hard cell at a second seed.
@@ -61,7 +61,7 @@ BENCHMARK_MEDIUM_SUBPROBLEM_TIME_LIMIT_SECONDS = 1800.0   # 30 min: generous for
 BENCHMARK_MEDIUM_WALL_CLOCK_CAP_SECONDS = 7200.0          # 2 h: bounds the tail
 
 
-def _bilevel(cell: str, *, run_code: str, dpid: str, variant: str = "M0",
+def _bilevel(cell: str, *, run_code: str, dpid: str, variant: str = "full",
              seed_offset: int = 0, scale_factor: float | None = None, note: str = "") -> DesignPoint:
     sub, wall = time_limits(cell)
     return DesignPoint(
@@ -90,11 +90,11 @@ def build_design_matrix() -> list[DesignPoint]:
     # A1 / A5, both on the same 3 cells across tiers, seed 0.
     for cell in ABLATION_CELLS:
         points.append(_bilevel(
-            cell, run_code="A1", dpid=f"exp2-A1-{cell}", variant="A1",
+            cell, run_code="no_tax_confirmation", dpid=f"exp2-no-tax-confirmation-{cell}", variant="no_tax_confirmation",
             note="A1: no in-loop min-tax confirmation (H2.1).",
         ))
         points.append(_bilevel(
-            cell, run_code="A5", dpid=f"exp2-A5-{cell}", variant="A5",
+            cell, run_code="no_emissions_cap", dpid=f"exp2-no-emissions-cap-{cell}", variant="no_emissions_cap",
             note="A5: no incumbent cut (H2.2).",
         ))
 

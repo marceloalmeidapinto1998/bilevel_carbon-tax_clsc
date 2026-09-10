@@ -573,7 +573,7 @@ def _gap_closed_result(
     initial_relaxation_seconds: float,
     tax_index_lower_bound: int,
 ) -> BilevelSolveResult:
-    """The outer relative gap has closed and, if confirm_min_tax is in effect, the incumbent's tax
+    """The outer relative gap has closed and, if use_tax_confirmation is in effect, the incumbent's tax
     has already been confirmed grid-minimal by ``_min_tax_confirmed`` (the call site does not reach
     here otherwise -- it ``continue``s instead). A provably optimal bilevel result.
     """
@@ -733,10 +733,10 @@ def solve_bilevel_dbp_lex(
     dbp_relative_gap: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
-    confirm_min_tax: bool = True,
+    use_tax_confirmation: bool = True,
     seed: int | None = None,
     use_warm_start: bool = True,
-    use_incumbent_cut: bool = True,
+    use_emissions_cap: bool = True,
     use_lex_master_stage2: bool = True,
 ) -> BilevelSolveResult:
     """DBP with the leader's lexicographic objective: minimise emissions, then
@@ -749,7 +749,7 @@ def solve_bilevel_dbp_lex(
     least-intervention tax (the loop can terminate before ever proposing a
     smaller tax that also reaches E*).
 
-    ``confirm_min_tax=True`` (the default) checks the minimal tax INSIDE the
+    ``use_tax_confirmation=True`` (the default) checks the minimal tax INSIDE the
     loop, at the same point the emissions gap closes: Soares et al. (2021)'s
     own Step 6 (their Lemma 3, ``x^{u(K+1)} = x^{uK}``) applied to the
     lexicographic leader. Either the master's Stage-2 proposal equals the
@@ -768,12 +768,12 @@ def solve_bilevel_dbp_lex(
     (where the follower's tax base and the leader's physical emissions
     differ).
 
-    ``confirm_min_tax`` requires ``use_lex_master_stage2``: the Stage-2
+    ``use_tax_confirmation`` requires ``use_lex_master_stage2``: the Stage-2
     proposal is the object being confirmed. If ``use_lex_master_stage2=False``
     (the A2 ablation), confirmation is silently unavailable regardless of this
     flag -- the certified emissions optimum is unaffected, but the reported
     tax is only an upper bound on the true minimum. Set
-    ``confirm_min_tax=False`` explicitly to get that same un-certified tax on
+    ``use_tax_confirmation=False`` explicitly to get that same un-certified tax on
     an otherwise full run (the A1 ablation: certified emissions, unconfirmed
     tax).
 
@@ -793,14 +793,14 @@ def solve_bilevel_dbp_lex(
     ``seed`` sets the Gurobi ``Seed`` parameter on every sub-solve (MIP
     performance-variability probes; Exp1/Exp2). The three ``use_*`` flags select
     Experiment-3 ablation variants (all default True = full DBP): ``use_warm_start``
-    (A3) warm-starts successive follower solves; ``use_incumbent_cut`` (A5) tightens
+    (A3) warm-starts successive follower solves; ``use_emissions_cap`` (A5) tightens
     the relaxation master with the incumbent's emissions as an objective upper bound;
     ``use_lex_master_stage2`` (A2) runs the master's lexicographic Stage-2 tax
     minimisation. Disabling any one leaves the certified emissions optimum unchanged
     but changes the iteration/time path (and, for A1/A2, the reported tax is no
     longer certified minimal).
     """
-    effective_confirm_min_tax = confirm_min_tax and use_lex_master_stage2
+    effective_use_tax_confirmation = use_tax_confirmation and use_lex_master_stage2
     instance = _coerce_instance(instance_or_path)
     budget = _WallClockBudget(wall_clock_cap, time_limit)
     effective_dbp_relative_gap = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
@@ -947,7 +947,7 @@ def solve_bilevel_dbp_lex(
             iteration=iteration,
         )
         add_value_function_cut(relaxation_master, cut)
-        if use_incumbent_cut:
+        if use_emissions_cap:
             set_emissions_cap(
                 relaxation_master, emissions_follower_UB_certificate.value,
             )
@@ -1026,7 +1026,7 @@ def solve_bilevel_dbp_lex(
             <= effective_dbp_relative_gap
         ):
             tax_proposal_confirms = next_tax_index >= incumbent.tax_index
-            if effective_confirm_min_tax and not _min_tax_confirmed(
+            if effective_use_tax_confirmation and not _min_tax_confirmed(
                 incumbent_emissions=emissions_follower_UB_certificate.value,
                 incumbent_tax_index=incumbent.tax_index,
                 emissions_leader_lb=emissions_leader_lb,

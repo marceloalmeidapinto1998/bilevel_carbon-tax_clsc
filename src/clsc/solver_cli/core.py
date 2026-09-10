@@ -165,8 +165,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--no-confirm-min-tax",
-        dest="confirm_min_tax",
+        "--no-tax-confirmation",
+        dest="use_tax_confirmation",
         action="store_false",
         help=(
             "Disable in-loop confirmation of the least-intervention tax_index "
@@ -180,7 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
             "in the reported tax. Ablation A1."
         ),
     )
-    parser.set_defaults(confirm_min_tax=True)
+    parser.set_defaults(use_tax_confirmation=True)
     parser.add_argument(
         "--seed",
         type=int,
@@ -197,8 +197,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ablation A3: disable warm starts between successive follower solves.",
     )
     parser.add_argument(
-        "--no-incumbent-cut",
-        dest="use_incumbent_cut",
+        "--no-emissions-cap",
+        dest="use_emissions_cap",
         action="store_false",
         help="Ablation A5: disable the incumbent objective-upper-bound cut in the relaxation master.",
     )
@@ -208,7 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Ablation A2: disable the relaxation master's lexicographic Stage-2 tax minimisation.",
     )
-    parser.set_defaults(use_warm_start=True, use_incumbent_cut=True, use_lex_master_stage2=True)
+    parser.set_defaults(use_warm_start=True, use_emissions_cap=True, use_lex_master_stage2=True)
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
     parser.add_argument(
         "--results-root",
@@ -330,10 +330,10 @@ def main() -> int:
                     dbp_relative_gap=args.dbp_relative_gap,
                     threads=args.threads,
                     mip_focus=args.mip_focus,
-                    confirm_min_tax=args.confirm_min_tax,
+                    use_tax_confirmation=args.use_tax_confirmation,
                     seed=args.seed,
                     use_warm_start=args.use_warm_start,
-                    use_incumbent_cut=args.use_incumbent_cut,
+                    use_emissions_cap=args.use_emissions_cap,
                     use_lex_master_stage2=args.use_lex_master_stage2,
                 )
             else:
@@ -519,10 +519,10 @@ def build_manifest(
         "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
         "tax_scale_factor": args.scale_factor,
-        "confirm_min_tax": bool(args.confirm_min_tax),
+        "use_tax_confirmation": bool(args.use_tax_confirmation),
         "gurobi_seed": args.seed,
         "use_warm_start": bool(args.use_warm_start),
-        "use_incumbent_cut": bool(args.use_incumbent_cut),
+        "use_emissions_cap": bool(args.use_emissions_cap),
         "use_lex_master_stage2": bool(args.use_lex_master_stage2),
         "fail_fast": bool(args.fail_fast),
     }

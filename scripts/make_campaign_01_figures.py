@@ -70,7 +70,7 @@ def cell_label(cell: str) -> str:
 
 def tau_star_table(df: pd.DataFrame) -> pd.DataFrame:
     """tau* / E* per cell, from exp3's M0 seed-0 arm (the campaign's reference solve)."""
-    m0 = df[(df.experiment_id == "exp3") & (df.algorithm_variant == "M0")
+    m0 = df[(df.experiment_id == "exp3") & (df.algorithm_variant == "full")
             & (df.design_point_id.str.endswith("-s0"))]
     out = m0.set_index("base_instance_id")[["tax_rate_usd_per_tonne", "emissions",
                                              "cost", "follower_objective"]]

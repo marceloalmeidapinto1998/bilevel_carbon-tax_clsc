@@ -116,7 +116,7 @@ def load() -> pd.DataFrame:
 
 def m0_seed0(df: pd.DataFrame) -> pd.DataFrame:
     """The campaign's reference solve per cell: exp3's M0 arm at seed 0."""
-    m = df[(df.experiment_id == "exp3") & (df.algorithm_variant == "M0")
+    m = df[(df.experiment_id == "exp3") & (df.algorithm_variant == "full")
            & (df.design_point_id.str.endswith("-s0"))]
     return m.set_index("base_instance_id")
 
@@ -235,11 +235,11 @@ def t4_ablation(df: pd.DataFrame) -> None:
     ref = m0_seed0(df)
     e3 = df[df.experiment_id == "exp3"]
     variants = {
-        "A1": "no Phase-2 minimum-tax bisection",
-        "A2": "no lexicographic Stage-2 master",
-        "A3": "no warm start",
+        "no_tax_confirmation": "no Phase-2 minimum-tax bisection",
+        "no_lex_master_stage2": "no lexicographic Stage-2 master",
+        "no_warm_start": "no warm start",
         "A4": "coarse tax grid ($10^{-2}$)",
-        "A5": "no incumbent objective cut",
+        "no_emissions_cap": "no incumbent objective cut",
     }
     rows = []
     for v, desc in variants.items():

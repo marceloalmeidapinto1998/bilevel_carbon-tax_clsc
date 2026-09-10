@@ -20,7 +20,7 @@ implementation reused the main-loop comparator and it broke silently on I17-M4-T
 near-identical follower solves after the true left edge (tax_index 1264) each carry a few units of
 Gurobi solve-to-solve noise (~1e-8 relative), which the tight tolerance misread as a sequence of
 genuine improvements, walking the reported incumbent out to tax_index 1903 -- a 0,00001%
-"improvement" in emissions bought a 51% inflation of the reported tax. DBP's own confirm_min_tax
+"improvement" in emissions bought a 51% inflation of the reported tax. DBP's own use_tax_confirmation
 never hits this failure mode because it only ever compares candidates the master's Stage-2 itself
 proposed as ties -- far less exposure to cumulative noise than visiting every grid point. That
 asymmetry is itself a real, citable robustness advantage for DBP over brute-force enumeration on

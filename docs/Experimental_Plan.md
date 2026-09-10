@@ -88,7 +88,7 @@ difficulty classes.
 | Standard | I17-M4-T6, I25-M4-T6, I25-M8-T3 |
 | Hard | I17-M4-T12, I25-M4-T12, I17-M8-T12, I25-M8-T12, I25-M8-T6, I17-M8-T6 |
 
-`REPRESENTATIVE_CELLS` (used by Experiment 2's M0 reference) = 2 fast + 2 medium + 2 hard = 6 cells:
+`REPRESENTATIVE_CELLS` (used by Experiment 2's `full` reference) = 2 fast + 2 medium + 2 hard = 6 cells:
 I17-M4-T3, I17-M4-T6 (fast); I17-M8-T6, I25-M4-T6 (medium); I25-M8-T6, I25-M8-T12 (hard).
 
 ### 2.2 Replication policy
@@ -99,7 +99,7 @@ doesn't spend:
 | Source of variation | Where used | Levels |
 |---|---|---|
 | Instance seed (generator) | exp1 base gate (seed 0 only) | 1 (no seed sweep) |
-| Gurobi `Seed` | exp1 (1 fast cell), exp2 (M0 seed-noise check, 1 fast + 1 hard cell) | {0, 1, 2} on selected cells |
+| Gurobi `Seed` | exp1 (1 fast cell), exp2 (`full` seed-noise check, 1 fast + 1 hard cell) | {0, 1, 2} on selected cells |
 | Algorithmic repetition | nowhere | the solver is deterministic |
 
 ### 2.3 Time limits, tolerances, environment
@@ -129,7 +129,7 @@ least-intervention edge. The failure is a threshold, not a gradient -- 401 indic
 100x does not help. 0.5 USD/t is finer than any carbon price is set in practice; the underlying
 non-convergence remains undiagnosed and is a known limitation at finer resolutions. A different
 resolution remains reachable per design point via `InstanceData.with_tax_grid_step()` (e.g. a
-deliberate coarser robustness probe, the retired A4 variant), but no scheduled point in this
+deliberate coarser robustness probe, the retired coarse-resolution variant), but no scheduled point in this
 campaign uses it.
 
 ### 2.4 Statistical reporting standards
@@ -175,21 +175,22 @@ enumeration). Consolidates v3's ablation, scalability, and enumeration-benchmark
 all ultimately answered this one question from different angles.
 
 **Design.**
-- **M0 (full DBP) reference:** the 6 `REPRESENTATIVE_CELLS`, seed 0. A light seed-noise check adds
+- **`full` DBP reference:** the 6 `REPRESENTATIVE_CELLS`, seed 0. A light seed-noise check adds
   seed 1 on 1 fast + 1 hard cell.
-- **Ablation, both variants on the same 3 cells spanning tiers** (1 fast, 1 medium, 1 hard): A1
-  (claim-carrying) removes the in-loop min-tax confirmation, testing whether the tie-break to τ\*
-  is load-bearing; A5 (efficiency-only) removes the incumbent objective-upper-bound cut, the one
-  variant that showed a real timing effect in the prior campaign (v3's A2/A3 did not — dropped
-  from the design matrix, the solver flags remain supported for a follow-up if needed). A4, the
-  coarse-tax-grid variant that tested grid-resolution bias on τ\*, is dropped for the same reason:
+- **Ablation, both variants on the same 3 cells spanning tiers** (1 fast, 1 medium, 1 hard):
+  `no_tax_confirmation` (claim-carrying) removes the in-loop min-tax confirmation, testing whether
+  the tie-break to τ\* is load-bearing; `no_emissions_cap` (efficiency-only) removes the master's
+  emissions cap, the one variant that showed a real timing effect in the prior campaign
+  (`no_lex_master_stage2` and `no_warm_start` did not — dropped from the design matrix, the solver
+  flags remain supported for a follow-up if needed). The coarse-resolution variant, which tested
+  resolution bias on τ\*, is dropped for the same reason:
   the underlying `scale_factor` override remains supported and tested at the unit level, it is
   just no longer a scheduled campaign claim.
 - **Scalability, two escalation axes**, each a curve of 3-4 points, only the last of which is a
   new solve:
-  - *Materials/products richness* at fixed I25-T6: M4, M8 (both read off the M0 reference above,
+  - *Materials/products richness* at fixed I25-T6: M4, M8 (both read off the `full` reference above,
     no re-solve) -> `STD_I25_M12_T6` -> `STD_I25_M16_T6` (new; `raw_materials=8, products=4`).
-  - *Node count* at fixed M8-T6: I17, I25 (both read off the M0 reference above) ->
+  - *Node count* at fixed M8-T6: I17, I25 (both read off the `full` reference above) ->
     `STD_I33_M8_T6` (new; `entity_split(33)`).
   - *Periods*, for free: T3 -> T6 -> T12 at every I x M combination is already solved once each in
     Experiment 1's base gate — no new solves, just an unclaimed axis in the write-up.
@@ -216,10 +217,10 @@ the theoretically appropriate exact comparator — which is exactly what this ex
 implements. (This note belongs in the paper's methodology or limitations section too, once
 `paper/sections/06_computational_experiments.tex` — already known-stale — is redrafted.)
 
-**Instances / repetitions.** 8 (M0) + 3 (A1 × 3 cells) + 3 (A5 × 3 cells) + 3 (escalation: M12,
+**Instances / repetitions.** 8 (`full`) + 3 (`no_tax_confirmation` × 3 cells) + 3 (`no_emissions_cap` × 3 cells) + 3 (escalation: M12,
 M16, I33) + 2 (enumeration) = 19 solves.
 
-**Metrics.** Paired per-instance comparison of (E\*, τ\*) and runtime, M0 vs. each variant; runtime
+**Metrics.** Paired per-instance comparison of (E\*, τ\*) and runtime, `full` vs. each variant; runtime
 growth in I/M/T; follower-solve-count ratio and wall-clock ratio, DBP vs. enumeration.
 
 ---
@@ -239,7 +240,7 @@ despite the smaller design because losing either drops a distinct finding.
 
 **Stage 1 (always).** Policy rules on all 4 cells, as fixed-tax follower solves: P0 no tax (index
 0); P1 tax ceiling (index 2000); P2 mid-grid flat tax (index 1000). P3 (τ\*, bilevel lexicographic)
-is read from Experiment 2's M0 result on the same cell, not re-solved.
+is read from Experiment 2's `full` result on the same cell, not re-solved.
 
 **Stage 2 (data-dependent on Experiment 2).** Local plateau refinement: 2 points geometrically
 spaced below τ\*, 2 above, per cell — enough to resolve the descending slope for the staircase
@@ -300,8 +301,8 @@ Value-first, same principle as v3: run in order of contribution-per-hour, not lo
 so a negative result surfaces early and cheaply.
 
 1. **exp1** (cheap, gates everything downstream).
-2. **exp2** (Experiment 3 reads its M0 manifests for P3/refinement — must complete, or at least its
-   M0 arm on the 4 policy cells, before Experiment 3's stage 2 can materialize).
+2. **exp2** (Experiment 3 reads its `full` manifests for P3/refinement — must complete, or at least its
+   `full` arm on the 4 policy cells, before Experiment 3's stage 2 can materialize).
 3. **exp3** (the headline experiment; stage 1/3a are independent of exp2 and can start immediately
    after exp2's M0 arm on the policy cells lands).
 4. **exp4** (fully independent of the others; can run in parallel with exp2/exp3 if compute allows).

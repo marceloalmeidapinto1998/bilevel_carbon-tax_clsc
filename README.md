@@ -86,7 +86,7 @@ by the orchestrator/CLI; `clsc.config.gap_tol.DEFAULT` holds the neutral coarse-
 (1% tolerances) used only when no override is given. Each run's `manifest.json` records
 `tax_grid_scale_factor`, tolerances, and the code version.
 
-The least-intervention tax is checked **inside** the DBP loop (`confirm_min_tax`, on by default),
+The least-intervention tax is checked **inside** the DBP loop (`use_tax_confirmation`, on by default),
 at the exact point the emissions gap closes. The gap is the gate, exactly as in Soares et al.
 (2021)'s Step 6: a run that reaches the check has already closed `UB - LB <= dbp_relative_gap`
 and is **epsilon-optimal** whatever follows. What the check adds is the upgrade to a certified
@@ -104,7 +104,7 @@ the budget report `termination_reason="relative_gap_tax_unconfirmed"`, `exact=Fa
 rather than a bare "unconfirmed".
 
 There is **no separate refinement phase and no bisection**; the earlier two-phase workflow
-(`lf_lex_exact`) was retired. `--no-confirm-min-tax` disables the check entirely (ablation A1)
+(`lf_lex_exact`) was retired. `--no-tax-confirmation` disables the check entirely (ablation A1)
 and reports the incumbent's tax, an upper bound on the true minimum; confirmation also requires
 the Stage-2 lexicographic master (`use_lex_master_stage2`, ablation A2).
 

@@ -8,7 +8,7 @@ its own ratio-sweep results -- both read back from disk.
 
 Bilevel (leader-optimizing) runs solve on the project's one tax resolution (`TAX_SCALE_FACTOR`) with
 `dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, and in-loop min-tax confirmation
-(`confirm_min_tax`, Soares et al. 2021's Lemma-3 stopping rule) ON. The computational-performance
+(`use_tax_confirmation`, Soares et al. 2021's Lemma-3 stopping rule) ON. The computational-performance
 experiment (Exp2) selects weakened variants by algorithm_variant -> solver flags
 (`_VARIANT_FLAGS`): A1 no min-tax confirmation and A5 no incumbent objective-upper-bound cut are
 scheduled by this campaign's design matrix; A2 (no lexicographic Stage-2 master), A3 (no warm
@@ -105,18 +105,19 @@ DEFAULT_THREADS = 4
 DEFAULT_MIP_FOCUS = 2
 CAMPAIGN_DBP_RELATIVE_GAP = 1e-4
 CAMPAIGN_MIP_GAP = 1e-6
-CONFIRM_MIN_TAX = True
+USE_TAX_CONFIRMATION = True
 
-# Ablation variant -> extra solver flags for the bilevel (DBP) subprocess. M0 = full method (no
-# extra flags). A4 (coarse grid) is handled via the point's own scale_factor, not a flag here --
-# it has no flag effect of its own, hence the empty list.
+# Ablation variant -> extra solver flags for the bilevel (DBP) subprocess. Each key names the
+# mechanism it removes; "full" is the complete method. The retired coarse-resolution variant is
+# gone rather than kept as an empty entry: it never had a flag of its own (a coarser resolution
+# is a property of the design point, not of the solver), so it left a hole in the old A1..A5
+# numbering that only the commit history explained.
 _VARIANT_FLAGS: dict[str, list[str]] = {
-    "M0": [],
-    "A1": ["--no-confirm-min-tax"],
-    "A2": ["--no-lex-master-stage2"],
-    "A3": ["--no-warm-start"],
-    "A4": [],
-    "A5": ["--no-incumbent-cut"],
+    "full": [],
+    "no_tax_confirmation": ["--no-tax-confirmation"],
+    "no_lex_master_stage2": ["--no-lex-master-stage2"],
+    "no_warm_start": ["--no-warm-start"],
+    "no_emissions_cap": ["--no-emissions-cap"],
 }
 
 # Stash root for solve-output files displaced ahead of a fresh/--overwrite solve, kept outside the
@@ -457,8 +458,8 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
                 "--results-root", str(scratch_root),
                 "--scale-factor", str(_tax_grid_step(point)),
             ]
-            if not CONFIRM_MIN_TAX:
-                cmd += ["--no-confirm-min-tax"]
+            if not USE_TAX_CONFIRMATION:
+                cmd += ["--no-tax-confirmation"]
             cmd += _VARIANT_FLAGS.get(point.algorithm_variant, [])
             if point.mip_gap is not None:
                 cmd += ["--mip-gap", str(point.mip_gap)]

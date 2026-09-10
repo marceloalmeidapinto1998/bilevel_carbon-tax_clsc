@@ -477,7 +477,7 @@ def solve_leader_master_lexicographic(
     ``lex_stage2=False`` runs Stage 1 only (the DBP-ablation variant A2, no
     lexicographic Stage-2 in the master): the returned ``tax_index`` is then an
     arbitrary emissions-minimiser, not the smallest tied index, and there is no
-    Stage-2 proposal left for the surrounding loop's ``confirm_min_tax`` to
+    Stage-2 proposal left for the surrounding loop's ``use_tax_confirmation`` to
     confirm, so the reported tax is only an upper bound on the true minimum.
 
     This replaces a post-hoc tax-tiebreak search (e.g. bisection) over the
