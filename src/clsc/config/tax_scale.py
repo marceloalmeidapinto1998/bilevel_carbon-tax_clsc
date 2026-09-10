@@ -16,7 +16,12 @@ from __future__ import annotations
 # The integer resolution is what makes the exact one-hot linearisation possible at all (see
 # build_dbp_relaxation_master). It is a requirement of the formulation, not a convenience.
 #
-# tax_index in {0..400} spans 0-0.2 USD/kg, i.e. 0-200 USD/t.
+# tax_index in {0..200} spans 0-0.2 USD/kg: the leader sets a WHOLE number of USD per
+# tonne. That is the resolution Soares et al.'s phrasing needs -- 1e-3 is a power of ten,
+# so the tax is a price 'with three decimal places in USD/kg', and tax_index is its
+# integer form. The previous 5e-4 (0.5 USD/t) was not a power of ten and could not be
+# described that way. It also halves the one-hot gadget: 201 binaries instead of 401, in
+# a master that is ~95% of every run's wall time.
 #
 # ONE resolution for the whole project: every base instance, every campaign design point and
 # every execution mode (bilevel, fixed_tax, enumeration) is generated, stored, and solved at it.
@@ -35,4 +40,4 @@ from __future__ import annotations
 # (EMISSIONS_SCALE 1e6 -> 1e3), which repaired an invalid lower bound caused by the master's
 # coefficient range; whether the fine-resolution non-convergence survives that repair has NOT
 # been retested. Treat it as an open question, not a settled limit.
-TAX_SCALE_FACTOR = 5e-4
+TAX_SCALE_FACTOR = 1e-3
