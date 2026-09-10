@@ -988,13 +988,13 @@ def _dbp_cut_epsilon(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> float:
 
 def set_dbp_relaxation_objective_upper_bound(
     master: DbpRelaxationMaster,
-    upper_bound: float | None,
+    emissions_follower_UB: float | None,
 ) -> None:
     emissions_total_var = master.artifacts.emissions_total_var
     if emissions_total_var is None:
         raise RuntimeError("DBP relaxation master is missing the scaled emissions objective variable")
 
-    if upper_bound is None:
+    if emissions_follower_UB is None:
         if master.objective_upper_bound_constraint is not None:
             master.artifacts.model.remove(master.objective_upper_bound_constraint)
             master.objective_upper_bound_constraint = None
@@ -1002,10 +1002,10 @@ def set_dbp_relaxation_objective_upper_bound(
             master.artifacts.model.update()
         return
 
-    if upper_bound < 0:
-        raise ValueError("upper_bound must be nonnegative")
+    if emissions_follower_UB < 0:
+        raise ValueError("emissions_follower_UB must be nonnegative")
 
-    # Widen the cutoff by a tiny relative tolerance: `upper_bound` is the
+    # Widen the cutoff by a tiny relative tolerance: `emissions_follower_UB` is the
     # emissions value reported by a *different*, independently built Gurobi
     # model (the optimistic follower solve), so floating-point reconstruction
     # of the same physical point inside this relaxation master's own
@@ -1013,7 +1013,7 @@ def set_dbp_relaxation_objective_upper_bound(
     # then spuriously exclude the true incumbent point from its own
     # relaxation, making the master falsely INFEASIBLE. Mirrors the same
     # relative-tolerance pattern as `lex_freeze_tolerance`.
-    tolerant_upper_bound = upper_bound + lex_freeze_tolerance(upper_bound, None)
+    tolerant_upper_bound = emissions_follower_UB + lex_freeze_tolerance(emissions_follower_UB, None)
 
     if master.objective_upper_bound is not None and math.isclose(
         tolerant_upper_bound,
@@ -1223,20 +1223,20 @@ def validate_fixed_tax_solution(
     model.update()
     for variable in model.getVars():
         target_value = float(variable_values.get(variable.VarName, 0.0))
-        lower_bound = float(variable.LB)
-        upper_bound = float(variable.UB)
+        emissions_leader_LB = float(variable.LB)
+        emissions_follower_UB = float(variable.UB)
         target_value = _normalize_solution_value(
             variable,
             target_value,
-            lower_bound=lower_bound,
-            upper_bound=upper_bound,
+            emissions_leader_LB=emissions_leader_LB,
+            emissions_follower_UB=emissions_follower_UB,
         )
         if (
-            target_value < lower_bound - DEFAULT.eps
-            or target_value > upper_bound + DEFAULT.eps
+            target_value < emissions_leader_LB - DEFAULT.eps
+            or target_value > emissions_follower_UB + DEFAULT.eps
         ):
             raise ValueError(
-                f"Saved solution value {target_value} for {variable.VarName} violates [{lower_bound}, {upper_bound}]",
+                f"Saved solution value {target_value} for {variable.VarName} violates [{emissions_leader_LB}, {emissions_follower_UB}]",
             )
         if variable.VType == GRB.CONTINUOUS:
             # Warm-start continuous variables rather than pinning LB=UB.
@@ -2459,15 +2459,15 @@ def _normalize_solution_value(
     variable: gp.Var,
     value: float,
     *,
-    lower_bound: float | None = None,
-    upper_bound: float | None = None,
+    emissions_leader_LB: float | None = None,
+    emissions_follower_UB: float | None = None,
 ) -> float:
     if variable.VType != GRB.CONTINUOUS and abs(value - round(value)) <= INTEGER_SNAP_TOL:
         value = float(round(value))
-    if lower_bound is not None and value < lower_bound and value >= lower_bound - BOUND_SNAP_TOL:
-        return lower_bound
-    if upper_bound is not None and value > upper_bound and value <= upper_bound + BOUND_SNAP_TOL:
-        return upper_bound
+    if emissions_leader_LB is not None and value < emissions_leader_LB and value >= emissions_leader_LB - BOUND_SNAP_TOL:
+        return emissions_leader_LB
+    if emissions_follower_UB is not None and value > emissions_follower_UB and value <= emissions_follower_UB + BOUND_SNAP_TOL:
+        return emissions_follower_UB
     return value
 
 
