@@ -15,7 +15,7 @@ from clsc.models.subproblems import (
     build_dbp_relaxation_master,
     build_fixed_tax_follower_master,
     lex_freeze_tolerance,
-    set_dbp_relaxation_objective_upper_bound,
+    set_emissions_cap,
     solve_dbp_relaxation_lexicographic,
     solve_fixed_tax_lexicographic,
 )
@@ -896,7 +896,7 @@ def solve_bilevel_dbp_lex(
         )
         add_dbp_relaxation_cut(relaxation_master, cut)
         if use_incumbent_cut:
-            set_dbp_relaxation_objective_upper_bound(
+            set_emissions_cap(
                 relaxation_master, emissions_follower_UB_certificate.value,
             )
 

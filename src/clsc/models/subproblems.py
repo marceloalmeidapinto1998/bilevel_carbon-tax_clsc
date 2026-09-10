@@ -163,8 +163,8 @@ class DbpRelaxationMaster:
     # continuous tax_rate. See add_dbp_relaxation_cut.
     scale_factor: float = 1.0
     applied_cut_iterations: set[int] = field(default_factory=set)
-    objective_upper_bound_constraint: gp.Constr | None = None
-    objective_upper_bound: float | None = None
+    emissions_cap_constraint: gp.Constr | None = None
+    emissions_cap: float | None = None
     elastic: bool = False
 
 
@@ -986,7 +986,7 @@ def _dbp_cut_epsilon(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> float:
     return max(master.epsilon_prime, DEFAULT.dbp_cut_epsilon_relative * abs(cut.cost))
 
 
-def set_dbp_relaxation_objective_upper_bound(
+def set_emissions_cap(
     master: DbpRelaxationMaster,
     emissions_follower_ub: float | None,
 ) -> None:
@@ -995,10 +995,10 @@ def set_dbp_relaxation_objective_upper_bound(
         raise RuntimeError("DBP relaxation master is missing the scaled emissions objective variable")
 
     if emissions_follower_ub is None:
-        if master.objective_upper_bound_constraint is not None:
-            master.artifacts.model.remove(master.objective_upper_bound_constraint)
-            master.objective_upper_bound_constraint = None
-            master.objective_upper_bound = None
+        if master.emissions_cap_constraint is not None:
+            master.artifacts.model.remove(master.emissions_cap_constraint)
+            master.emissions_cap_constraint = None
+            master.emissions_cap = None
             master.artifacts.model.update()
         return
 
@@ -1015,23 +1015,23 @@ def set_dbp_relaxation_objective_upper_bound(
     # relative-tolerance pattern as `lex_freeze_tolerance`.
     tolerant_upper_bound = emissions_follower_ub + lex_freeze_tolerance(emissions_follower_ub, None)
 
-    if master.objective_upper_bound is not None and math.isclose(
+    if master.emissions_cap is not None and math.isclose(
         tolerant_upper_bound,
-        master.objective_upper_bound,
+        master.emissions_cap,
         abs_tol=DEFAULT.eps,
     ):
         return
 
     scaled_upper_bound = tolerant_upper_bound / EMISSIONS_SCALE
-    if master.objective_upper_bound_constraint is None:
-        master.objective_upper_bound_constraint = master.artifacts.model.addConstr(
+    if master.emissions_cap_constraint is None:
+        master.emissions_cap_constraint = master.artifacts.model.addConstr(
             emissions_total_var <= scaled_upper_bound,
-            name="dbp_objective_upper_bound",
+            name="dbp_emissions_cap",
         )
         master.artifacts.model.update()
     else:
-        master.objective_upper_bound_constraint.RHS = scaled_upper_bound
-    master.objective_upper_bound = tolerant_upper_bound
+        master.emissions_cap_constraint.RHS = scaled_upper_bound
+    master.emissions_cap = tolerant_upper_bound
 
 
 def _synchronize_dbp_relaxation_master(master: DbpRelaxationMaster, cuts: Iterable[DbpFollowerCut]) -> None:
