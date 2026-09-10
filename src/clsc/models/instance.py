@@ -91,8 +91,8 @@ REQUIRED_PARAMETER_KEYS = (
     "e_rem_l",
     "e_raw_s_u",
     "e_ship_m",
-    "underline_tau",
-    "overline_tau",
+    "underline_tax_rate",
+    "overline_tax_rate",
     "underline_tax_index",
     "overline_tax_index",
     "d_i_j",
@@ -175,10 +175,10 @@ class InstanceData:
         if lower_index > upper_index:
             raise InstanceValidationError("underline_tax_index cannot exceed overline_tax_index")
 
-        if _tax_rate_to_tax_index(self.parameters["underline_tau"]) != lower_index:
-            raise InstanceValidationError("underline_tau and underline_tax_index are inconsistent")
-        if _tax_rate_to_tax_index(self.parameters["overline_tau"]) != upper_index:
-            raise InstanceValidationError("overline_tau and overline_tax_index are inconsistent")
+        if _tax_rate_to_tax_index(self.parameters["underline_tax_rate"]) != lower_index:
+            raise InstanceValidationError("underline_tax_rate and underline_tax_index are inconsistent")
+        if _tax_rate_to_tax_index(self.parameters["overline_tax_rate"]) != upper_index:
+            raise InstanceValidationError("overline_tax_rate and overline_tax_index are inconsistent")
 
         expected_all_nodes = tuple(self.sets["S"] + self.sets["F"] + self.sets["W"] + self.sets["R"] + self.sets["AIR"] + self.sets["PORT"])
         if tuple(self.sets["I"]) != expected_all_nodes:
@@ -221,13 +221,13 @@ class InstanceData:
     @property
     def lower_tax_index(self) -> int:
         if self.tax_grid_step is not None:
-            return round(float(self.parameters["underline_tau"]) / self.tax_grid_step)
+            return round(float(self.parameters["underline_tax_rate"]) / self.tax_grid_step)
         return int(self.parameters["underline_tax_index"])
 
     @property
     def upper_tax_index(self) -> int:
         if self.tax_grid_step is not None:
-            return round(float(self.parameters["overline_tau"]) / self.tax_grid_step)
+            return round(float(self.parameters["overline_tax_rate"]) / self.tax_grid_step)
         return int(self.parameters["overline_tax_index"])
 
     def iter_tax_index(self) -> range:
@@ -238,8 +238,8 @@ class InstanceData:
         """USD/kg CO2e per integer tax_index step. When a resolution override is in
         effect (see :meth:`with_tax_grid_step`) the override step is returned
         directly, exactly. Otherwise it is DERIVED from this instance's own stored
-        grid (``overline_tau``/``overline_tax_index``) rather than the module
-        constant, so a base instance (overline_tau=0.2, overline_tax_index=400)
+        grid (``overline_tax_rate``/``overline_tax_index``) rather than the module
+        constant, so a base instance (overline_tax_rate=0.2, overline_tax_index=400)
         yields 0.2/400 = 5e-4 = the module SCALE_FACTOR and existing behaviour is
         unchanged. Falls back to the module constant for a degenerate single-point
         grid."""
@@ -248,17 +248,17 @@ class InstanceData:
         span_index = self.upper_tax_index - self.lower_tax_index
         if span_index <= 0:
             return SCALE_FACTOR
-        span_rate = float(self.parameters["overline_tau"]) - float(self.parameters["underline_tau"])
+        span_rate = float(self.parameters["overline_tax_rate"]) - float(self.parameters["underline_tax_rate"])
         return span_rate / span_index
 
     def with_tax_grid_step(self, scale_factor: float) -> "InstanceData":
         """Return a NEW instance whose carbon-tax resolution is refined to resolution
         ``scale_factor`` (theta, USD/kg CO2e per integer tax_index step), while
-        PRESERVING the real tax range ``[underline_tau, overline_tau]``.
+        PRESERVING the real tax range ``[underline_tax_rate, overline_tax_rate]``.
 
         This is the immutable, first-class replacement for mutating the stored
         ``*_tax_index`` parameters in place. The refined index bounds are DERIVED
-        (``round(tau / theta)``) from the step rather than stored, so overline_tau
+        (``round(tau / theta)``) from the step rather than stored, so overline_tax_rate
         = 0.2 with theta = 0.001 exposes ``upper_tax_index = 200`` (index
         {0..200}, 1 USD/t over the same 0-200 USD/t span). ``parameters`` and
         the on-disk file are untouched. Every base instance is generated directly
@@ -274,14 +274,14 @@ class InstanceData:
         """
         if scale_factor <= 0.0:
             raise ValueError(f"tax resolution step must be positive, got {scale_factor}")
-        underline_tau = float(self.parameters["underline_tau"])
-        overline_tau = float(self.parameters["overline_tau"])
-        lower_index = round(underline_tau / scale_factor)
-        upper_index = round(overline_tau / scale_factor)
+        underline_tax_rate = float(self.parameters["underline_tax_rate"])
+        overline_tax_rate = float(self.parameters["overline_tax_rate"])
+        lower_index = round(underline_tax_rate / scale_factor)
+        upper_index = round(overline_tax_rate / scale_factor)
         if upper_index <= lower_index:
             raise ValueError(
                 f"tax resolution step {scale_factor} collapses the grid of {self.name} "
-                f"(tau range [{underline_tau}, {overline_tau}] -> index "
+                f"(tau range [{underline_tax_rate}, {overline_tax_rate}] -> index "
                 f"[{lower_index}, {upper_index}])"
             )
         return replace(self, tax_grid_step=scale_factor)

@@ -65,14 +65,14 @@ def _exp2_m0_manifest_path(results_root: Path, cell: str) -> Path:
 def _tau_star_index(results_root: Path, cell: str) -> int | None:
     """Experiment 2's M0 seed-0 tau* for ``cell``, read directly off its manifest (a completed
     run, not a re-solve). Both experiments' bilevel arms use the same campaign fine grid, so the
-    raw ``leader_tax`` index is directly comparable to this module's own indices without
+    raw ``tax_index`` index is directly comparable to this module's own indices without
     conversion. Returns None if that run has not reached a terminal, tax-index-bearing state yet.
     """
     path = _exp2_m0_manifest_path(results_root, cell)
     if not path.exists():
         return None
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    tax_index = manifest.get("leader_tax")
+    tax_index = manifest.get("tax_index")
     return int(tax_index) if tax_index is not None else None
 
 
@@ -111,7 +111,7 @@ def _refinement_points(results_root: Path) -> list[DesignPoint]:
                 experiment_id=EXPERIMENT_ID,
                 design_point_id=f"exp3-refine-{side}-tau{tax_index:04d}-{cell}",
                 run_code=f"refine_{side}_tau{tax_index:04d}", base_instance_id=cell,
-                execution_mode="fixed_tax", fixed_tax_index=tax_index,
+                execution_mode="fixed_tax", tax_index=tax_index,
                 per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
                 notes="Local plateau refinement around tau* (H3.1).",
             ))
@@ -151,7 +151,7 @@ def _anchored_suite_points(rho_star: float) -> list[DesignPoint]:
             experiment_id=EXPERIMENT_ID,
             design_point_id=f"exp3-frontier-tau{tax_index:04d}",
             run_code=f"frontier_tau{tax_index:04d}", base_instance_id=ANCHOR_CELL,
-            execution_mode="fixed_tax", fixed_tax_index=tax_index, valuation_ratio=rho_star,
+            execution_mode="fixed_tax", tax_index=tax_index, valuation_ratio=rho_star,
             per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
             notes="Tax-indexed frontier point at rho*.",
         ))
@@ -173,7 +173,7 @@ def build_design_matrix(*, results_root: Path | None = None) -> list[DesignPoint
             points.append(DesignPoint(
                 experiment_id=EXPERIMENT_ID, design_point_id=f"exp3-{run_code}-{cell}",
                 run_code=run_code, base_instance_id=cell,
-                execution_mode="fixed_tax", fixed_tax_index=tax_index,
+                execution_mode="fixed_tax", tax_index=tax_index,
                 per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
                 notes="Policy-rule follower solve (H3.1).",
             ))

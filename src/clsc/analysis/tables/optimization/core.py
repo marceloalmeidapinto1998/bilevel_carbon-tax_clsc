@@ -64,13 +64,13 @@ def load_rows(results_base: Path) -> list[ResultRow]:
                 continue
             instance = str(record.get("instance") or summary_path.parent.parent.name)
             I, M, T = parse_instance_code(instance)
-            effective_tax_usd_per_kg = _to_float(record.get("effective_tax"))
-            # effective_tax is stored USD/kg CO2e; report the economically meaningful
+            tax_rate = _to_float(record.get("tax_rate"))
+            # tax_rate is stored USD/kg CO2e; report the economically meaningful
             # USD/t rate (x1000), never the raw tax_index index -- see
             # paper/appendix/app_data.tex Sec. "Carbon-Tax Range Justification".
             tau_star_usd_per_tonne = (
-                effective_tax_usd_per_kg * 1000.0
-                if effective_tax_usd_per_kg is not None
+                tax_rate * 1000.0
+                if tax_rate is not None
                 else None
             )
             rows.append(

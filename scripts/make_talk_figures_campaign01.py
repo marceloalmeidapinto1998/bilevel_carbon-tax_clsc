@@ -15,7 +15,7 @@ those all live in experiments that have not been solved. These figures report
 what exp1 actually establishes: whether, how fast, and how reliably the DBP
 closes its own bounds.
 
-Tax is reported as the campaign's dimensionless rate (effective_tax =
+Tax is reported as the campaign's dimensionless rate (tax_rate =
 tax_index * 5e-4), never in USD/t: absolute currency claims are reserved for the
 exp3 calibration stage on the one instance whose valuation ratio is justified.
 
@@ -113,7 +113,7 @@ def load_cells() -> list[dict]:
             "gap": record["relative_gap"],
             "seconds": record["solve_seconds"],
             "tax_index": record["tax_index"],
-            "effective_tax": record["effective_tax"],
+            "tax_rate": record["tax_rate"],
             "gaps": [max(g, GAP_FLOOR) for g in gaps],
         })
     return cells
@@ -251,17 +251,17 @@ def fig_tau_star(cells: list[dict]) -> None:
     For a censored cell the rate is the incumbent, not a proven optimum -- the
     figure marks that rather than presenting all ten alike.
     """
-    ordered = sorted(cells, key=lambda c: c["effective_tax"])
+    ordered = sorted(cells, key=lambda c: c["tax_rate"])
     fig, ax = plt.subplots(figsize=(9.8, 5.4))
     ys = range(len(ordered))
     for y, cell in zip(ys, ordered):
         color = PROVEN if cell["proven"] else CENSORED
-        ax.barh([y], [cell["effective_tax"]], height=0.6, color=color,
+        ax.barh([y], [cell["tax_rate"]], height=0.6, color=color,
                 hatch=None if cell["proven"] else "///", zorder=3)
-        label = f"{cell['effective_tax']:.4f}"
+        label = f"{cell['tax_rate']:.4f}"
         if not cell["proven"]:
             label += "  (incumbent)"
-        ax.text(cell["effective_tax"] + 0.004, y, label, va="center",
+        ax.text(cell["tax_rate"] + 0.004, y, label, va="center",
                 color=INK_2, fontsize=11.5)
 
     ax.set_yticks(list(ys))

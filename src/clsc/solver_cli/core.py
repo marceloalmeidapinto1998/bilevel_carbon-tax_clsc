@@ -47,7 +47,7 @@ SUMMARY_FIELDNAMES = [
     "iterations",
     "tax_index",
     "tax_index_lower_bound",
-    "effective_tax",
+    "tax_rate",
     "cost",
     "emissions",
     "follower_objective",
@@ -155,9 +155,9 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Grid-resolution override theta (USD/kg CO2e per integer tax_index step). "
             "When set, each in-memory instance's tax resolution is refined to this step "
-            "WHILE PRESERVING its real tax range [underline_tau, overline_tau]: the "
+            "WHILE PRESERVING its real tax range [underline_tax_rate, overline_tax_rate]: the "
             "index bounds are recomputed as round(tau / theta) so overline_tax_index "
-            "becomes overline_tau/theta (e.g. 0.2/0.0005 = 400). The stored instance "
+            "becomes overline_tax_rate/theta (e.g. 0.2/0.0005 = 400). The stored instance "
             "files are never touched. Omit to use each instance's stored grid, which "
             "is already the project's one grid (theta = 0.0005, index {0..400}) for "
             "every base instance -- this flag exists for a deliberate probe at a "
@@ -567,8 +567,8 @@ def build_summary_record(
         "tax_index": result.incumbent.tax_index,
         # Certified lower bound on the least-intervention tax: with tax_index above it, the two
         # bracket the true answer. None where the run stopped before that bound became valid.
-        "tax_index_lower_bound": getattr(result, "tax_lower_bound", None),
-        "effective_tax": result.incumbent.tax_rate,
+        "tax_index_lower_bound": getattr(result, "tax_index_lower_bound", None),
+        "tax_rate": result.incumbent.tax_rate,
         "cost": result.incumbent.cost,
         "emissions": result.incumbent.emissions,
         "follower_objective": result.incumbent.follower_objective,
@@ -627,7 +627,7 @@ def build_instance_result_payload(
         "phase_summary": build_phase_summary(result),
         "leader": {
             "tax_index": result.incumbent.tax_index,
-            "effective_tax": result.incumbent.tax_rate,
+            "tax_rate": result.incumbent.tax_rate,
         },
         "follower": {
             "cost": result.incumbent.cost,
@@ -737,7 +737,7 @@ def build_solution_payload(
 
     leader_variables = {
         "tax_index": result.incumbent.tax_index,
-        "effective_tax": result.incumbent.tax_rate,
+        "tax_rate": result.incumbent.tax_rate,
     }
     follower_variables = optimistic.variable_values
 
@@ -913,7 +913,7 @@ def build_failure_summary_record(
         "termination_reason": "failed",
         "iterations": None,
         "tax_index": None,
-        "effective_tax": None,
+        "tax_rate": None,
         "cost": None,
         "emissions": None,
         "follower_objective": None,

@@ -72,7 +72,7 @@ def tau_star_table(df: pd.DataFrame) -> pd.DataFrame:
     """tau* / E* per cell, from exp3's M0 seed-0 arm (the campaign's reference solve)."""
     m0 = df[(df.experiment_id == "exp3") & (df.algorithm_variant == "M0")
             & (df.design_point_id.str.endswith("-s0"))]
-    out = m0.set_index("base_instance_id")[["leader_tax_usd_per_tonne", "emissions",
+    out = m0.set_index("base_instance_id")[["tax_rate_usd_per_tonne", "emissions",
                                              "cost", "follower_objective"]]
     out.columns = ["tau_star", "E_star", "cost_star", "fobj_star"]
     return out
@@ -97,8 +97,8 @@ def fig_plateau_staircase(df: pd.DataFrame) -> None:
 
     fig, axes = plt.subplots(3, 4, figsize=(11.4, 7.4), sharex=True, sharey=True)
     for ax, cell in zip(axes.ravel(), cells):
-        sub = e5[e5.base_instance_id == cell].sort_values("leader_tax_usd_per_tonne")
-        tax = sub.leader_tax_usd_per_tonne.to_numpy(float)
+        sub = e5[e5.base_instance_id == cell].sort_values("tax_rate_usd_per_tonne")
+        tax = sub.tax_rate_usd_per_tonne.to_numpy(float)
         emis = sub.emissions.to_numpy(float)
         if len(tax) == 0:
             ax.axis("off")
@@ -230,7 +230,7 @@ def fig_exp6_effects(df: pd.DataFrame) -> None:
     e6 = df[(df.experiment_id == "exp6") & (df.design_point_id.str.contains("cont"))]
     factors = [c.replace("factor__", "") for c in e6.columns if c.startswith("factor__")]
     responses = [("emissions", "emissions"), ("cost", "cost"),
-                 ("$\\tau^*$ (USD/t)", "leader_tax_usd_per_tonne")]
+                 ("$\\tau^*$ (USD/t)", "tax_rate_usd_per_tonne")]
 
     fig, axes = plt.subplots(1, 3, figsize=(12.4, 5.0))
     for ax, (label, col) in zip(axes, responses):
@@ -267,15 +267,15 @@ def fig_exp6_effects(df: pd.DataFrame) -> None:
 def fig_tau_vs_rho(df: pd.DataFrame) -> None:
     """Job: change of tau* over rho. Single series -> one hue + a shaded reference band."""
     e7 = df[(df.experiment_id == "exp7") & (df.design_point_id.str.contains("rho-"))]
-    t = e7[["valuation_ratio", "leader_tax_usd_per_tonne"]].dropna().sort_values("valuation_ratio")
+    t = e7[["valuation_ratio", "tax_rate_usd_per_tonne"]].dropna().sort_values("valuation_ratio")
 
     fig, ax = plt.subplots(figsize=(7.0, 4.2))
     ax.axhspan(20, 200, color=PLATEAU_FILL, lw=0, zorder=0)
     ax.text(1.05, 205, "plausible policy band (20–200 USD/t)",
             fontsize=7.8, color=INK_2, va="bottom")
-    ax.plot(t.valuation_ratio, t.leader_tax_usd_per_tonne, "-o",
+    ax.plot(t.valuation_ratio, t.tax_rate_usd_per_tonne, "-o",
             color=SERIES_1, ms=5.0, zorder=3)
-    for x, y in zip(t.valuation_ratio, t.leader_tax_usd_per_tonne):
+    for x, y in zip(t.valuation_ratio, t.tax_rate_usd_per_tonne):
         ax.annotate(f"{y:.0f}", (x, y), textcoords="offset points", xytext=(0, 8),
                     ha="center", fontsize=7.6, color=INK)
 

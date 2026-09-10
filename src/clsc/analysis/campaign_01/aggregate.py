@@ -24,7 +24,7 @@ _STRUCTURAL_MENU_FIELDS = (
 )
 
 
-def _effective_tax_usd_per_kg(manifest: dict) -> float | None:
+def _tax_rate(manifest: dict) -> float | None:
     """The run's carbon tax as a RATE, which is the only form comparable across runs.
 
     A `tax_index` is meaningless without its scale factor. The project now has one resolution
@@ -34,11 +34,11 @@ def _effective_tax_usd_per_kg(manifest: dict) -> float | None:
     actually applied, never recomputed from today's global constant. Runs solved before the grid
     step was recorded in the manifest are recovered from their solve output.
     """
-    rate = manifest.get("effective_tax_usd_per_kg")
+    rate = manifest.get("tax_rate")
     if rate is not None:
         return float(rate)
 
-    tax_index = manifest.get("leader_tax")
+    tax_index = manifest.get("tax_index")
     step = manifest.get("tax_step_usd_per_kg")
     if step is not None and tax_index is not None:
         return float(step) * float(tax_index)
@@ -48,8 +48,8 @@ def _effective_tax_usd_per_kg(manifest: dict) -> float | None:
         try:
             payload = json.loads((REPO / output_path).read_text(encoding="utf-8"))
             summary = payload[0] if isinstance(payload, list) else payload
-            if summary.get("effective_tax") is not None:
-                return float(summary["effective_tax"])
+            if summary.get("tax_rate") is not None:
+                return float(summary["tax_rate"])
         except (OSError, json.JSONDecodeError, IndexError, TypeError, ValueError):
             pass
     return None  # better absent than silently on the wrong grid
@@ -60,8 +60,8 @@ def _flatten(manifest: dict) -> dict:
     I, M, T = imt(base_instance)
     objective_values = manifest.get("objective_values") or {}
     factor_levels = manifest.get("factor_levels") or {}
-    tax_index = manifest.get("leader_tax")
-    effective_tax = _effective_tax_usd_per_kg(manifest)
+    tax_index = manifest.get("tax_index")
+    tax_rate = _tax_rate(manifest)
 
     row = {
         "campaign_id": manifest.get("campaign_id"),
@@ -90,10 +90,10 @@ def _flatten(manifest: dict) -> dict:
         "cost": objective_values.get("cost"),
         "emissions": objective_values.get("emissions"),
         "follower_objective": objective_values.get("follower_objective"),
-        "leader_tax_index": tax_index,
+        "tax_index": tax_index,
         "tax_step_usd_per_kg": manifest.get("tax_step_usd_per_kg"),
-        "leader_tax_usd_per_tonne": (
-            effective_tax * KG_PER_TONNE if effective_tax is not None else None
+        "tax_rate_usd_per_tonne": (
+            tax_rate * KG_PER_TONNE if tax_rate is not None else None
         ),
         "runtime_seconds": manifest.get("runtime_seconds"),
         "wall_clock_seconds": manifest.get("wall_clock_seconds"),

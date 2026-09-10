@@ -82,7 +82,7 @@ def _apply_tax_range(params: dict[str, Any], m: float) -> None:
         return
     new_hat = max(1, int(round(float(base) * m)))
     params["overline_tax_index"] = new_hat
-    params["overline_tau"] = round(new_hat * SCALE_FACTOR, 4)
+    params["overline_tax_rate"] = round(new_hat * SCALE_FACTOR, 4)
 
 
 def _apply_transport_emission_intensity(params: dict[str, Any], m: float) -> None:

@@ -25,7 +25,7 @@ STAGNATION_GAP_NOT_CLOSED_REASON = "stagnation_limit_gap_not_closed"
 # The emissions gap has closed and the bounded tax-descent phase has spent its probes without
 # the master re-proposing the incumbent's tax. The emissions optimum is certified; the
 # least-intervention tax is not, but the result carries the bracket the descent reached in
-# `tax_lower_bound`. Soares et al. (2021)'s Step 6 stops at the FIRST unconfirmed proposal --
+# `tax_index_lower_bound`. Soares et al. (2021)'s Step 6 stops at the FIRST unconfirmed proposal --
 # correctly for a scalar upper level, which has no second criterion to certify.
 TAX_NOT_CONFIRMED_REASON = "relative_gap_tax_unconfirmed"
 
@@ -140,11 +140,11 @@ class BilevelSolveResult:
     enumeration_solutions: tuple[TaxSolveSnapshot, ...] = ()
     # Certified LOWER bound on the least-intervention tax index: the smallest tax the master
     # can still reach within the leader's indifference band of the certified emissions floor.
-    # With the incumbent's own tax as the attained upper bound, [tax_lower_bound, incumbent
+    # With the incumbent's own tax as the attained upper bound, [tax_index_lower_bound, incumbent
     # tax] brackets the true least-intervention tax. Set once the emissions bounds have closed,
     # which is the precondition that makes the master's proposal a valid bound at all (see
     # _min_tax_confirmed); None before that, and on paths that stop for time or stagnation.
-    tax_lower_bound: int | None = None
+    tax_index_lower_bound: int | None = None
 
 
 class BilevelSolveError(RuntimeError):
@@ -454,7 +454,7 @@ def _build_bilevel_result(
     dbp_timing: DbpTimingSummary,
     incumbent_solution: SolveResult | None,
     enumeration_solutions: tuple[TaxSolveSnapshot, ...] = (),
-    tax_lower_bound: int | None = None,
+    tax_index_lower_bound: int | None = None,
 ) -> BilevelSolveResult:
     return BilevelSolveResult(
         method=method,
@@ -471,7 +471,7 @@ def _build_bilevel_result(
         dbp_timing=dbp_timing,
         incumbent_solution=incumbent_solution,
         enumeration_solutions=enumeration_solutions,
-        tax_lower_bound=tax_lower_bound,
+        tax_index_lower_bound=tax_index_lower_bound,
     )
 
 
@@ -519,7 +519,7 @@ def _gap_closed_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
-    tax_lower_bound: int,
+    tax_index_lower_bound: int,
 ) -> BilevelSolveResult:
     """The outer relative gap has closed and, if confirm_min_tax is in effect, the incumbent's tax
     has already been confirmed grid-minimal by ``_min_tax_confirmed`` (the call site does not reach
@@ -547,7 +547,7 @@ def _gap_closed_result(
             initial_relaxation_seconds=initial_relaxation_seconds,
             iteration_timings=tuple(iteration_timings),
         ),
-        tax_lower_bound=tax_lower_bound,
+        tax_index_lower_bound=tax_index_lower_bound,
         incumbent_solution=incumbent_solution,
     )
 
@@ -563,16 +563,16 @@ def _gap_closed_tax_unconfirmed_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
-    tax_lower_bound: int,
+    tax_index_lower_bound: int,
 ) -> BilevelSolveResult:
     """The emissions gap has closed -- this result's lower_bound_certificate is exact, E* itself
     is certified -- but the tax-descent phase spent its probe budget without the master
     re-proposing the incumbent's tax.
 
     ``exact=False`` is deliberate: the reported tax is an upper bound on the true
-    least-intervention tax. What this result adds over simply saying so is ``tax_lower_bound``,
+    least-intervention tax. What this result adds over simply saying so is ``tax_index_lower_bound``,
     the master's last proposal, which is a certified LOWER bound on that same quantity: the
-    answer is known to lie in [tax_lower_bound, incumbent.tax_index] rather than merely being
+    answer is known to lie in [tax_index_lower_bound, incumbent.tax_index] rather than merely being
     "unconfirmed".
 
     Two distinct situations end here. Where the emissions curve has a genuine plateau, the
@@ -608,7 +608,7 @@ def _gap_closed_tax_unconfirmed_result(
             initial_relaxation_seconds=initial_relaxation_seconds,
             iteration_timings=tuple(iteration_timings),
         ),
-        tax_lower_bound=tax_lower_bound,
+        tax_index_lower_bound=tax_index_lower_bound,
         incumbent_solution=incumbent_solution,
     )
 
@@ -1020,7 +1020,7 @@ def solve_bilevel_dbp_lex(
                     iteration_records=iteration_records,
                     iteration_timings=iteration_timings,
                     initial_relaxation_seconds=initial_relaxation_seconds,
-                    tax_lower_bound=next_tax_index,
+                    tax_index_lower_bound=next_tax_index,
                 )
             return _gap_closed_result(
                 iteration=iteration,
@@ -1032,7 +1032,7 @@ def solve_bilevel_dbp_lex(
                 iteration_records=iteration_records,
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
-                tax_lower_bound=min(next_tax_index, incumbent.tax_index),
+                tax_index_lower_bound=min(next_tax_index, incumbent.tax_index),
             )
 
         if incumbent_updated or lower_bound_updated:

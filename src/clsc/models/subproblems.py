@@ -182,7 +182,7 @@ def solve_fixed_tax_follower(
     artifacts = build_fixed_tax_model(instance, tax_index=tax_index)
     return optimize_model(
         artifacts,
-        fixed_tax_index=tax_index,
+        tax_index=tax_index,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -238,7 +238,7 @@ def solve_fixed_tax_lexicographic(
     model.setObjective(artifacts.follower_expr, GRB.MINIMIZE)
     stage1 = optimize_model(
         artifacts,
-        fixed_tax_index=tax_index,
+        tax_index=tax_index,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=False,
@@ -267,7 +267,7 @@ def solve_fixed_tax_lexicographic(
     model.setObjective(artifacts.emissions_expr, GRB.MINIMIZE)
     stage2 = optimize_model(
         artifacts,
-        fixed_tax_index=tax_index,
+        tax_index=tax_index,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -335,7 +335,7 @@ def solve_fixed_rate_lexicographic(
     model.setObjective(artifacts.follower_expr, GRB.MINIMIZE)
     stage1 = optimize_model(
         artifacts,
-        fixed_tax_index=None,
+        tax_index=None,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=False,
@@ -357,7 +357,7 @@ def solve_fixed_rate_lexicographic(
     model.setObjective(artifacts.emissions_expr, GRB.MINIMIZE)
     stage2 = optimize_model(
         artifacts,
-        fixed_tax_index=None,
+        tax_index=None,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -435,7 +435,7 @@ def solve_dbp_relaxation(
     # IIS extraction is expensive here and is only useful for final-model diagnostics.
     return optimize_model(
         master.artifacts,
-        fixed_tax_index=None,
+        tax_index=None,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -519,7 +519,7 @@ def solve_dbp_relaxation_lexicographic(
     model.setObjective(emissions_total_var, GRB.MINIMIZE)
     stage1 = optimize_model(
         artifacts,
-        fixed_tax_index=None,
+        tax_index=None,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution and not lex_stage2,
@@ -599,7 +599,7 @@ def solve_dbp_relaxation_lexicographic(
     model.setObjective(tax_index_var, GRB.MINIMIZE)
     stage2 = optimize_model(
         artifacts,
-        fixed_tax_index=None,
+        tax_index=None,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -705,7 +705,7 @@ def solve_epsilon_constraint_follower(
     artifacts = build_epsilon_constraint_model(instance, emissions_upper_bound=emissions_upper_bound)
     return optimize_model(
         artifacts,
-        fixed_tax_index=0,
+        tax_index=0,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -733,7 +733,7 @@ def solve_fixed_tax_min_emissions(
     artifacts = build_fixed_tax_model(instance, tax_index=0, tie_break=True)
     return optimize_model(
         artifacts,
-        fixed_tax_index=0,
+        tax_index=0,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -1048,7 +1048,7 @@ def _synchronize_dbp_relaxation_master(master: DbpRelaxationMaster, cuts: Iterab
 def optimize_model(
     artifacts: ModelArtifacts,
     *,
-    fixed_tax_index: int | None,
+    tax_index: int | None,
     output_flag: bool,
     time_limit: float | None,
     capture_solution: bool,
@@ -1105,7 +1105,7 @@ def optimize_model(
             cost=None,
             emissions=None,
             follower_objective=None,
-            tax_index=fixed_tax_index,
+            tax_index=tax_index,
             mip_gap=mip_gap_value,
             runtime=runtime,
             variable_values=None,
@@ -1116,7 +1116,7 @@ def optimize_model(
             slack_value=None,
         )
 
-    tax_index_value = fixed_tax_index
+    tax_index_value = tax_index
     if artifacts.tax_index_var is not None:
         tax_index_value = int(round(float(artifacts.tax_index_var.X)))
 
@@ -1251,7 +1251,7 @@ def validate_fixed_tax_solution(
             variable.UB = target_value
     return optimize_model(
         artifacts,
-        fixed_tax_index=tax_index,
+        tax_index=tax_index,
         output_flag=False,
         time_limit=None,
         capture_solution=False,

@@ -159,11 +159,11 @@ def t2_plateau(df: pd.DataFrame) -> None:
 
     DIVERGENT = {"STD_I17_M8_T6": 69.3, "STD_I25_M8_T6": 182.9}   # see §6 H5.3
     rows = []
-    for cell in ref.sort_values("leader_tax_usd_per_tonne").index:
+    for cell in ref.sort_values("tax_rate_usd_per_tonne").index:
         if cell not in p0.index:
             continue
         r = ref.loc[cell]
-        tau = r.leader_tax_usd_per_tonne
+        tau = r.tax_rate_usd_per_tonne
         e_no_tax, e_star, e_ceiling = p0.loc[cell, "emissions"], r.emissions, ceil.loc[cell, "emissions"]
         rows.append({
             "Cell": cell_label(cell),
@@ -197,7 +197,7 @@ def t3_policy_rules(df: pd.DataFrame) -> None:
            for k, v in rules.items()}
 
     rows = []
-    for cell in ref.sort_values("leader_tax_usd_per_tonne").index:
+    for cell in ref.sort_values("tax_rate_usd_per_tonne").index:
         if cell not in idx["P0"].index:
             continue
         r = ref.loc[cell]
@@ -208,7 +208,7 @@ def t3_policy_rules(df: pd.DataFrame) -> None:
         e100_excess = idx["P2"].loc[cell, "emissions"] / e_star - 1
         rows.append({
             "Cell": cell_label(cell),
-            r"$\tau^*$": f"{r.leader_tax_usd_per_tonne:.1f}",
+            r"$\tau^*$": f"{r.tax_rate_usd_per_tonne:.1f}",
             r"$E^*$ (kt)": f"{e_star / KT:.1f}",
             r"$E(0)/E^*-1$": f"{idx['P0'].loc[cell, 'emissions'] / e_star - 1:.2f}",
             r"$E(100)/E^*-1$": ("0" if abs(e100_excess) < 1e-4 else f"{e100_excess:.1e}"),
@@ -249,10 +249,10 @@ def t4_ablation(df: pd.DataFrame) -> None:
         d_tau, d_e, t_ratio, lost = [], [], [], 0
         for _, r in sub.iterrows():
             base = ref.loc[r.base_instance_id]
-            d_tau.append(r.leader_tax_usd_per_tonne - base.leader_tax_usd_per_tonne)
+            d_tau.append(r.tax_rate_usd_per_tonne - base.tax_rate_usd_per_tonne)
             d_e.append(r.emissions / base.emissions - 1)
             t_ratio.append(r.runtime_seconds / base.runtime_seconds)
-            if r.leader_tax_usd_per_tonne > base.leader_tax_usd_per_tonne * 1.001:
+            if r.tax_rate_usd_per_tonne > base.tax_rate_usd_per_tonne * 1.001:
                 lost += 1
         rows.append({
             "Variant": v, "Component removed": desc, "Cells": len(sub),
@@ -287,9 +287,9 @@ def t5_benchmark(df: pd.DataFrame) -> None:
         rows.append({
             "Cell": cell_label(cell),
             "Grid covered": f"{visited}/{total}" + ("" if exhausted else " (censored)"),
-            r"$\tau^*$ DBP": f"{base.leader_tax_usd_per_tonne:.1f}",
-            r"$\tau^*$ enum.": f"{r.leader_tax_usd_per_tonne:.1f}",
-            "Agree": "yes" if abs(r.leader_tax_usd_per_tonne - base.leader_tax_usd_per_tonne) < 0.15 else "not reached",
+            r"$\tau^*$ DBP": f"{base.tax_rate_usd_per_tonne:.1f}",
+            r"$\tau^*$ enum.": f"{r.tax_rate_usd_per_tonne:.1f}",
+            "Agree": "yes" if abs(r.tax_rate_usd_per_tonne - base.tax_rate_usd_per_tonne) < 0.15 else "not reached",
             "Solves DBP": f"{n_dbp}" if n_dbp else "--",
             "Solves enum.": f"{visited}",
             "Reduction": f"{visited / n_dbp:.0f}$\\times$" if n_dbp else "--",
@@ -310,7 +310,7 @@ def t5_benchmark(df: pd.DataFrame) -> None:
 def t6_sensitivity(df: pd.DataFrame) -> None:
     e6 = df[(df.experiment_id == "exp6") & (df.design_point_id.str.contains("cont"))]
     factors = [c.replace("factor__", "") for c in e6.columns if c.startswith("factor__")]
-    responses = {"emissions": "emissions", "cost": "cost", "tau": "leader_tax_usd_per_tonne"}
+    responses = {"emissions": "emissions", "cost": "cost", "tau": "tax_rate_usd_per_tonne"}
 
     def effects(sub, resp):
         cols, names = [], []
@@ -363,7 +363,7 @@ def t7_calibration(df: pd.DataFrame) -> None:
     e7 = df[(df.experiment_id == "exp7") & (df.design_point_id.str.contains("rho-"))]
     rows = []
     for _, r in e7.sort_values("valuation_ratio").iterrows():
-        tau = r.leader_tax_usd_per_tonne
+        tau = r.tax_rate_usd_per_tonne
         rows.append({
             r"$\rho$": f"{r.valuation_ratio:g}",
             r"$\tau^*$ (USD/t)": f"{tau:.1f}",

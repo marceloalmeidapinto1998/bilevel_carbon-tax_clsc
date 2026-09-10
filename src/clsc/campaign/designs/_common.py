@@ -68,7 +68,7 @@ class DesignPoint:
     air_menu: str = "base"
     # --- solver knobs ---
     algorithm_variant: str = "M0"                     # Exp3: selects DBP ablation flags
-    fixed_tax_index: int | None = None                # fixed_tax mode
+    tax_index: int | None = None                # fixed_tax mode
     epsilon_emissions: float | None = None            # epsilon_constraint mode
     invariant_tax_indices: tuple[int, ...] = ()       # Exp1 structural-invariant probe points
     gurobi_seed: int | None = None                    # Exp1/Exp2 seed-invariance / noise probes
@@ -97,7 +97,7 @@ class DesignPoint:
             "seed_offset": self.seed_offset,
             "valuation_ratio": self.valuation_ratio,
             "is_toy": self.is_toy,
-            "fixed_tax_index": self.fixed_tax_index,
+            "tax_index": self.tax_index,
             "epsilon_emissions": self.epsilon_emissions,
             "invariant_tax_indices": ";".join(str(i) for i in self.invariant_tax_indices),
             "gurobi_seed": self.gurobi_seed,

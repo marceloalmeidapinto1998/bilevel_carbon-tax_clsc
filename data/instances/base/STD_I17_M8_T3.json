@@ -130,9 +130,9 @@
       }
     },
     "carbon_tax_units": {
-      "underline_tau_overline_tau": "USD/kg CO2e",
       "tax_index_step": "0.001 USD/kg CO2e",
-      "tau_formula_usd_per_kg_co2e": "0.001 * tax_index"
+      "tau_formula_usd_per_kg_co2e": "0.001 * tax_index",
+      "underline_tax_rate_overline_tax_rate": "USD/kg CO2e"
     },
     "benchmark": {
       "kind": "base",
@@ -4102,8 +4102,8 @@
       "ms1": 0.00029,
       "ms2": 0.000333
     },
-    "underline_tau": 0.0,
-    "overline_tau": 0.2,
+    "underline_tax_rate": 0.0,
+    "overline_tax_rate": 0.2,
     "underline_tax_index": 0,
     "overline_tax_index": 200,
     "d_i_j": {

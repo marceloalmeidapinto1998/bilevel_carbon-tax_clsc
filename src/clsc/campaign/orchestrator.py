@@ -433,7 +433,7 @@ def _tax_grid_step(point: DesignPoint) -> float:
 
     Applies to EVERY execution mode, not just bilevel: a fixed-tax index means nothing without
     the grid it indexes, so the in-process follower solves must be re-gridded onto the same step
-    the bilevel runs use before their `fixed_tax_index` is interpreted. A design point overrides
+    the bilevel runs use before their `tax_index` is interpreted. A design point overrides
     this via its own `scale_factor` (e.g. the retired A4 coarse-grid variant); none currently do.
     """
     return point.scale_factor if point.scale_factor is not None else TAX_SCALE_FACTOR
@@ -532,7 +532,7 @@ def _write_follower_result(
         "success": bool(result.has_solution),
         "termination_reason": termination_reason,
         "tax_index": tax_index_for_report,
-        "effective_tax": tax_rate,
+        "tax_rate": tax_rate,
         "cost": result.cost,
         "emissions": result.emissions,
         "follower_objective": result.follower_objective,
@@ -550,14 +550,14 @@ def _write_follower_result(
         solution_payload = {
             "schema_version": 3,
             "instance": instance.name,
-            "leader": {"tax_index": tax_index_for_report, "effective_tax": tax_rate},
+            "leader": {"tax_index": tax_index_for_report, "tax_rate": tax_rate},
             "objectives": {
                 "cost": result.cost,
                 "emissions": result.emissions,
                 "follower_objective": result.follower_objective,
             },
             "decision_variables": {
-                "leader": {"tax_index": tax_index_for_report, "effective_tax": tax_rate},
+                "leader": {"tax_index": tax_index_for_report, "tax_rate": tax_rate},
                 "follower": result.variable_values,
             },
             "variables": result.variable_values,
@@ -577,7 +577,7 @@ def _solve_fixed_tax(point: DesignPoint, instance_path: Path, out_dir: Path) -> 
     instance = InstanceData.from_file(instance_path).with_tax_grid_step(_tax_grid_step(point))
     start = time.perf_counter()
     result = solve_fixed_tax_follower(
-        instance, point.fixed_tax_index,
+        instance, point.tax_index,
         time_limit=_effective_subproblem_time_limit(point),
         capture_solution=True,
         mip_gap=point.mip_gap, threads=point.threads, mip_focus=point.mip_focus,
@@ -585,7 +585,7 @@ def _solve_fixed_tax(point: DesignPoint, instance_path: Path, out_dir: Path) -> 
     solve_seconds = time.perf_counter() - start
     return _write_follower_result(
         point, instance, result, instance_path, out_dir,
-        solve_seconds=solve_seconds, tax_index_for_report=point.fixed_tax_index,
+        solve_seconds=solve_seconds, tax_index_for_report=point.tax_index,
     )
 
 
@@ -785,13 +785,13 @@ def run_point(
                     "emissions": summary.get("emissions"),
                     "follower_objective": summary.get("follower_objective"),
                 },
-                "leader_tax": (
+                "tax_index": (
                     summary.get("tax_index", summary.get("hat_tau"))
-                    if point.fixed_tax_index is None
-                    else point.fixed_tax_index
+                    if point.tax_index is None
+                    else point.tax_index
                 ),
                 # The solver's own rate, in the one unit that IS comparable across grids.
-                "effective_tax_usd_per_kg": summary.get("effective_tax"),
+                "tax_rate": summary.get("tax_rate"),
                 "runtime_seconds": summary.get("solve_seconds"),
                 "mip_gap": summary.get("relative_gap"),
                 "output_path": summary.get("_summary_path"),
@@ -811,7 +811,7 @@ def run_point(
                 "termination_reason": "wall_clock_cap_killed",
                 "censored": True,
                 "objective_values": {"cost": None, "emissions": None, "follower_objective": None},
-                "leader_tax": None,
+                "tax_index": None,
                 "error_type": type(exc).__name__,
                 "error_message": str(exc),
                 "notes": point.notes,

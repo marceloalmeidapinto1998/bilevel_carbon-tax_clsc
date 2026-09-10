@@ -100,7 +100,7 @@ extends Soares et al. rather than following them, and it exists because their le
 second criterion to certify. The probe is budgeted (`stagnation_limit`), because an unbounded
 one has no limit short of the grid: it once took STD_TOY6 2002 iterations. Runs that exhaust
 the budget report `termination_reason="relative_gap_tax_unconfirmed"`, `exact=False`, and carry
-`tax_lower_bound` -- the bracket `[tax_lower_bound, tax_index]` containing the true minimum,
+`tax_index_lower_bound` -- the bracket `[tax_index_lower_bound, tax_index]` containing the true minimum,
 rather than a bare "unconfirmed".
 
 There is **no separate refinement phase and no bisection**; the earlier two-phase workflow

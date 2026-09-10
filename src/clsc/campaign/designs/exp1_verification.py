@@ -56,7 +56,7 @@ def build_design_matrix() -> list[DesignPoint]:
                 experiment_id=EXPERIMENT_ID,
                 design_point_id=f"exp1-invariant-{cell}-tau{tax_index:04d}",
                 run_code=f"invariant_tau{tax_index:04d}", base_instance_id=cell,
-                execution_mode="fixed_tax", fixed_tax_index=tax_index,
+                execution_mode="fixed_tax", tax_index=tax_index,
                 invariant_tax_indices=INVARIANT_TAX_INDICES,
                 per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
                 notes="Structural-invariant probe (H1.3).",
