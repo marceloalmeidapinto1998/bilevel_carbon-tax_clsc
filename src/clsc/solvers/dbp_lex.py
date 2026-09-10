@@ -84,6 +84,10 @@ from clsc.models.subproblems import (
 # "terminates with the epsilon-optimal solution" (Soares et al. 2021, Step 6).
 OPTIMAL_REASON = "optimal"
 STAGNATION_REASON = "incumbent_stagnation"
+# The master re-proposed a tax already probed, in an iteration that moved neither bound. Unlike
+# incumbent_stagnation, which gives up after a fixed count, this one is a PROOF that no further
+# iteration can change anything -- see the check in solve_bilevel_dbp_lex.
+FIXED_POINT_REASON = "incumbent_fixed_point"
 # The emissions gap has closed and the bounded tax-descent phase has spent its probes without
 # the master re-proposing the incumbent's tax. The emissions optimum is certified; the
 # least-intervention tax is not, but the result carries the bracket the descent reached in
@@ -365,12 +369,18 @@ def _classify_stagnation_stop(
     emissions_follower_ub: float,
     emissions_leader_lb: float,
     dbp_relative_gap: float | None = None,
+    stalled_reason: str = STAGNATION_REASON,
 ) -> tuple[str, bool]:
     achieved_gap = relative_optimality_gap(emissions_follower_ub=emissions_follower_ub, emissions_leader_lb=emissions_leader_lb)
     threshold = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
     if achieved_gap <= threshold:
-        return "relative_gap", True
-    return STAGNATION_REASON, False
+        # Gap inside tolerance despite the stall. Reported exact, but NOT as plain `optimal`:
+        # the loop stopped without ever reaching the tax-confirmation branch, so Lemma 3 never
+        # ran. Under the naming of b63bcb7 that is an epsilon_optimal_* outcome, and the
+        # distinct suffix keeps a gap-driven stop and a stall-driven one apart downstream.
+        # (This line still returned the pre-b63bcb7 literal "relative_gap" until 2026-09-10.)
+        return "optimal_stagnation", True
+    return stalled_reason, False
 
 
 def _with_stagnation_context(certificate: BoundCertificate) -> BoundCertificate:
@@ -687,6 +697,7 @@ def _stagnation_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
+    stalled_reason: str = STAGNATION_REASON,
 ) -> BilevelSolveResult:
     """``DEFAULT.stagnation_limit`` consecutive iterations moved neither bound: give up and report
     the best certificate in hand, classified by whether the achieved gap happens to already be
@@ -698,6 +709,7 @@ def _stagnation_result(
         emissions_follower_ub=emissions_follower_ub_certificate.value,
         emissions_leader_lb=emissions_leader_lb,
         dbp_relative_gap=effective_dbp_relative_gap,
+        stalled_reason=stalled_reason,
     )
     emissions_leader_lb_certificate = _with_stagnation_context(
         BoundCertificate(
@@ -845,6 +857,8 @@ def solve_bilevel_dbp_lex(
     iterations_without_bound_update = 0
     # Probes spent in the tax-descent phase (see the confirmation branch below).
     tax_descent_probes = 0
+    # Every tax the follower has already been solved at. Re-proposing one is a fixed point.
+    probed_tax_indices: set[int] = set()
 
     for iteration in itertools.count(1):
         if budget.expired() and incumbent is not None:
@@ -865,6 +879,7 @@ def solve_bilevel_dbp_lex(
 
         current_relaxation_lower_bound = emissions_leader_lb
         tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
+        probed_tax_indices.add(tax_index)
 
         lexicographic, lexicographic_seconds = _solve_with_wall_time(
             solve_follower_lexicographic,
@@ -1095,6 +1110,40 @@ def solve_bilevel_dbp_lex(
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
                 tax_index_lower_bound=min(next_tax_index, incumbent.tax_index),
+            )
+
+        # FIXED POINT. The master proposes a tax the follower has already been solved at, in an
+        # iteration that moved neither bound. Everything that determines the next iteration is
+        # then identical to this one: the follower is deterministic (verified on
+        # STD_I17_M8_T3 -- three solves at tax_index 61 agree to six decimals), so re-probing
+        # yields the same cut, and add_value_function_cut keys deduplication on the ITERATION
+        # rather than on the tax, so that cut goes in as an algebraic duplicate. A model with the
+        # same constraint twice is the same model, so the master returns the same proposal, and
+        # the loop cannot leave this state.
+        #
+        # stagnation_limit does eventually stop it, but only after burning its full count on a
+        # cycle already known to be unbreakable: on STD_I17_M8_T3 that was iterations 7 to 15 --
+        # nine master solves and nine follower solves, a third of the run's wall time -- all
+        # rebuilding the identical model. Stopping on the proof rather than on the count also
+        # says something different in the results: incumbent_stagnation means "gave up after
+        # stagnation_limit", incumbent_fixed_point means "proved no iteration can help".
+        if (
+            next_tax_index in probed_tax_indices
+            and not incumbent_updated
+            and not lower_bound_updated
+        ):
+            return _stagnation_result(
+                iteration=iteration,
+                emissions_leader_lb=emissions_leader_lb,
+                incumbent=incumbent,
+                incumbent_solution=incumbent_solution,
+                emissions_follower_ub_certificate=emissions_follower_ub_certificate,
+                relaxation_mip_gap=relaxation.mip_gap,
+                effective_dbp_relative_gap=effective_dbp_relative_gap,
+                iteration_records=iteration_records,
+                iteration_timings=iteration_timings,
+                initial_relaxation_seconds=initial_relaxation_seconds,
+                stalled_reason=FIXED_POINT_REASON,
             )
 
         if incumbent_updated or lower_bound_updated:
