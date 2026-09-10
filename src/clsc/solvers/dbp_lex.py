@@ -6,7 +6,8 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   Their notation          Here                              Built / solved by
   ---------------------------------------------------------------------------
   x^u                     tax_index (integer)               the leader's choice
-  y                       the whole supply chain            the follower's answer
+  y                       the whole supply chain            the model's own variables,
+                                                            built in _build_common_model *
   F(x, y)                 total physical emissions          leader's objective
   f(x, y)                 cost + tax_rate * tax_base        follower's objective
   g(y) <= 0               the chain's physical constraints  independent of the tax
@@ -22,7 +23,10 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   Lemma 3                 master re-proposes the same       _min_tax_confirmed
                           tax => optimum
 
-  * still spelled ValueFunctionCut in the code.
+  * y has no collective name in the code, and needs none. SolveResult.variable_values is a
+    SNAPSHOT of one solution of those variables (Gurobi VarName -> value, non-zeros only),
+    captured after a solve and used for solution.json and the next warm start. It is filled by
+    the leader master as readily as by the follower, so it is not "y" and is not the follower's.
 
 (P2) and (P5) are the SAME Python object -- one LeaderMaster that starts without
 cuts and accumulates one per iteration. The distinction is how many cuts it carries,
