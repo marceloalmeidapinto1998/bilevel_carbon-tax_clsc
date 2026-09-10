@@ -86,7 +86,7 @@ class ModelArtifacts:
     model: gp.Model
     cost_expr: gp.LinExpr
     emissions_expr: gp.LinExpr
-    follower_expr: gp.LinExpr
+    follower_objective_expr: gp.LinExpr
     # Emission aggregate the tax is levied on (discounted). Falls back to the
     # physical emissions_expr when the instance is undiscounted.
     tax_base_expr: gp.LinExpr | None = None
@@ -137,7 +137,7 @@ class SolveResult:
 
 
 @dataclass(slots=True)
-class _CommonModel:
+class _SupplyChainModel:
     model: gp.Model
     cost_expr: gp.LinExpr
     emissions_expr: gp.LinExpr
@@ -235,7 +235,7 @@ def solve_follower_lexicographic(
     _apply_mip_start(model, warm_start_values)
 
     # Stage 1: minimise follower objective (cost + tau * emissions).
-    model.setObjective(artifacts.follower_expr, GRB.MINIMIZE)
+    model.setObjective(artifacts.follower_objective_expr, GRB.MINIMIZE)
     stage1 = optimize_model(
         artifacts,
         tax_index=tax_index,
@@ -258,7 +258,7 @@ def solve_follower_lexicographic(
     primary_optimum = float(stage1.follower_objective)
     freeze_tolerance = lex_freeze_tolerance(primary_optimum, stage1.mip_gap)
     freeze = model.addConstr(
-        artifacts.follower_expr <= primary_optimum + freeze_tolerance,
+        artifacts.follower_objective_expr <= primary_optimum + freeze_tolerance,
         name="lex_primary_freeze",
     )
     model.update()
@@ -328,11 +328,11 @@ def solve_fixed_rate_lexicographic(
     """
     artifacts = master.artifacts
     model = artifacts.model
-    artifacts.follower_expr = artifacts.cost_expr + tax_rate * _tax_base_of(artifacts)
+    artifacts.follower_objective_expr = artifacts.cost_expr + tax_rate * _tax_base_of(artifacts)
     model.ModelSense = GRB.MINIMIZE
     _apply_mip_start(model, warm_start_values)
 
-    model.setObjective(artifacts.follower_expr, GRB.MINIMIZE)
+    model.setObjective(artifacts.follower_objective_expr, GRB.MINIMIZE)
     stage1 = optimize_model(
         artifacts,
         tax_index=None,
@@ -349,7 +349,7 @@ def solve_fixed_rate_lexicographic(
     primary_optimum = float(stage1.follower_objective)
     freeze_tolerance = lex_freeze_tolerance(primary_optimum, stage1.mip_gap)
     freeze = model.addConstr(
-        artifacts.follower_expr <= primary_optimum + freeze_tolerance,
+        artifacts.follower_objective_expr <= primary_optimum + freeze_tolerance,
         name="lex_primary_freeze",
     )
     model.update()
@@ -649,21 +649,21 @@ def build_fixed_tax_model(
     if tax_index not in instance.iter_tax_index():
         raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
 
-    common = _build_common_model(instance, model_name=f"fixed_tau_{tax_index}")
-    follower_expr = (
+    common = _build_supply_chain_model(instance, model_name=f"fixed_tau_{tax_index}")
+    follower_objective_expr = (
         common.cost_expr
         + instance.scale_factor * tax_index * common.tax_base_expr
     )
 
     # tie_break minimises PHYSICAL emissions: that is the leader's criterion,
     # not the operator's tax bill.
-    common.model.setObjective(common.emissions_expr if tie_break else follower_expr, GRB.MINIMIZE)
+    common.model.setObjective(common.emissions_expr if tie_break else follower_objective_expr, GRB.MINIMIZE)
     return ModelArtifacts(
         model=common.model,
         cost_expr=common.cost_expr,
         emissions_expr=common.emissions_expr,
         tax_base_expr=common.tax_base_expr,
-        follower_expr=follower_expr,
+        follower_objective_expr=follower_objective_expr,
     )
 
 
@@ -679,7 +679,7 @@ def build_epsilon_constraint_model(
     cost-emissions points that a tax-indexed (weighted-sum) sweep cannot reach on a non-convex
     frontier.
     """
-    common = _build_common_model(instance, model_name=f"epsilon_constraint_{emissions_upper_bound:.4f}")
+    common = _build_supply_chain_model(instance, model_name=f"epsilon_constraint_{emissions_upper_bound:.4f}")
     common.model.addConstr(common.emissions_expr <= emissions_upper_bound, name="epsilon_constraint")
     common.model.setObjective(common.cost_expr, GRB.MINIMIZE)
     return ModelArtifacts(
@@ -687,7 +687,7 @@ def build_epsilon_constraint_model(
         cost_expr=common.cost_expr,
         emissions_expr=common.emissions_expr,
         tax_base_expr=common.tax_base_expr,
-        follower_expr=common.cost_expr,
+        follower_objective_expr=common.cost_expr,
     )
 
 
@@ -744,13 +744,13 @@ def solve_fixed_tax_min_emissions(
 
 
 def build_follower_master(instance: InstanceData) -> FollowerMaster:
-    common = _build_common_model(instance, model_name="fixed_tax_follower_master")
+    common = _build_supply_chain_model(instance, model_name="fixed_tax_follower_master")
     artifacts = ModelArtifacts(
         model=common.model,
         cost_expr=common.cost_expr,
         emissions_expr=common.emissions_expr,
         tax_base_expr=common.tax_base_expr,
-        follower_expr=common.cost_expr,
+        follower_objective_expr=common.cost_expr,
     )
     master = FollowerMaster(instance=instance, artifacts=artifacts)
     _set_fixed_tax_follower_expression(master, instance.lower_tax_index)
@@ -768,7 +768,7 @@ def _coerce_fixed_tax_follower_master(
 def _set_fixed_tax_follower_expression(master: FollowerMaster, tax_index: int) -> None:
     if tax_index not in master.instance.iter_tax_index():
         raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
-    master.artifacts.follower_expr = (
+    master.artifacts.follower_objective_expr = (
         master.artifacts.cost_expr
         + master.instance.scale_factor * tax_index * _tax_base_of(master.artifacts)
     )
@@ -794,7 +794,7 @@ def build_leader_master(
     epsilon_prime = DEFAULT.dbp_cut_epsilon
     elastic_slack_penalty_multiplier = DEFAULT.elastic_penalty_mult
 
-    common = _build_common_model(instance, model_name="leader_master")
+    common = _build_supply_chain_model(instance, model_name="leader_master")
     model = common.model
 
     lower_tax_index = instance.lower_tax_index
@@ -903,7 +903,7 @@ def build_leader_master(
         ),
         name="tau_emissions_usd_def",
     )
-    follower_expr = common.cost_expr + tau_emissions_product
+    follower_objective_expr = common.cost_expr + tau_emissions_product
 
     elastic_slack_var: gp.Var | None = None
     if elastic:
@@ -918,7 +918,7 @@ def build_leader_master(
             cost_expr=common.cost_expr,
             emissions_expr=common.emissions_expr,
             tax_base_expr=common.tax_base_expr,
-            follower_expr=follower_expr,
+            follower_objective_expr=follower_objective_expr,
             tax_index_var=tax_index,
             emissions_total_var=emissions_total_scaled,
             elastic_slack_var=elastic_slack_var,
@@ -971,7 +971,7 @@ def add_value_function_cut(master: LeaderMaster, cut: ValueFunctionCut) -> None:
         right_hand_side += master.artifacts.elastic_slack_var
 
     master.artifacts.model.addConstr(
-        master.artifacts.follower_expr <= right_hand_side,
+        master.artifacts.follower_objective_expr <= right_hand_side,
         name=f"dbp_cut_{cut.iteration}",
     )
     master.applied_cut_iterations.add(cut.iteration)
@@ -1128,7 +1128,7 @@ def optimize_model(
         cost=float(artifacts.cost_expr.getValue()),
         emissions=float(artifacts.emissions_expr.getValue()),
         tax_base=float(_tax_base_of(artifacts).getValue()),
-        follower_objective=float(artifacts.follower_expr.getValue()),
+        follower_objective=float(artifacts.follower_objective_expr.getValue()),
         tax_index=tax_index_value,
         mip_gap=mip_gap_value,
         runtime=runtime,
@@ -1258,7 +1258,7 @@ def validate_fixed_tax_solution(
     )
 
 
-def _build_common_model(instance: InstanceData, *, model_name: str) -> _CommonModel:
+def _build_supply_chain_model(instance: InstanceData, *, model_name: str) -> _SupplyChainModel:
     model = gp.Model(model_name)
     params = instance.parameters
 
@@ -1505,7 +1505,7 @@ def _build_common_model(instance: InstanceData, *, model_name: str) -> _CommonMo
         u_prod,
         u_rem,
     )
-    return _CommonModel(
+    return _SupplyChainModel(
         model=model,
         cost_expr=cost_expr,
         emissions_expr=emissions_expr,

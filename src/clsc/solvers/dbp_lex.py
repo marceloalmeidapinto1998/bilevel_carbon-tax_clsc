@@ -7,18 +7,20 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   ---------------------------------------------------------------------------
   x^u                     tax_index (integer)               the leader's choice
   y                       the whole supply chain            the model's own variables,
-                                                            built in _build_common_model *
+                                                            built in _build_supply_chain_model *
   F(x, y)                 total physical emissions          leader's objective
   f(x, y)                 cost + tax_rate * tax_base        follower's objective
-  g(y) <= 0               the chain's physical constraints  independent of the tax
+  g(y) <= 0               the chain's physical constraints  _build_supply_chain_model
+                          -- independent of the tax
   (P2)   HPR              leader master, no cuts yet        build_leader_master
   (P5)   HPR + cuts       the SAME master, k cuts later     add_value_function_cut
   (P3)+(P4-eps')          follower at a fixed tax           solve_follower_lexicographic
   y_k                     the point that generates cut k    ValueFunctionCut
   eps                     loop stopping criterion           dbp_relative_gap
   eps'                    subproblem feasibility slack      lex_freeze_tolerance
-  Lemma 1                 the follower's point is           _is_better_candidate
-                          bilevel-feasible, so it bounds
+  Lemma 1                 the follower's point is           where the follower's answer
+                          bilevel-feasible, so it bounds    sets emissions_follower_ub_
+                                                            certificate **
   Lemma 2                 cuts remove nothing optimal       add_value_function_cut
   Lemma 3                 master re-proposes the same       _min_tax_confirmed
                           tax => optimum
@@ -27,6 +29,10 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
     SNAPSHOT of one solution of those variables (Gurobi VarName -> value, non-zeros only),
     captured after a solve and used for solution.json and the next warm start. It is filled by
     the leader master as readily as by the follower, so it is not "y" and is not the follower's.
+
+  ** _is_better_candidate is NOT Lemma 1. It is the leader's lexicographic comparator --
+     lexmin(emissions, tax_index) within an indifference band -- and it has no counterpart in
+     the reference at all, whose leader is scalar. It is one of the things this procedure adds.
 
 (P2) and (P5) are the SAME Python object -- one LeaderMaster that starts without
 cuts and accumulates one per iteration. The distinction is how many cuts it carries,
