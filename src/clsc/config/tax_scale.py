@@ -14,7 +14,7 @@ from __future__ import annotations
 # the resolution is a modelling convenience. Here the tax multiplies EMISSIONS, which are sums of
 # continuous flow variables, so the product is genuinely bilinear and McCormick only bounds it.
 # The integer resolution is what makes the exact one-hot linearisation possible at all (see
-# build_dbp_relaxation_master). It is a requirement of the formulation, not a convenience.
+# build_leader_master). It is a requirement of the formulation, not a convenience.
 #
 # tax_index in {0..200} spans 0-0.2 USD/kg: the leader sets a WHOLE number of USD per
 # tonne. That is the resolution Soares et al.'s phrasing needs -- 1e-3 is a power of ten,

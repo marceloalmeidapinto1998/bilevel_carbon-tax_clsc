@@ -33,10 +33,10 @@ def _is_relaxation_feasible(instance: GeneratedInstance) -> bool:
     from gurobipy import GRB
 
     from clsc.models.instance import InstanceData
-    from clsc.models.subproblems import build_dbp_relaxation_master
+    from clsc.models.subproblems import build_leader_master
 
     instance_data = InstanceData.from_dict(instance.to_dict())
-    master = build_dbp_relaxation_master(instance_data)
+    master = build_leader_master(instance_data)
     model = master.artifacts.model
     model.Params.OutputFlag = 0
     model.Params.TimeLimit = FEASIBILITY_CHECK_TIME_LIMIT_SECONDS

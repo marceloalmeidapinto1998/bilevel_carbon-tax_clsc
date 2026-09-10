@@ -68,7 +68,7 @@ class ToleranceConfig:
     # over 10 iterations, then the DBP algorithm terminates with the incumbent solution", their
     # Section 7) -- a calibration choice, not a correctness one; the doubling addressed a
     # symptom of the master's earlier non-convex QCP formulation (see
-    # build_dbp_relaxation_master), which no longer applies now that tau*emissions is linearised
+    # build_leader_master), which no longer applies now that tau*emissions is linearised
     # exactly by a one-hot disaggregation instead of McCormick + spatial branch-and-bound.
     stagnation_limit: int = 10
     elastic_penalty_mult: float = 10.0

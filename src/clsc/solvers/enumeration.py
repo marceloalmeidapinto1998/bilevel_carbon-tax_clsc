@@ -6,7 +6,7 @@ at EVERY grid point is exact by construction -- no cuts, no relaxation master, n
 optimality certificate cannot: is the decomposition worth having?
 
 Fair comparison with DBP requires solving the SAME sub-problem DBP solves at each point
-(`solve_fixed_tax_lexicographic`, the two-stage min-cost-then-min-emissions follower), with the
+(`solve_follower_lexicographic`, the two-stage min-cost-then-min-emissions follower), with the
 same warm-start discipline, under the same wall-clock budget mechanics as
 :class:`clsc.solvers.dbp_lex._WallClockBudget`. Scanning ascending tax index exploits the same
 non-increasing-emissions invariant DBP's own structural checks rely on (H1.3) only to report
@@ -32,7 +32,7 @@ from dataclasses import dataclass
 
 from clsc.config.gap_tol import DEFAULT
 from clsc.models.instance import InstanceData
-from clsc.models.subproblems import FixedTaxFollowerMaster, SolveResult, solve_fixed_tax_lexicographic
+from clsc.models.subproblems import FollowerMaster, SolveResult, solve_follower_lexicographic
 from clsc.solvers.dbp_lex import IncumbentSolution, SubproblemStatusError, _required_value, _WallClockBudget
 
 PLATEAU_RELATIVE_GAP = 1e-4  # matches the campaign's dbp_relative_gap / plateau convention
@@ -78,7 +78,7 @@ class EnumerationResult:
 
 
 def enumerate_tax_grid(
-    instance_or_master: InstanceData | FixedTaxFollowerMaster,
+    instance_or_master: InstanceData | FollowerMaster,
     instance: InstanceData,
     *,
     time_limit: float | None = None,
@@ -92,7 +92,7 @@ def enumerate_tax_grid(
 ) -> EnumerationResult:
     """Solve the fixed-tax lexicographic follower at every grid point in ``instance``'s tax range.
 
-    ``instance_or_master`` may be a pre-built :class:`FixedTaxFollowerMaster` (reused across calls,
+    ``instance_or_master`` may be a pre-built :class:`FollowerMaster` (reused across calls,
     mirroring DBP's own follower-master reuse) or the bare instance; ``instance`` is always the
     plain :class:`InstanceData`, needed for its tax-scale bounds regardless of which form the solve
     target takes. ``plateau_relative_gap`` is the tie tolerance for incumbent selection -- see the
@@ -112,7 +112,7 @@ def enumerate_tax_grid(
         if budget.expired():
             break
 
-        result = solve_fixed_tax_lexicographic(
+        result = solve_follower_lexicographic(
             instance_or_master,
             tax_index=tax_index,
             time_limit=budget.subproblem_time_limit(),

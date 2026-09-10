@@ -1,3 +1,44 @@
+"""Deterministic Bounding Procedure for the lexicographic carbon-tax leader.
+
+CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
+-- kept here, in one place, so the module can be read with the paper open.
+
+  Their notation          Here                              Built / solved by
+  ---------------------------------------------------------------------------
+  x^u                     tax_index (integer)               the leader's choice
+  y                       the whole supply chain            the follower's answer
+  F(x, y)                 total physical emissions          leader's objective
+  f(x, y)                 cost + tax_rate * tax_base        follower's objective
+  g(y) <= 0               the chain's physical constraints  independent of the tax
+  (P2)   HPR              leader master, no cuts yet        build_leader_master
+  (P5)   HPR + cuts       the SAME master, k cuts later     add_value_function_cut
+  (P3)+(P4-eps')          follower at a fixed tax           solve_follower_lexicographic
+  y_k                     the point that generates cut k    ValueFunctionCut *
+  eps                     loop stopping criterion           dbp_relative_gap
+  eps'                    subproblem feasibility slack      lex_freeze_tolerance
+  Lemma 1                 the follower's point is           _is_better_candidate
+                          bilevel-feasible, so it bounds
+  Lemma 2                 cuts remove nothing optimal       add_value_function_cut
+  Lemma 3                 master re-proposes the same       _min_tax_confirmed
+                          tax => optimum
+
+  * still spelled DbpFollowerCut in the code.
+
+(P2) and (P5) are the SAME Python object -- one LeaderMaster that starts without
+cuts and accumulates one per iteration. The distinction is how many cuts it carries,
+not what type it is, which is why no function is named after either.
+
+THE BOUNDS ARE INVERTED against the paper, and this trips everyone. Soares et al.
+MAXIMISE profit, so their relaxation gives an upper bound and their feasible point a
+lower one. This leader MINIMISES emissions, so both flip: the master gives
+emissions_leader_lb and the follower gives emissions_follower_ub. Their LB_F is this
+module's emissions_follower_ub.
+
+WHAT THIS ADDS to the reference procedure: a lexicographic second criterion (least
+intervention) that their scalar leader has no counterpart for, the bounded tax-descent
+phase that certifies it, and the exact one-hot linearisation of tax_rate * emissions --
+needed because this tax multiplies continuous flows, where theirs multiplied binaries.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,13 +52,13 @@ from clsc.models.instance import SCALE_FACTOR, InstanceData
 from clsc.models.subproblems import (
     DbpFollowerCut,
     SolveResult,
-    add_dbp_relaxation_cut,
-    build_dbp_relaxation_master,
-    build_fixed_tax_follower_master,
+    add_value_function_cut,
+    build_leader_master,
+    build_follower_master,
     lex_freeze_tolerance,
     set_emissions_cap,
-    solve_dbp_relaxation_lexicographic,
-    solve_fixed_tax_lexicographic,
+    solve_leader_master_lexicographic,
+    solve_follower_lexicographic,
 )
 
 
@@ -758,11 +799,11 @@ def solve_bilevel_dbp_lex(
     leader_indifference_relative = effective_dbp_relative_gap
     iteration_records: list[DbpIterationRecord] = []
     iteration_timings: list[DbpIterationTiming] = []
-    relaxation_master = build_dbp_relaxation_master(instance)
-    follower_master = build_fixed_tax_follower_master(instance)
+    relaxation_master = build_leader_master(instance)
+    follower_master = build_follower_master(instance)
 
     relaxation, initial_relaxation_seconds = _solve_with_wall_time(
-        solve_dbp_relaxation_lexicographic,
+        solve_leader_master_lexicographic,
         relaxation_master,
         output_flag=output_flag,
         time_limit=budget.subproblem_time_limit(),
@@ -805,7 +846,7 @@ def solve_bilevel_dbp_lex(
         tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
 
         lexicographic, lexicographic_seconds = _solve_with_wall_time(
-            solve_fixed_tax_lexicographic,
+            solve_follower_lexicographic,
             follower_master,
             tax_index=tax_index,
             output_flag=output_flag,
@@ -894,14 +935,14 @@ def solve_bilevel_dbp_lex(
             tax_base=lexicographic.tax_base,
             iteration=iteration,
         )
-        add_dbp_relaxation_cut(relaxation_master, cut)
+        add_value_function_cut(relaxation_master, cut)
         if use_incumbent_cut:
             set_emissions_cap(
                 relaxation_master, emissions_follower_UB_certificate.value,
             )
 
         relaxation, relaxation_seconds = _solve_with_wall_time(
-            solve_dbp_relaxation_lexicographic,
+            solve_leader_master_lexicographic,
             relaxation_master,
             output_flag=output_flag,
             time_limit=budget.subproblem_time_limit(),

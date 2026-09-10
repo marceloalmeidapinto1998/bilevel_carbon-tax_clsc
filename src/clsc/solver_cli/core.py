@@ -12,8 +12,8 @@ import time
 
 from clsc.config.gap_tol import DEFAULT
 from clsc.models.subproblems import (
-    build_fixed_tax_follower_master,
-    solve_fixed_tax_lexicographic,
+    build_follower_master,
+    solve_follower_lexicographic,
     validate_fixed_tax_solution,
 )
 from clsc.models.instance import InstanceData, InstanceValidationError
@@ -696,7 +696,7 @@ def build_instance_result_payload(
 def build_phase_summary(result) -> dict[str, object]:
     # The leader's full lexicographic objective (min emissions, then min
     # tax_index) is resolved inside the DBP loop itself -- see
-    # solve_dbp_relaxation_lexicographic -- so there is only one phase.
+    # solve_leader_master_lexicographic -- so there is only one phase.
     return {
         "dbp_iterations": len(result.iteration_records),
         "final_tax_index": result.incumbent.tax_index,
@@ -823,7 +823,7 @@ def rebuild_lexicographic_solution_with_fixed_discrete_values(*, instance: Insta
     if optimistic is None or not optimistic.has_solution or optimistic.variable_values is None:
         return None
 
-    follower_master = build_fixed_tax_follower_master(instance)
+    follower_master = build_follower_master(instance)
     model = follower_master.artifacts.model
     model.update()
     for variable in model.getVars():
@@ -845,7 +845,7 @@ def rebuild_lexicographic_solution_with_fixed_discrete_values(*, instance: Insta
         variable.LB = target_value
         variable.UB = target_value
 
-    return solve_fixed_tax_lexicographic(
+    return solve_follower_lexicographic(
         follower_master,
         result.incumbent.tax_index,
         output_flag=False,

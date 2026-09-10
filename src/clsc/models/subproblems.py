@@ -95,7 +95,7 @@ class ModelArtifacts:
     elastic_slack_var: gp.Var | None = None
     # Continuous variable tied to tax_index_var by the single linear equality
     # ``tax_rate_var == scale_factor * tax_index_var`` (added in
-    # build_dbp_relaxation_master). The spatial master multiplies it by
+    # build_leader_master). The spatial master multiplies it by
     # emissions_total_var for the one bilinear tau*E term, and cut RHSs read as
     # ``cost_v + emissions_v * tax_rate_var`` (constant times variable, linear).
     tax_rate_var: gp.Var | None = None
@@ -147,20 +147,20 @@ class _CommonModel:
 
 
 @dataclass(slots=True)
-class FixedTaxFollowerMaster:
+class FollowerMaster:
     instance: InstanceData
     artifacts: ModelArtifacts
 
 
 @dataclass(slots=True)
-class DbpRelaxationMaster:
+class LeaderMaster:
     artifacts: ModelArtifacts
     epsilon_prime: float = 0.0
     lower_tax_index: int = 0
     upper_tax_index: int = 0
     emissions_big_m: float = 0.0
     # Grid step, needed to write the cuts in terms of the integer tax_index rather than the
-    # continuous tax_rate. See add_dbp_relaxation_cut.
+    # continuous tax_rate. See add_value_function_cut.
     scale_factor: float = 1.0
     applied_cut_iterations: set[int] = field(default_factory=set)
     emissions_cap_constraint: gp.Constr | None = None
@@ -192,8 +192,8 @@ def solve_fixed_tax_follower(
     )
 
 
-def solve_fixed_tax_lexicographic(
-    instance_or_master: InstanceData | FixedTaxFollowerMaster,
+def solve_follower_lexicographic(
+    instance_or_master: InstanceData | FollowerMaster,
     tax_index: int,
     *,
     output_flag: bool = False,
@@ -304,7 +304,7 @@ def solve_fixed_tax_lexicographic(
 
 
 def solve_fixed_rate_lexicographic(
-    master: FixedTaxFollowerMaster,
+    master: FollowerMaster,
     tax_rate: float,
     *,
     output_flag: bool = False,
@@ -317,7 +317,7 @@ def solve_fixed_rate_lexicographic(
 ) -> SolveResult:
     """Follower two-stage lexicographic solve at a CONTINUOUS tax rate (USD/kg).
 
-    Rate-based analogue of :func:`solve_fixed_tax_lexicographic` (which takes an
+    Rate-based analogue of :func:`solve_follower_lexicographic` (which takes an
     integer index): identical follower MILP, only the emissions coefficient is a
     continuous rate rather than ``scale_factor * index``.
 
@@ -391,7 +391,7 @@ def solve_fixed_rate_lexicographic(
 def lex_freeze_tolerance(primary_optimum: float, primary_mip_gap: float | None) -> float:
     """Tolerance for freezing a follower-objective value before an
     optimistic-tie-break re-optimization (used by both
-    :func:`solve_fixed_tax_lexicographic`'s Stage-1/Stage-2 split and the
+    :func:`solve_follower_lexicographic`'s Stage-1/Stage-2 split and the
     equivalent two-call pattern in the DBP solvers, see
     ``dbp_exact.follower_objective_cap``).
 
@@ -416,8 +416,8 @@ def lex_freeze_tolerance(primary_optimum: float, primary_mip_gap: float | None) 
     )
 
 
-def solve_dbp_relaxation(
-    instance_or_master: InstanceData | DbpRelaxationMaster,
+def solve_leader_master(
+    instance_or_master: InstanceData | LeaderMaster,
     cuts: list[DbpFollowerCut] | None = None,
     *,
     output_flag: bool = False,
@@ -425,12 +425,12 @@ def solve_dbp_relaxation(
     capture_solution: bool = False,
     compute_iis: bool = False,
 ) -> SolveResult:
-    if isinstance(instance_or_master, DbpRelaxationMaster):
+    if isinstance(instance_or_master, LeaderMaster):
         master = instance_or_master
     else:
-        master = build_dbp_relaxation_master(instance_or_master)
+        master = build_leader_master(instance_or_master)
     if cuts:
-        _synchronize_dbp_relaxation_master(master, cuts)
+        _synchronize_leader_master(master, cuts)
     # Infeasible DBP relaxations are handled by the certified elastic fallback.
     # IIS extraction is expensive here and is only useful for final-model diagnostics.
     return optimize_model(
@@ -443,8 +443,8 @@ def solve_dbp_relaxation(
     )
 
 
-def solve_dbp_relaxation_lexicographic(
-    instance_or_master: InstanceData | DbpRelaxationMaster,
+def solve_leader_master_lexicographic(
+    instance_or_master: InstanceData | LeaderMaster,
     cuts: list[DbpFollowerCut] | None = None,
     *,
     output_flag: bool = False,
@@ -458,7 +458,7 @@ def solve_dbp_relaxation_lexicographic(
     leader_indifference_relative: float | None = None,
 ) -> SolveResult:
     """Two-stage lexicographic solve of the DBP relaxation master: minimise total
-    emissions (Stage 1, identical to :func:`solve_dbp_relaxation`), then minimise
+    emissions (Stage 1, identical to :func:`solve_leader_master`), then minimise
     ``tax_index`` itself (Stage 2) among master points tied at that emissions value.
 
     The two stages are two separate ``optimize()`` calls on the same persistent model,
@@ -493,15 +493,15 @@ def solve_dbp_relaxation_lexicographic(
     indices visited so far -- with no monotonicity assumption required.
 
     Mirrors the Stage-1/Stage-2 freeze pattern already used by
-    :func:`solve_fixed_tax_lexicographic` for the fixed-tax follower, applied here to the
+    :func:`solve_follower_lexicographic` for the fixed-tax follower, applied here to the
     relaxation master's own ``emissions_total_var``/``tax_index_var``.
     """
-    if isinstance(instance_or_master, DbpRelaxationMaster):
+    if isinstance(instance_or_master, LeaderMaster):
         master = instance_or_master
     else:
-        master = build_dbp_relaxation_master(instance_or_master)
+        master = build_leader_master(instance_or_master)
     if cuts:
-        _synchronize_dbp_relaxation_master(master, cuts)
+        _synchronize_leader_master(master, cuts)
 
     artifacts = master.artifacts
     model = artifacts.model
@@ -586,7 +586,7 @@ def solve_dbp_relaxation_lexicographic(
         )
     freeze = model.addConstr(
         emissions_total_var <= primary_optimum_scaled + freeze_tolerance_scaled,
-        name="dbp_relaxation_lex_primary_freeze",
+        name="leader_master_emissions_freeze",
     )
     model.update()
 
@@ -613,7 +613,7 @@ def solve_dbp_relaxation_lexicographic(
         model.remove(freeze)
     finally:
         # Restore the master's ordinary objective so a caller that re-solves this same model
-        # via solve_dbp_relaxation later sees the expected single-stage emissions objective.
+        # via solve_leader_master later sees the expected single-stage emissions objective.
         model.setObjective(emissions_total_var, GRB.MINIMIZE)
         model.update()
 
@@ -743,7 +743,7 @@ def solve_fixed_tax_min_emissions(
     )
 
 
-def build_fixed_tax_follower_master(instance: InstanceData) -> FixedTaxFollowerMaster:
+def build_follower_master(instance: InstanceData) -> FollowerMaster:
     common = _build_common_model(instance, model_name="fixed_tax_follower_master")
     artifacts = ModelArtifacts(
         model=common.model,
@@ -752,20 +752,20 @@ def build_fixed_tax_follower_master(instance: InstanceData) -> FixedTaxFollowerM
         tax_base_expr=common.tax_base_expr,
         follower_expr=common.cost_expr,
     )
-    master = FixedTaxFollowerMaster(instance=instance, artifacts=artifacts)
+    master = FollowerMaster(instance=instance, artifacts=artifacts)
     _set_fixed_tax_follower_expression(master, instance.lower_tax_index)
     return master
 
 
 def _coerce_fixed_tax_follower_master(
-    instance_or_master: InstanceData | FixedTaxFollowerMaster,
-) -> FixedTaxFollowerMaster:
-    if isinstance(instance_or_master, FixedTaxFollowerMaster):
+    instance_or_master: InstanceData | FollowerMaster,
+) -> FollowerMaster:
+    if isinstance(instance_or_master, FollowerMaster):
         return instance_or_master
-    return build_fixed_tax_follower_master(instance_or_master)
+    return build_follower_master(instance_or_master)
 
 
-def _set_fixed_tax_follower_expression(master: FixedTaxFollowerMaster, tax_index: int) -> None:
+def _set_fixed_tax_follower_expression(master: FollowerMaster, tax_index: int) -> None:
     if tax_index not in master.instance.iter_tax_index():
         raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
     master.artifacts.follower_expr = (
@@ -786,15 +786,15 @@ def _apply_mip_start(model: gp.Model, variable_values: dict[str, float] | None) 
             variable.Start = float(value)
 
 
-def build_dbp_relaxation_master(
+def build_leader_master(
     instance: InstanceData,
     *,
     elastic: bool = False,
-) -> DbpRelaxationMaster:
+) -> LeaderMaster:
     epsilon_prime = DEFAULT.dbp_cut_epsilon
     elastic_slack_penalty_multiplier = DEFAULT.elastic_penalty_mult
 
-    common = _build_common_model(instance, model_name="dbp_relaxation_master")
+    common = _build_common_model(instance, model_name="leader_master")
     model = common.model
 
     lower_tax_index = instance.lower_tax_index
@@ -860,7 +860,7 @@ def build_dbp_relaxation_master(
     # linear constraints: no NonConvex flag, no spatial branch-and-bound, no McCormick gap ever
     # open on this model. The cost is N-1 extra binaries and ~3N extra linear constraints (401
     # and ~1200 on the campaign's grid) in exchange for the follower/fixed-tax models' own
-    # numerical reliability -- see build_fixed_tax_follower_master, which never needed any of
+    # numerical reliability -- see build_follower_master, which never needed any of
     # this because it never faces a leader-side unknown at all.
     tax_levels = range(lower_tax_index, upper_tax_index + 1)
     tax_level_selected = model.addVars(tax_levels, vtype=GRB.BINARY, name="tax_level_selected")
@@ -912,7 +912,7 @@ def build_dbp_relaxation_master(
         model.setObjective(common.emissions_expr + slack_penalty * elastic_slack_var, GRB.MINIMIZE)
     else:
         model.setObjective(emissions_total_scaled, GRB.MINIMIZE)
-    return DbpRelaxationMaster(
+    return LeaderMaster(
         artifacts=ModelArtifacts(
             model=model,
             cost_expr=common.cost_expr,
@@ -933,7 +933,7 @@ def build_dbp_relaxation_master(
     )
 
 
-def add_dbp_relaxation_cut(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> None:
+def add_value_function_cut(master: LeaderMaster, cut: DbpFollowerCut) -> None:
     if cut.iteration in master.applied_cut_iterations:
         return
 
@@ -977,7 +977,7 @@ def add_dbp_relaxation_cut(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> 
     master.applied_cut_iterations.add(cut.iteration)
 
 
-def _dbp_cut_epsilon(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> float:
+def _dbp_cut_epsilon(master: LeaderMaster, cut: DbpFollowerCut) -> float:
     # master.epsilon_prime is a fixed absolute floor (DEFAULT.dbp_cut_epsilon
     # at master-build time); scale it by the cut's own cost magnitude so the
     # guard stays round-off-scale regardless of an instance's cost scale,
@@ -987,7 +987,7 @@ def _dbp_cut_epsilon(master: DbpRelaxationMaster, cut: DbpFollowerCut) -> float:
 
 
 def set_emissions_cap(
-    master: DbpRelaxationMaster,
+    master: LeaderMaster,
     emissions_follower_ub: float | None,
 ) -> None:
     emissions_total_var = master.artifacts.emissions_total_var
@@ -1034,12 +1034,12 @@ def set_emissions_cap(
     master.emissions_cap = tolerant_upper_bound
 
 
-def _synchronize_dbp_relaxation_master(master: DbpRelaxationMaster, cuts: Iterable[DbpFollowerCut]) -> None:
+def _synchronize_leader_master(master: LeaderMaster, cuts: Iterable[DbpFollowerCut]) -> None:
     added_cut = False
     for cut in cuts:
         if cut.iteration in master.applied_cut_iterations:
             continue
-        add_dbp_relaxation_cut(master, cut)
+        add_value_function_cut(master, cut)
         added_cut = True
     if added_cut:
         master.artifacts.model.update()
