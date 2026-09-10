@@ -644,8 +644,8 @@ def build_instance_result_payload(
                 emissions_leader_lb=result.emissions_leader_lb,
             ),
             "certificates": {
-                "lower": asdict(result.emissions_leader_LB_certificate),
-                "upper": asdict(result.emissions_follower_UB_certificate),
+                "lower": asdict(result.emissions_leader_lb_certificate),
+                "upper": asdict(result.emissions_follower_ub_certificate),
             },
         },
         "runtime": {
