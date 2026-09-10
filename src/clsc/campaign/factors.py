@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from clsc.models.instance import SCALE_FACTOR
+from clsc.models.instance import TAX_SCALE_FACTOR
 
 _ROUND = 6
 
@@ -82,7 +82,7 @@ def _apply_tax_range(params: dict[str, Any], m: float) -> None:
         return
     new_hat = max(1, int(round(float(base) * m)))
     params["overline_tax_index"] = new_hat
-    params["overline_tax_rate"] = round(new_hat * SCALE_FACTOR, 4)
+    params["overline_tax_rate"] = round(new_hat * TAX_SCALE_FACTOR, 4)
 
 
 def _apply_transport_emission_intensity(params: dict[str, Any], m: float) -> None:

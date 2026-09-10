@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from clsc.models.instance import SCALE_FACTOR
+from clsc.models.instance import TAX_SCALE_FACTOR
 
 # USD/t CO2e per integer tax_index step, derived from the single-source-of-truth
-# SCALE_FACTOR (USD/kg) since all reporting uses the economically meaningful
+# TAX_SCALE_FACTOR (USD/kg) since all reporting uses the economically meaningful
 # rate -- see paper/appendix/app_data.tex Sec. "Carbon-Tax Range Justification".
 # The index tax_index itself is confined to the leader's formulation and the DBP algorithm.
-TAX_SCALE_USD_PER_TONNE = SCALE_FACTOR * 1000.0
+TAX_SCALE_USD_PER_TONNE = TAX_SCALE_FACTOR * 1000.0
 
 
 def to_float(value: Any) -> float | None:

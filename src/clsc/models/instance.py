@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from clsc.config.gap_tol import DEFAULT
-from clsc.config.tax_scale import TAX_SCALE_FACTOR as SCALE_FACTOR
+from clsc.config.tax_scale import TAX_SCALE_FACTOR
 
-# SCALE_FACTOR: USD/kg CO2e per integer tax_index step: tax_rate = SCALE_FACTOR * tax_index.
+# TAX_SCALE_FACTOR: USD/kg CO2e per integer tax_index step: tax_rate = TAX_SCALE_FACTOR * tax_index.
 # The one carbon-tax resolution in the project (clsc.config.tax_scale.TAX_SCALE_FACTOR),
 # re-exported under this name since it is part of this module's public API (imported elsewhere
-# as clsc.models.instance.SCALE_FACTOR).
+# as clsc.models.instance.TAX_SCALE_FACTOR).
 # Fallback for instances generated before 2026-08-11, which carry no
 # product_rotation_per_period. Those were built reading Mota's 4.5 turns/year
 # as a per-period count, and must keep it so archived runs stay reproducible.
@@ -240,14 +240,14 @@ class InstanceData:
         directly, exactly. Otherwise it is DERIVED from this instance's own stored
         grid (``overline_tax_rate``/``overline_tax_index``) rather than the module
         constant, so a base instance (overline_tax_rate=0.2, overline_tax_index=400)
-        yields 0.2/400 = 5e-4 = the module SCALE_FACTOR and existing behaviour is
+        yields 0.2/400 = 5e-4 = the module TAX_SCALE_FACTOR and existing behaviour is
         unchanged. Falls back to the module constant for a degenerate single-point
         grid."""
         if self.tax_grid_step is not None:
             return self.tax_grid_step
         span_index = self.upper_tax_index - self.lower_tax_index
         if span_index <= 0:
-            return SCALE_FACTOR
+            return TAX_SCALE_FACTOR
         span_rate = float(self.parameters["overline_tax_rate"]) - float(self.parameters["underline_tax_rate"])
         return span_rate / span_index
 
@@ -365,9 +365,9 @@ def _normalize_sets(raw_sets: dict[str, Any]) -> dict[str, Any]:
 
 def _tax_rate_to_tax_index(rate: Any) -> int:
     numeric_rate = float(rate)
-    scaled = round(numeric_rate / SCALE_FACTOR)
-    if abs(numeric_rate - scaled * SCALE_FACTOR) > DEFAULT.eps:
-        raise InstanceValidationError(f"Tax bounds must be multiples of {SCALE_FACTOR} USD/kg CO2e")
+    scaled = round(numeric_rate / TAX_SCALE_FACTOR)
+    if abs(numeric_rate - scaled * TAX_SCALE_FACTOR) > DEFAULT.eps:
+        raise InstanceValidationError(f"Tax bounds must be multiples of {TAX_SCALE_FACTOR} USD/kg CO2e")
     return int(scaled)
 
 

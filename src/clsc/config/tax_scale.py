@@ -28,7 +28,7 @@ from __future__ import annotations
 # There used to be two -- a coarse 0.01 baked into the generated base instances and a finer 5e-4
 # the campaign rescaled onto at solve time -- and keeping them apart caused a silent 100x
 # tau-scale mismatch once (see clsc.campaign.orchestrator, "Tax-scale consistency"). Base
-# instances are now generated directly at this resolution (clsc.generator.config.SCALE_FACTOR
+# instances are now generated directly at this resolution (clsc.generator.config.TAX_SCALE_FACTOR
 # imports this constant), so with_tax_grid_step() is a no-op on any current one; it survives as
 # the mechanism for a deliberate probe at a different resolution, not as part of the normal path.
 #

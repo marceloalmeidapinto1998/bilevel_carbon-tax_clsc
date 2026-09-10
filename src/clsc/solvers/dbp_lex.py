@@ -48,7 +48,7 @@ from pathlib import Path
 import time
 
 from clsc.config.gap_tol import DEFAULT
-from clsc.models.instance import SCALE_FACTOR, InstanceData
+from clsc.models.instance import TAX_SCALE_FACTOR, InstanceData
 from clsc.models.subproblems import (
     ValueFunctionCut,
     SolveResult,
@@ -95,7 +95,7 @@ class IncumbentSolution:
     # Grid step used to convert tax_index -> rate; the solving instance's own
     # scale_factor (see InstanceData.scale_factor), so a finer grid reports the
     # correct rate. Defaults to the module constant for legacy callers/tests.
-    scale_factor: float = SCALE_FACTOR
+    scale_factor: float = TAX_SCALE_FACTOR
 
     @property
     def tax_rate(self) -> float:
@@ -113,7 +113,7 @@ class TaxSolveSnapshot:
     emissions: float
     follower_objective: float
     mip_gap: float | None
-    scale_factor: float = SCALE_FACTOR
+    scale_factor: float = TAX_SCALE_FACTOR
     lex_primary_mip_gap: float | None = None
     lex_secondary_mip_gap: float | None = None
     variable_values: dict[str, float] | None = None

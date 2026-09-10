@@ -35,7 +35,7 @@ from .cli import (
     main_instance,
 )
 from .config import (
-    SCALE_FACTOR,
+    TAX_SCALE_FACTOR,
     DEFAULT_AIRPLANES,
     DEFAULT_BOATS,
     DEFAULT_TRANSPORT_MODES,
@@ -50,7 +50,7 @@ __all__ = [
     "ArcConnectivityConfig",
     "BenchmarkSpec",
     "BenchmarkSummary",
-    "SCALE_FACTOR",
+    "TAX_SCALE_FACTOR",
     "DEFAULT_AIRPLANES",
     "DEFAULT_BOATS",
     "DEFAULT_TRANSPORT_MODES",

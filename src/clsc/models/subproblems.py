@@ -814,7 +814,7 @@ def build_leader_master(
         name="total_emissions_tonnes_def",
     )
 
-    # tax_rate == SCALE_FACTOR * tax_index -- the continuous rate pinned to the
+    # tax_rate == TAX_SCALE_FACTOR * tax_index -- the continuous rate pinned to the
     # grid. A single linear equality (constant coefficient), so it never needs
     # a linearization of its own.
     tax_rate = model.addVar(

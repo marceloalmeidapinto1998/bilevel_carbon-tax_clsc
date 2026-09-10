@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from clsc.config.tax_scale import TAX_SCALE_FACTOR as SCALE_FACTOR
+from clsc.config.tax_scale import TAX_SCALE_FACTOR
 
 
 DEFAULT_TRUCKS = 2
@@ -98,7 +98,7 @@ class GeneratorConfig:
 
 
 def _tax_rate_to_tax_index(rate: float) -> int:
-    scaled = round(float(rate) / SCALE_FACTOR)
-    if abs(float(rate) - scaled * SCALE_FACTOR) > 1e-9:
-        raise ValueError(f"tax bounds must be multiples of {SCALE_FACTOR} USD/kg CO2e to match the scaled tax index")
+    scaled = round(float(rate) / TAX_SCALE_FACTOR)
+    if abs(float(rate) - scaled * TAX_SCALE_FACTOR) > 1e-9:
+        raise ValueError(f"tax bounds must be multiples of {TAX_SCALE_FACTOR} USD/kg CO2e to match the scaled tax index")
     return int(scaled)
