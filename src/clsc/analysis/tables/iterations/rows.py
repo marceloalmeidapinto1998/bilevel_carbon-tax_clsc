@@ -57,8 +57,8 @@ def build_final_row(
     bounds = detailed.get("bounds", {}) if isinstance(detailed, dict) else {}
     return FinalRow(
         tax_index=to_int(summary.get("tax_index", summary.get("hat_tau"))),
-        lb_emissions=to_float(summary.get("emissions_leader_LB") or bounds.get("emissions_leader_LB")),
-        ub_emissions=to_float(summary.get("emissions_follower_UB") or bounds.get("emissions_follower_UB")),
+        lb_emissions=to_float(summary.get("emissions_leader_lb") or bounds.get("emissions_leader_lb")),
+        ub_emissions=to_float(summary.get("emissions_follower_ub") or bounds.get("emissions_follower_ub")),
         follower_objective=to_float(summary.get("follower_objective")),
         relative_gap=to_float(summary.get("relative_gap") or bounds.get("relative_gap")),
     )

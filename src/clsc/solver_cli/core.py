@@ -51,8 +51,8 @@ SUMMARY_FIELDNAMES = [
     "cost",
     "emissions",
     "follower_objective",
-    "emissions_leader_LB",
-    "emissions_follower_UB",
+    "emissions_leader_lb",
+    "emissions_follower_ub",
     "relative_gap",
     "validation_status",
     "failure_stage",
@@ -572,11 +572,11 @@ def build_summary_record(
         "cost": result.incumbent.cost,
         "emissions": result.incumbent.emissions,
         "follower_objective": result.incumbent.follower_objective,
-        "emissions_leader_LB": result.emissions_leader_LB,
-        "emissions_follower_UB": result.emissions_follower_UB,
+        "emissions_leader_lb": result.emissions_leader_lb,
+        "emissions_follower_ub": result.emissions_follower_ub,
         "relative_gap": relative_optimality_gap(
-            emissions_follower_UB=result.emissions_follower_UB,
-            emissions_leader_LB=result.emissions_leader_LB,
+            emissions_follower_ub=result.emissions_follower_ub,
+            emissions_leader_lb=result.emissions_leader_lb,
         ),
         "validation_status": solution_validation["status"],
         "failure_stage": None,
@@ -637,11 +637,11 @@ def build_instance_result_payload(
             "lex_secondary_mip_gap": getattr(result.incumbent_solution, "lex_secondary_mip_gap", None),
         },
         "bounds": {
-            "emissions_leader_LB": result.emissions_leader_LB,
-            "emissions_follower_UB": result.emissions_follower_UB,
+            "emissions_leader_lb": result.emissions_leader_lb,
+            "emissions_follower_ub": result.emissions_follower_ub,
             "relative_gap": relative_optimality_gap(
-                emissions_follower_UB=result.emissions_follower_UB,
-                emissions_leader_LB=result.emissions_leader_LB,
+                emissions_follower_ub=result.emissions_follower_ub,
+                emissions_leader_lb=result.emissions_leader_lb,
             ),
             "certificates": {
                 "lower": asdict(result.emissions_leader_LB_certificate),
@@ -830,18 +830,18 @@ def rebuild_lexicographic_solution_with_fixed_discrete_values(*, instance: Insta
         if variable.VType == "C":
             continue
         target_value = float(optimistic.variable_values.get(variable.VarName, 0.0))
-        emissions_leader_LB = float(variable.LB)
-        emissions_follower_UB = float(variable.UB)
+        emissions_leader_lb = float(variable.LB)
+        emissions_follower_ub = float(variable.UB)
         if abs(target_value - round(target_value)) <= INTEGER_SNAP_TOL:
             target_value = float(round(target_value))
-        if target_value < emissions_leader_LB - DEFAULT.eps or target_value > emissions_follower_UB + DEFAULT.eps:
+        if target_value < emissions_leader_lb - DEFAULT.eps or target_value > emissions_follower_ub + DEFAULT.eps:
             raise ValueError(
-                f"Saved solution value {target_value} for {variable.VarName} violates [{emissions_leader_LB}, {emissions_follower_UB}]",
+                f"Saved solution value {target_value} for {variable.VarName} violates [{emissions_leader_lb}, {emissions_follower_ub}]",
             )
-        if target_value < emissions_leader_LB:
-            target_value = emissions_leader_LB
-        if target_value > emissions_follower_UB:
-            target_value = emissions_follower_UB
+        if target_value < emissions_leader_lb:
+            target_value = emissions_leader_lb
+        if target_value > emissions_follower_ub:
+            target_value = emissions_follower_ub
         variable.LB = target_value
         variable.UB = target_value
 
@@ -917,8 +917,8 @@ def build_failure_summary_record(
         "cost": None,
         "emissions": None,
         "follower_objective": None,
-        "emissions_leader_LB": None,
-        "emissions_follower_UB": None,
+        "emissions_leader_lb": None,
+        "emissions_follower_ub": None,
         "relative_gap": None,
         "validation_status": "failed",
         "failure_stage": diagnostics["failure_stage"],

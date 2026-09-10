@@ -129,8 +129,8 @@ class BilevelSolveResult:
     termination_reason: str
     exact: bool
     iterations: int
-    emissions_leader_LB: float
-    emissions_follower_UB: float
+    emissions_leader_lb: float
+    emissions_follower_ub: float
     emissions_leader_LB_certificate: BoundCertificate
     emissions_follower_UB_certificate: BoundCertificate
     incumbent: IncumbentSolution
@@ -177,11 +177,11 @@ class SubproblemStatusError(BilevelSolveError):
 
 def relative_optimality_gap(
     *,
-    emissions_follower_UB: float,
-    emissions_leader_LB: float,
+    emissions_follower_ub: float,
+    emissions_leader_lb: float,
 ) -> float:
-    gap = max(0.0, emissions_follower_UB - emissions_leader_LB)
-    return gap / max(1.0, abs(emissions_follower_UB))
+    gap = max(0.0, emissions_follower_ub - emissions_leader_lb)
+    return gap / max(1.0, abs(emissions_follower_ub))
 
 
 def follower_objective_cap(follower_objective: float, mip_gap: float | None = None) -> float:
@@ -263,7 +263,7 @@ def _min_tax_confirmed(
     *,
     incumbent_emissions: float,
     incumbent_tax_index: int,
-    emissions_leader_LB: float,
+    emissions_leader_lb: float,
     next_tax_index: int,
     indifference_relative: float | None = None,
 ) -> bool:
@@ -300,11 +300,11 @@ def _min_tax_confirmed(
 
 def _classify_stagnation_stop(
     *,
-    emissions_follower_UB: float,
-    emissions_leader_LB: float,
+    emissions_follower_ub: float,
+    emissions_leader_lb: float,
     dbp_relative_gap: float | None = None,
 ) -> tuple[str, bool]:
-    achieved_gap = relative_optimality_gap(emissions_follower_UB=emissions_follower_UB, emissions_leader_LB=emissions_leader_LB)
+    achieved_gap = relative_optimality_gap(emissions_follower_ub=emissions_follower_ub, emissions_leader_lb=emissions_leader_lb)
     threshold = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
     if achieved_gap <= threshold:
         return "relative_gap", True
@@ -346,7 +346,7 @@ def _build_time_limit_result(
     incumbent: IncumbentSolution,
     incumbent_solution: SolveResult | None,
     emissions_follower_UB_certificate: BoundCertificate,
-    emissions_leader_LB: float,
+    emissions_leader_lb: float,
     iteration: int,
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
@@ -368,10 +368,10 @@ def _build_time_limit_result(
         termination_reason=termination_reason,
         exact=False,
         iterations=iteration,
-        emissions_leader_LB=emissions_leader_LB,
-        emissions_follower_UB=emissions_follower_UB_certificate.value,
+        emissions_leader_lb=emissions_leader_lb,
+        emissions_follower_ub=emissions_follower_UB_certificate.value,
         emissions_leader_LB_certificate=BoundCertificate(
-            value=emissions_leader_LB,
+            value=emissions_leader_lb,
             exact=True,
             mip_gap=None,
             slack=0.0,
@@ -445,8 +445,8 @@ def _build_bilevel_result(
     termination_reason: str,
     exact: bool,
     iterations: int,
-    emissions_leader_LB: float,
-    emissions_follower_UB: float,
+    emissions_leader_lb: float,
+    emissions_follower_ub: float,
     emissions_leader_LB_certificate: BoundCertificate,
     emissions_follower_UB_certificate: BoundCertificate,
     incumbent: IncumbentSolution,
@@ -462,8 +462,8 @@ def _build_bilevel_result(
         termination_reason=termination_reason,
         exact=exact,
         iterations=iterations,
-        emissions_leader_LB=emissions_leader_LB,
-        emissions_follower_UB=emissions_follower_UB,
+        emissions_leader_lb=emissions_leader_lb,
+        emissions_follower_ub=emissions_follower_ub,
         emissions_leader_LB_certificate=emissions_leader_LB_certificate,
         emissions_follower_UB_certificate=emissions_follower_UB_certificate,
         incumbent=incumbent,
@@ -511,7 +511,7 @@ def _build_dbp_timing_summary(
 def _gap_closed_result(
     *,
     iteration: int,
-    emissions_leader_LB: float,
+    emissions_leader_lb: float,
     incumbent: IncumbentSolution,
     incumbent_solution: SolveResult | None,
     emissions_follower_UB_certificate: BoundCertificate,
@@ -531,10 +531,10 @@ def _gap_closed_result(
         termination_reason="relative_gap",
         exact=True,
         iterations=iteration,
-        emissions_leader_LB=emissions_leader_LB,
-        emissions_follower_UB=emissions_follower_UB_certificate.value,
+        emissions_leader_lb=emissions_leader_lb,
+        emissions_follower_ub=emissions_follower_UB_certificate.value,
         emissions_leader_LB_certificate=BoundCertificate(
-            value=emissions_leader_LB,
+            value=emissions_leader_lb,
             exact=True,
             mip_gap=relaxation_mip_gap,
             slack=0.0,
@@ -555,7 +555,7 @@ def _gap_closed_result(
 def _gap_closed_tax_unconfirmed_result(
     *,
     iteration: int,
-    emissions_leader_LB: float,
+    emissions_leader_lb: float,
     incumbent: IncumbentSolution,
     incumbent_solution: SolveResult | None,
     emissions_follower_UB_certificate: BoundCertificate,
@@ -584,7 +584,7 @@ def _gap_closed_tax_unconfirmed_result(
     """
     emissions_leader_LB_certificate = _with_tax_unconfirmed_context(
         BoundCertificate(
-            value=emissions_leader_LB,
+            value=emissions_leader_lb,
             exact=True,
             mip_gap=relaxation_mip_gap,
             slack=0.0,
@@ -598,8 +598,8 @@ def _gap_closed_tax_unconfirmed_result(
         termination_reason=TAX_NOT_CONFIRMED_REASON,
         exact=False,
         iterations=iteration,
-        emissions_leader_LB=emissions_leader_LB,
-        emissions_follower_UB=emissions_follower_UB_certificate.value,
+        emissions_leader_lb=emissions_leader_lb,
+        emissions_follower_ub=emissions_follower_UB_certificate.value,
         emissions_leader_LB_certificate=emissions_leader_LB_certificate,
         emissions_follower_UB_certificate=tax_unconfirmed_upper_bound_certificate,
         incumbent=incumbent,
@@ -616,7 +616,7 @@ def _gap_closed_tax_unconfirmed_result(
 def _stagnation_result(
     *,
     iteration: int,
-    emissions_leader_LB: float,
+    emissions_leader_lb: float,
     incumbent: IncumbentSolution,
     incumbent_solution: SolveResult | None,
     emissions_follower_UB_certificate: BoundCertificate,
@@ -633,13 +633,13 @@ def _stagnation_result(
     gap-driven and a stagnation-driven "relative_gap" stop stay distinguishable downstream.
     """
     termination_reason, gap_closed = _classify_stagnation_stop(
-        emissions_follower_UB=emissions_follower_UB_certificate.value,
-        emissions_leader_LB=emissions_leader_LB,
+        emissions_follower_ub=emissions_follower_UB_certificate.value,
+        emissions_leader_lb=emissions_leader_lb,
         dbp_relative_gap=effective_dbp_relative_gap,
     )
     emissions_leader_LB_certificate = _with_stagnation_context(
         BoundCertificate(
-            value=emissions_leader_LB,
+            value=emissions_leader_lb,
             exact=True,
             mip_gap=relaxation_mip_gap,
             slack=0.0,
@@ -653,8 +653,8 @@ def _stagnation_result(
         termination_reason=termination_reason,
         exact=gap_closed and emissions_leader_LB_certificate.exact and stagnation_upper_bound_certificate.exact,
         iterations=iteration,
-        emissions_leader_LB=emissions_leader_LB,
-        emissions_follower_UB=emissions_follower_UB_certificate.value,
+        emissions_leader_lb=emissions_leader_lb,
+        emissions_follower_ub=emissions_follower_UB_certificate.value,
         emissions_leader_LB_certificate=emissions_leader_LB_certificate,
         emissions_follower_UB_certificate=stagnation_upper_bound_certificate,
         incumbent=incumbent,
@@ -775,7 +775,7 @@ def solve_bilevel_dbp_lex(
     )
     _require_optimal_result(relaxation, "initial DBP relaxation")
 
-    emissions_leader_LB = _required_value(relaxation.emissions, "initial relaxation emissions")
+    emissions_leader_lb = _required_value(relaxation.emissions, "initial relaxation emissions")
     incumbent: IncumbentSolution | None = None
     incumbent_solution = None
     previous_lexicographic_values: dict[str, float] | None = None
@@ -793,7 +793,7 @@ def solve_bilevel_dbp_lex(
                 incumbent=incumbent,
                 incumbent_solution=incumbent_solution,
                 emissions_follower_UB_certificate=emissions_follower_UB_certificate,
-                emissions_leader_LB=emissions_leader_LB,
+                emissions_leader_lb=emissions_leader_lb,
                 iteration=len(iteration_records),
                 iteration_records=iteration_records,
                 iteration_timings=iteration_timings,
@@ -801,7 +801,7 @@ def solve_bilevel_dbp_lex(
                 termination_reason="wall_clock_cap",
             )
 
-        current_relaxation_lower_bound = emissions_leader_LB
+        current_relaxation_lower_bound = emissions_leader_lb
         tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
 
         lexicographic, lexicographic_seconds = _solve_with_wall_time(
@@ -829,7 +829,7 @@ def solve_bilevel_dbp_lex(
                     incumbent=incumbent,
                     incumbent_solution=incumbent_solution,
                     emissions_follower_UB_certificate=emissions_follower_UB_certificate,
-                    emissions_leader_LB=emissions_leader_LB,
+                    emissions_leader_lb=emissions_leader_lb,
                     iteration=len(iteration_records),
                     iteration_records=iteration_records,
                     iteration_timings=iteration_timings,
@@ -861,7 +861,7 @@ def solve_bilevel_dbp_lex(
         # a bound on anything -- they are the emissions of the chosen policy.
         #
         # `emissions_follower_UB_certificate` is the EMISSIONS BOUND: the least emissions any evaluated
-        # point attained. This is what pairs with emissions_leader_LB to certify the leader's first
+        # point attained. This is what pairs with emissions_leader_lb to certify the leader's first
         # criterion, what the gap test compares, and what caps the master. Conflating the two --
         # as this loop did while the band was noise-sized and the distinction never showed -- lets
         # the reported "upper bound" drift above the lower bound as soon as the band is wide
@@ -918,7 +918,7 @@ def solve_bilevel_dbp_lex(
                 incumbent=incumbent,
                 incumbent_solution=incumbent_solution,
                 emissions_follower_UB_certificate=emissions_follower_UB_certificate,
-                emissions_leader_LB=emissions_leader_LB,
+                emissions_leader_lb=emissions_leader_lb,
                 iteration=iteration,
                 iteration_records=iteration_records,
                 iteration_timings=iteration_timings,
@@ -935,9 +935,9 @@ def solve_bilevel_dbp_lex(
         # with a stable floor is the master's freeze band stable, and only then is its Stage-2
         # proposal a non-decreasing lower bound on the least-intervention tax.
         relaxation_lower_bound = _required_value(relaxation.emissions, "relaxation emissions")
-        previous_lower_bound = emissions_leader_LB
-        emissions_leader_LB = max(emissions_leader_LB, relaxation_lower_bound)
-        lower_bound_updated = emissions_leader_LB > previous_lower_bound + DEFAULT.eps
+        previous_lower_bound = emissions_leader_lb
+        emissions_leader_lb = max(emissions_leader_lb, relaxation_lower_bound)
+        lower_bound_updated = emissions_leader_lb > previous_lower_bound + DEFAULT.eps
         next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
         iteration_records.append(
             DbpIterationRecord(
@@ -952,7 +952,7 @@ def solve_bilevel_dbp_lex(
                 incumbent_emissions=emissions_follower_UB_certificate.value,
                 relaxation_seconds=relaxation_seconds,
                 next_relaxation_tax_index=next_tax_index,
-                next_relaxation_lower_bound=emissions_leader_LB,
+                next_relaxation_lower_bound=emissions_leader_lb,
                 relaxation_emissions_seconds=relaxation.lex_primary_seconds,
                 relaxation_tax_seconds=relaxation.lex_secondary_seconds,
             )
@@ -968,8 +968,8 @@ def solve_bilevel_dbp_lex(
 
         if (
             relative_optimality_gap(
-                emissions_follower_UB=emissions_follower_UB_certificate.value,
-                emissions_leader_LB=emissions_leader_LB,
+                emissions_follower_ub=emissions_follower_UB_certificate.value,
+                emissions_leader_lb=emissions_leader_lb,
             )
             <= effective_dbp_relative_gap
         ):
@@ -977,7 +977,7 @@ def solve_bilevel_dbp_lex(
             if effective_confirm_min_tax and not _min_tax_confirmed(
                 incumbent_emissions=emissions_follower_UB_certificate.value,
                 incumbent_tax_index=incumbent.tax_index,
-                emissions_leader_LB=emissions_leader_LB,
+                emissions_leader_lb=emissions_leader_lb,
                 next_tax_index=next_tax_index,
                 indifference_relative=leader_indifference_relative,
             ):
@@ -1012,7 +1012,7 @@ def solve_bilevel_dbp_lex(
                     continue
                 return _gap_closed_tax_unconfirmed_result(
                     iteration=iteration,
-                    emissions_leader_LB=emissions_leader_LB,
+                    emissions_leader_lb=emissions_leader_lb,
                     incumbent=incumbent,
                     incumbent_solution=incumbent_solution,
                     emissions_follower_UB_certificate=emissions_follower_UB_certificate,
@@ -1024,7 +1024,7 @@ def solve_bilevel_dbp_lex(
                 )
             return _gap_closed_result(
                 iteration=iteration,
-                emissions_leader_LB=emissions_leader_LB,
+                emissions_leader_lb=emissions_leader_lb,
                 incumbent=incumbent,
                 incumbent_solution=incumbent_solution,
                 emissions_follower_UB_certificate=emissions_follower_UB_certificate,
@@ -1043,7 +1043,7 @@ def solve_bilevel_dbp_lex(
         if iterations_without_bound_update >= DEFAULT.stagnation_limit:
             return _stagnation_result(
                 iteration=iteration,
-                emissions_leader_LB=emissions_leader_LB,
+                emissions_leader_lb=emissions_leader_lb,
                 incumbent=incumbent,
                 incumbent_solution=incumbent_solution,
                 emissions_follower_UB_certificate=emissions_follower_UB_certificate,

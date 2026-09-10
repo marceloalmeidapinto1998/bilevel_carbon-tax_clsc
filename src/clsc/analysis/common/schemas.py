@@ -7,7 +7,7 @@ import re
 RUN_COLS = [
     "instance", "input_path", "success", "exact", "termination_reason",
     "iterations", "tax_index", "tax_rate", "cost", "emissions",
-    "follower_objective", "emissions_leader_LB", "emissions_follower_UB", "relative_gap",
+    "follower_objective", "emissions_leader_lb", "emissions_follower_ub", "relative_gap",
     "validation_status", "failure_stage", "error_type", "error_message",
     "gurobi_status", "objective_bound", "iis_constraints", "solve_seconds",
 ]
@@ -28,7 +28,7 @@ NET_COLS = [
 
 NUM_RUN = [
     "iterations", "tax_index", "tax_rate", "cost", "emissions",
-    "follower_objective", "emissions_leader_LB", "emissions_follower_UB", "relative_gap",
+    "follower_objective", "emissions_leader_lb", "emissions_follower_ub", "relative_gap",
     "iis_constraints", "solve_seconds",
 ]
 

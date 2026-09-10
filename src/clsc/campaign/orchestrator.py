@@ -522,7 +522,7 @@ def _write_follower_result(
     relative_gap = None
     if result.objective_bound is not None and result.objective_value is not None:
         relative_gap = relative_optimality_gap(
-            emissions_follower_UB=result.objective_value, emissions_leader_LB=result.objective_bound,
+            emissions_follower_ub=result.objective_value, emissions_leader_lb=result.objective_bound,
         )
     tax_rate = instance.tax_rate(tax_index_for_report)
 
@@ -536,8 +536,8 @@ def _write_follower_result(
         "cost": result.cost,
         "emissions": result.emissions,
         "follower_objective": result.follower_objective,
-        "emissions_leader_LB": result.objective_bound,
-        "emissions_follower_UB": result.objective_value,
+        "emissions_leader_lb": result.objective_bound,
+        "emissions_follower_ub": result.objective_value,
         "relative_gap": relative_gap,
         "mip_gap": result.mip_gap,
         "solve_seconds": solve_seconds,
