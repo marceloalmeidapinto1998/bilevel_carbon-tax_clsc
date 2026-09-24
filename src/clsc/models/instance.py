@@ -121,7 +121,7 @@ class InstanceData:
     source_path: Path | None = None
     # Optional grid-resolution override (theta, USD/kg CO2e per integer tax_index step). When None
     # the tax resolution is read from the stored parameters (the project's one grid, TAX_SCALE_FACTOR,
-    # index {0..400}); when set, the index bounds and scale_factor are DERIVED from it over the same
+    # index {0..200}); when set, the index bounds and scale_factor are DERIVED from it over the same
     # real tau range, without touching `parameters`. Set only via with_tax_grid_step(); a caller
     # deliberately probing a different resolution (e.g. the retired coarse grid, as a robustness
     # check) rather than something any current base instance needs at rest.

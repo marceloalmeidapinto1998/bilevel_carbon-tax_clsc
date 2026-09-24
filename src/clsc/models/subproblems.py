@@ -952,8 +952,8 @@ def add_value_function_cut(master: LeaderMaster, cut: ValueFunctionCut) -> None:
     # in kg -- tens of millions -- while tax_rate is a price per kg confined to [0, 0.2]; the
     # product is an ordinary six-figure number of USD reached by multiplying a huge coefficient
     # by a tiny variable. Folding the scale factor into the coefficient rescales the pair without
-    # touching the product: on STD_TOY5's first cut, 3.7e7 becomes 1.8e4 against a variable that
-    # runs 0..400 instead of 0..0.2.
+    # touching the product: on STD_TOY5's first cut, 3.7e7 becomes 3.7e4 against a variable that
+    # runs 0..200 instead of 0..0.2.
     #
     # This is not cosmetic. With the kg-scale coefficient the master's matrix spanned
     # [1e-08, 4e+07] and Gurobi warned about it; its presolve then made a reduction that does

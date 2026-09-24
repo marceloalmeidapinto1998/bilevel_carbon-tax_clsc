@@ -157,11 +157,13 @@ def build_parser() -> argparse.ArgumentParser:
             "When set, each in-memory instance's tax resolution is refined to this step "
             "WHILE PRESERVING its real tax range [underline_tax_rate, overline_tax_rate]: the "
             "index bounds are recomputed as round(tau / theta) so overline_tax_index "
-            "becomes overline_tax_rate/theta (e.g. 0.2/0.0005 = 400). The stored instance "
+            "becomes overline_tax_rate/theta (e.g. 0.2/0.001 = 200). The stored instance "
             "files are never touched. Omit to use each instance's stored grid, which "
-            "is already the project's one grid (theta = 0.0005, index {0..400}) for "
-            "every base instance -- this flag exists for a deliberate probe at a "
-            "different resolution, not for routine campaign use."
+            "is already the project's one grid (theta = TAX_SCALE_FACTOR = 1e-3, "
+            "index {0..200}, a whole USD/tonne per step) for every base instance -- this "
+            "flag exists for a deliberate probe at a different resolution, not for "
+            "routine campaign use. Passing the retired 5e-4 here would silently move a "
+            "current instance onto a grid it was not generated at."
         ),
     )
     parser.add_argument(

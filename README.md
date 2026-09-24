@@ -35,7 +35,6 @@ data/instances/           # base + campaign instances (DATA only; generator live
 experiments/              # generated design matrices (experiments/<campaign>/<experiment>/)
 results/                  # solve outputs (git-ignored except README)
 scripts/                  # figure and table drivers for the paper
-tests/                    # pytest suite
 docs/                     # notes (Experimental_Plan.md: the campaign specification)
 paper/                    # LaTeX manuscript
 pyproject.toml            # packaging + pytest config  (LICENSE/CITATION.cff: still TODO)
@@ -58,10 +57,12 @@ Run from the repo root (the venv Python is used in examples).
 python -m clsc.generator benchmark --output-dir data/instances/base
 
 # --- Solve one instance on the project's tax resolution + Phase-2 min-tax ---
+# No --scale-factor: every instance is generated at the project's one grid and
+# carries it, so the flag is only for a deliberate probe at another resolution.
 python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
-    --method dbp_lex --scale-factor 0.0005 \
+    --method dbp_lex \
     --mip-gap 1e-6 --dbp-relative-gap 1e-4 --threads 4 --mip-focus 2 \
-    --time-limit 10800 --results-root results/runs
+    --time-limit 10800 --wall-clock-cap 50400 --results-root results/runs
 
 # --- Campaign (campaign_01): build design matrices, then solve ---
 python -m clsc.campaign.orchestrator generate --experiment all
@@ -78,9 +79,9 @@ python -m clsc.analysis.tables.iterations
 
 ## Solver configuration (campaign method)
 
-Bilevel (leader-optimizing) solves use a **single tax resolution** (`--scale-factor 0.0005`,
-index {0..400} over 0-200 USD/t, i.e. 0.5 USD/t per step) with `dbp_relative_gap = 1e-4` and
-per-MILP `mip_gap = 1e-6`
+Bilevel (leader-optimizing) solves use a **single tax resolution**
+(`TAX_SCALE_FACTOR = 1e-3`, index {0..200} over 0-200 USD/t, i.e. a whole 1 USD/t per step)
+with `dbp_relative_gap = 1e-4` and per-MILP `mip_gap = 1e-6`
 (`CAMPAIGN_*` in `clsc.campaign.orchestrator`). These are applied per-run
 by the orchestrator/CLI; `clsc.config.gap_tol.DEFAULT` holds the neutral coarse-grid fallback
 (1% tolerances) used only when no override is given. Each run's `manifest.json` records
@@ -136,11 +137,11 @@ Each manifest (and each row of `master_runs_campaign_01.csv`) carries:
 
 ## Tests
 
-```bash
-python -m pytest              # full suite (slow/gurobi tests included)
-python -m pytest -m "not slow"  # fast subset
-```
+**There is no test suite.** It was removed in `a612b27` (2026-09-09) along with its CI workflow:
+13 modules and ~4000 lines against a formulation that was still moving, being maintained rather
+than used. It is recoverable from history if the formulation settles and it is worth rebuilding
+against the final one.
 
-CI (`.github/workflows/tests.yml`) runs the fast subset on every push/PR to `main`; every `gurobi`-marked
-test is also `slow` in this suite, so CI never touches the optimizer and needs no Gurobi licence. The
-`slow`/`gurobi` tests remain a local, licensed-machine responsibility.
+`pyproject.toml` keeps the pytest markers and the `dev` extra so that a rebuilt suite drops
+straight back in. Until then, correctness rests on the provenance guard (below), on the
+certified-exact status each run reports, and on manual verification.
