@@ -858,10 +858,10 @@ def build_leader_master(
     # to a genuinely continuous factor). Summing the selected level's tax_base_if_level, weighted
     # by that level's tax rate, reconstructs tax_rate * tax_base_scaled exactly, entirely in
     # linear constraints: no NonConvex flag, no spatial branch-and-bound, no McCormick gap ever
-    # open on this model. The cost is N-1 extra binaries and ~3N extra linear constraints (401
-    # and ~1200 on the campaign's grid) in exchange for the follower/fixed-tax models' own
-    # numerical reliability -- see build_follower_master, which never needed any of
-    # this because it never faces a leader-side unknown at all.
+    # open on this model. The cost is N extra binaries, N extra continuous variables and ~3N extra
+    # linear constraints (201, 201 and ~600 on the campaign's grid) in exchange for the
+    # follower/fixed-tax models' own numerical reliability -- see build_follower_master, which
+    # never needed any of this because it never faces a leader-side unknown at all.
     tax_levels = range(lower_tax_index, upper_tax_index + 1)
     tax_level_selected = model.addVars(tax_levels, vtype=GRB.BINARY, name="tax_level_selected")
     model.addConstr(tax_level_selected.sum() == 1, name="tax_level_selected_unique")
