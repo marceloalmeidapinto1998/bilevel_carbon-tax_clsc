@@ -746,6 +746,7 @@ def solve_bilevel_dbp_lex(
     wall_clock_cap: float | None = None,
     mip_gap: float | None = None,
     dbp_relative_gap: float | None = None,
+    leader_indifference_relative: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
     use_tax_confirmation: bool = True,
@@ -814,15 +815,57 @@ def solve_bilevel_dbp_lex(
     minimisation. Disabling any one leaves the certified emissions optimum unchanged
     but changes the iteration/time path (and, for A1/A2, the reported tax is no
     longer certified minimal).
+
+    ``leader_indifference_relative`` (epsilon) is the LEADER'S POLICY PARAMETER: the
+    relative emissions margin the regulator treats as immaterial when choosing the least
+    tax that still attains the optimum. It sets the Stage-2 freeze band, decides which
+    candidate is the incumbent, and gates min-tax confirmation, so ``tax_index`` is a
+    function of it and it belongs in the manifest beside the tolerances rather than among
+    them. It must be at least ``dbp_relative_gap`` -- below that the leader would be
+    preferring taxes on emissions differences the run cannot certify -- and defaults to
+    exactly that floor, which leaves every existing result unchanged. Raise it to state a
+    policy band, or sweep it to report tau*(epsilon); the emissions optimum E* does not
+    depend on it, only the tax selected from the plateau does.
     """
     effective_use_tax_confirmation = use_tax_confirmation and use_lex_master_stage2
     instance = _coerce_instance(instance_or_path)
     budget = _WallClockBudget(wall_clock_cap, time_limit)
     effective_dbp_relative_gap = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
-    # The leader's emissions indifference band IS the run's certification tolerance. Any finer
-    # and the least-intervention criterion would be ranking configurations by margins this run
-    # cannot prove exist; any coarser and it would discard abatement the run does certify.
-    leader_indifference_relative = effective_dbp_relative_gap
+    # THE LEADER'S INDIFFERENCE BAND IS A POLICY PARAMETER, NOT A TOLERANCE.
+    #
+    # epsilon answers "how much emissions is the regulator willing to forgo to avoid
+    # intervening further?". It decides the Stage-2 freeze, which candidate becomes the
+    # incumbent (_is_better_candidate) and when the least tax is confirmed
+    # (_min_tax_confirmed) -- it is threaded through all three of the leader's decisions,
+    # and tau* is a function of it. It therefore has to be declared, recorded and varied
+    # like any other modelling assumption.
+    #
+    # The certification tolerance is a genuine FLOOR under it: preferring a lower tax on the
+    # strength of an emissions margin the run cannot prove exists would be ranking noise. That
+    # argument bounds epsilon from below and is why the default is the run's own gap.
+    #
+    # It does NOT pin epsilon to that value, which is what this line used to do. The old
+    # rationale added "any coarser and it would discard abatement the run does certify" --
+    # but declining to intervene further for an emissions difference the regulator considers
+    # immaterial is exactly what an indifference band is FOR, not an error. That half of the
+    # argument smuggled a value judgement in as a numerical constraint, and it had a visible
+    # consequence: at a noise-sized band the emissions curve still drifts down by grams per
+    # grid step, so Stage 2 minimises the tax over a set of one element -- the HIGHEST tax --
+    # and the least-intervention criterion returns maximum intervention.
+    #
+    # Default is unchanged (the run's certification tolerance), so no existing result moves.
+    # Pass it explicitly to state a policy band, or to trace tau*(epsilon).
+    leader_indifference_relative = (
+        effective_dbp_relative_gap
+        if leader_indifference_relative is None
+        else leader_indifference_relative
+    )
+    if leader_indifference_relative < effective_dbp_relative_gap:
+        raise ValueError(
+            f"leader_indifference_relative ({leader_indifference_relative:g}) is below the "
+            f"run's certification tolerance ({effective_dbp_relative_gap:g}): the leader would "
+            f"be ranking taxes by emissions margins this run cannot prove exist"
+        )
     iteration_records: list[DbpIterationRecord] = []
     iteration_timings: list[DbpIterationTiming] = []
     relaxation_master = build_leader_master(instance)

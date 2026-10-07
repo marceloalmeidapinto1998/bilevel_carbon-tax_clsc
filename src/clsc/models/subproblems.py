@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 import math
+import os
 from typing import Iterable
 
 import gurobipy as gp
@@ -166,6 +167,19 @@ class LeaderMaster:
     emissions_cap_constraint: gp.Constr | None = None
     emissions_cap: float | None = None
     elastic: bool = False
+    # One-hot gadget handles, kept so the incumbent emissions cap can retighten the
+    # gadget's big-M in place (see _retighten_tax_base_big_m). The build-time bound is
+    # a combinatorial worst case -- every facility open, every technology at capacity,
+    # every period -- and measures 35x to 500x the tax base actually attained on the
+    # twelve base cells, which is the dominant weakness in this master's LP relaxation.
+    tax_level_selected: dict[int, gp.Var] = field(default_factory=dict)
+    tax_base_if_level: dict[int, gp.Var] = field(default_factory=dict)
+    tax_level_cap_constraints: dict[int, gp.Constr] = field(default_factory=dict)
+    tax_level_floor_constraints: dict[int, gp.Constr] = field(default_factory=dict)
+    # Scaled worst-case bound from build time; the floor under any retightening.
+    tax_base_big_m_scaled: float = 0.0
+    # Scaled bound currently written into the gadget's rows.
+    tax_base_bound_applied_scaled: float = 0.0
 
 
 def solve_fixed_tax_follower(
@@ -840,6 +854,19 @@ def build_leader_master(
             tax_base_scaled == common.tax_base_expr / EMISSIONS_SCALE,
             name="tax_base_tonnes_def",
         )
+        # NOT ADDED, deliberately: `tax_base_scaled <= emissions_total_scaled`.
+        #
+        # The inequality is true -- every per-period discount weight is <= 1 and the
+        # construction term is unweighted in both aggregates (see _emissions) -- and adding it
+        # looked free, since it only restates what the flow variables already imply. It is not
+        # free. Measured on STD_I25_M8_T3's reconstructed iteration-2 master (2026-09-25),
+        # Stage 1 proves optimality in 466 s WITHOUT the row and fails to find any feasible
+        # point at all in 900 s WITH it. A dense row tying two aggregates that presolve would
+        # otherwise substitute away costs far more than the bound it communicates.
+        #
+        # Nothing depends on it: B <= E holds at every feasible point whether or not the row is
+        # written, so _retighten_tax_base_big_m's use of the emissions cap as a bound on the tax
+        # base rests on the algebra, not on this constraint.
 
     # tau*emissions linearised exactly by a one-hot (Glover-style) disaggregation over the tax
     # grid, rather than by McCormick + spatial branch-and-bound on the two continuous factors
@@ -869,16 +896,30 @@ def build_leader_master(
         tax_index == gp.quicksum(index * tax_level_selected[index] for index in tax_levels),
         name="tax_index_from_level",
     )
+    # Declare the selection as an ORDERED SOS1 set, weighted by the tax index itself.
+    # Logically redundant beside the binaries and the unit sum, but it changes how Gurobi
+    # BRANCHES: on an SOS1 set it splits the ordered index range in two and forbids one
+    # half, so a 201-level selection resolves in ~log2(201) dichotomies instead of being
+    # chipped away one binary at a time. The weights must be the indices for that ordering
+    # to be the tax ordering.
+    if not _env_off("CLSC_NO_SOS1"):
+        model.addSOS(
+            GRB.SOS_TYPE1,
+            [tax_level_selected[index] for index in tax_levels],
+            [float(index) for index in tax_levels],
+        )
     tax_base_if_level = model.addVars(
         tax_levels, lb=0.0, ub=emissions_upper_bound_scaled, name="tax_base_if_level",
     )
+    tax_level_cap_constraints: dict[int, gp.Constr] = {}
+    tax_level_floor_constraints: dict[int, gp.Constr] = {}
     for index in tax_levels:
-        model.addConstr(
+        tax_level_cap_constraints[index] = model.addConstr(
             tax_base_if_level[index] <= emissions_upper_bound_scaled * tax_level_selected[index],
             name=f"tax_base_if_level_cap_{index}",
         )
         model.addConstr(tax_base_if_level[index] <= tax_base_scaled, name=f"tax_base_if_level_le_{index}")
-        model.addConstr(
+        tax_level_floor_constraints[index] = model.addConstr(
             tax_base_if_level[index]
             >= tax_base_scaled - emissions_upper_bound_scaled * (1 - tax_level_selected[index]),
             name=f"tax_base_if_level_ge_{index}",
@@ -930,6 +971,12 @@ def build_leader_master(
         emissions_big_m=emissions_big_m,
         scale_factor=scale_factor,
         elastic=elastic,
+        tax_level_selected=dict(tax_level_selected),
+        tax_base_if_level=dict(tax_base_if_level),
+        tax_level_cap_constraints=tax_level_cap_constraints,
+        tax_level_floor_constraints=tax_level_floor_constraints,
+        tax_base_big_m_scaled=emissions_upper_bound_scaled,
+        tax_base_bound_applied_scaled=emissions_upper_bound_scaled,
     )
 
 
@@ -986,6 +1033,59 @@ def _dbp_cut_epsilon(master: LeaderMaster, cut: ValueFunctionCut) -> float:
     return max(master.epsilon_prime, DEFAULT.dbp_cut_epsilon_relative * abs(cut.cost))
 
 
+def _env_off(name: str) -> bool:
+    """Temporary ablation switch for the run-B experiment (SOS1 / big-M retightening).
+
+    Environment-gated rather than plumbed through the CLI because it exists to attribute a
+    measured slowdown, not to be a campaign factor. Promote to a real flag beside
+    ``use_emissions_cap`` if either mechanism is kept.
+    """
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _retighten_tax_base_big_m(master: LeaderMaster, cap_scaled: float | None) -> None:
+    """Rewrite the one-hot gadget's big-M to the tightest bound currently valid for B.
+
+    The build-time bound is combinatorial -- every facility open, every technology at
+    capacity, in every period -- and on the twelve base cells it runs 35x to 500x the tax
+    base actually attained. In the LP relaxation that lets a fractional ``z`` carry a
+    ``tax_base_if_level`` far above anything achievable, which is what makes this master's
+    relaxation weak and its solve times dominate every run.
+
+    Once an incumbent exists, ``E <= cap`` holds in the master, and ``B <= E`` holds at every
+    feasible point by construction (per-period weights <= 1, identical construction term), so
+    ``cap`` is itself a valid bound on B and usually a far better one. That inequality is NOT
+    written as a constraint -- doing so was measured to be badly counterproductive, see
+    build_leader_master -- but it does not need to be: the bound is valid on the algebra.
+    The bound is recomputed from scratch on every call rather than ratcheted
+    down, so that removing or raising the cap restores a valid (looser) big-M instead of
+    leaving a stale one that would cut off feasible points.
+    """
+    if _env_off("CLSC_NO_BIGM_RETIGHTEN"):
+        return
+    if not master.tax_level_cap_constraints:
+        return  # master built before the gadget handles existed, or no levels
+
+    target = master.tax_base_big_m_scaled
+    if cap_scaled is not None:
+        target = min(target, cap_scaled)
+    if math.isclose(target, master.tax_base_bound_applied_scaled, rel_tol=1e-12, abs_tol=DEFAULT.eps):
+        return
+
+    model = master.artifacts.model
+    for index, cap_constraint in master.tax_level_cap_constraints.items():
+        selector = master.tax_level_selected[index]
+        # cap row:   w_i - target * z_i <= 0
+        model.chgCoeff(cap_constraint, selector, -target)
+        # floor row: w_i - tax_base_scaled - target * z_i >= -target
+        floor_constraint = master.tax_level_floor_constraints[index]
+        model.chgCoeff(floor_constraint, selector, -target)
+        floor_constraint.RHS = -target
+        master.tax_base_if_level[index].UB = target
+    model.update()
+    master.tax_base_bound_applied_scaled = target
+
+
 def set_emissions_cap(
     master: LeaderMaster,
     emissions_follower_ub: float | None,
@@ -1000,6 +1100,9 @@ def set_emissions_cap(
             master.emissions_cap_constraint = None
             master.emissions_cap = None
             master.artifacts.model.update()
+            # The gadget's big-M may have been tightened to that cap; without the cap it
+            # is no longer a valid bound on B, so restore the build-time worst case.
+            _retighten_tax_base_big_m(master, None)
         return
 
     if emissions_follower_ub < 0:
@@ -1032,6 +1135,9 @@ def set_emissions_cap(
     else:
         master.emissions_cap_constraint.RHS = scaled_upper_bound
     master.emissions_cap = tolerant_upper_bound
+    # E <= scaled_upper_bound now holds in the master, and B <= E holds by construction, so
+    # the cap is a valid -- and typically far tighter -- big-M for the gadget.
+    _retighten_tax_base_big_m(master, scaled_upper_bound)
 
 
 def _synchronize_leader_master(master: LeaderMaster, cuts: Iterable[ValueFunctionCut]) -> None:

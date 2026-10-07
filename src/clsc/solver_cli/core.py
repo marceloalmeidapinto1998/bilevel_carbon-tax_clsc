@@ -131,6 +131,20 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--leader-indifference",
+        type=float,
+        help=(
+            "The leader's emissions indifference band epsilon, as a relative fraction of "
+            "the optimum: the margin the regulator treats as immaterial when picking the "
+            "least tax that still attains E*. A POLICY PARAMETER, not a tolerance -- the "
+            "reported tax_index is a function of it, while E* is not. Must be >= "
+            "--dbp-relative-gap (below that the leader would rank taxes by emissions "
+            "differences the run cannot certify); defaults to exactly that floor, which "
+            "reproduces every result predating this flag. Raise it to state a policy band, "
+            "or sweep it to trace tau*(epsilon). Only supported with --method dbp_lex."
+        ),
+    )
+    parser.add_argument(
         "--threads",
         type=int,
         help=(
@@ -260,11 +274,13 @@ def main() -> int:
         args.method, args.dbp_mode = canonicalize_solver_method(args.method)
     except ValueError as error:
         parser.error(str(error))
-    tolerance_override_flags = (args.mip_gap, args.dbp_relative_gap, args.threads, args.mip_focus)
+    tolerance_override_flags = (
+        args.mip_gap, args.dbp_relative_gap, args.leader_indifference, args.threads, args.mip_focus,
+    )
     if any(value is not None for value in tolerance_override_flags) and args.method != "dbp_lex":
         parser.error(
-            "--mip-gap/--dbp-relative-gap/--threads/--mip-focus are currently only supported "
-            "with --method dbp_lex"
+            "--mip-gap/--dbp-relative-gap/--leader-indifference/--threads/--mip-focus are "
+            "currently only supported with --method dbp_lex"
         )
 
     target = Path(args.path)
@@ -330,6 +346,7 @@ def main() -> int:
                     wall_clock_cap=args.wall_clock_cap,
                     mip_gap=args.mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
+                    leader_indifference_relative=args.leader_indifference,
                     threads=args.threads,
                     mip_focus=args.mip_focus,
                     use_tax_confirmation=args.use_tax_confirmation,
@@ -530,6 +547,11 @@ def build_manifest(
     }
     if args.method == "dbp_lex":
         solver_manifest["leader_objective"] = "lex_emissions_then_min_tax_index"
+        # The leader's POLICY parameter, deliberately recorded here and not under
+        # "tolerances": tax_index is a function of it, so a run is not reproducible or
+        # interpretable without it. None means it defaulted to dbp_relative_gap, the floor
+        # below which the leader would be ranking taxes by uncertifiable emissions margins.
+        solver_manifest["leader_indifference_relative"] = args.leader_indifference
 
     return {
         "schema_version": RESULT_SCHEMA_VERSION,

@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "clsc"
+name = "bilevel-clsc-carbon-pricing"
 version = "0.1.0"
 description = "Bilevel optimization of a Closed-Loop Supply Chain under a carbon tax (DBP solver + DOE campaign)."
 readme = "README.md"
