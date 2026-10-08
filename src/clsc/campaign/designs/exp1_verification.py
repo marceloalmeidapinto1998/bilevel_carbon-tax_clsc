@@ -34,7 +34,7 @@ def build_design_matrix() -> list[DesignPoint]:
             experiment_id=EXPERIMENT_ID, design_point_id=f"exp1-toy-{spec.name}",
             run_code=f"toy_{spec.name}", base_instance_id=spec.name,
             execution_mode="bilevel", is_toy=True,
-            per_subproblem_time_limit_seconds=600.0, per_run_wall_clock_cap_seconds=3600.0,
+            per_subproblem_time_limit_seconds=600.0, per_run_wall_clock_cap_seconds=None,
             notes="Hand-verifiable toy instance (H1.2).",
         ))
 

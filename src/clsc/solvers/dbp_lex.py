@@ -25,6 +25,21 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   Lemma 3                 master re-proposes the same       _min_tax_confirmed
                           tax => optimum
 
+  Section 7-8: subproblems that cannot be solved to optimality inside their budget
+  UB_F = F (1 + gap_HPR)  the master's DUAL bound            solve_leader_master_lexicographic
+                          (ObjBound), also when it times    (leader_lower_bound)
+                          out -- the exact form of the
+                          same correction
+  F <= UB_F  (Mitsos)     E >= LB on the master (off by     set_emissions_floor
+                          default: measured to slow it)
+  (P5-D)  elastic HPR     one penalised slack per cut,      enable_elastic_cuts
+                          switched on the first time the
+                          master returns no point
+  (P4-D)  elastic P4      Stage 2 finds nothing => keep     solve_follower_lexicographic
+                          the Step-2 response
+  (P6)                    improve a timed-out follower      _improve_follower_value
+  auxiliary stop          bounds unchanged 10 iterations    DEFAULT.stagnation_limit
+
   * y has no collective name in the code, and needs none. SolveResult.variable_values is a
     SNAPSHOT of one solution of those variables (Gurobi VarName -> value, non-zeros only),
     captured after a solve and used for solution.json and the next warm start. It is filled by
@@ -65,7 +80,9 @@ from clsc.models.subproblems import (
     add_value_function_cut,
     build_leader_master,
     build_follower_master,
-    lex_freeze_tolerance,
+    enable_elastic_cuts,
+    set_emissions_floor,
+    set_leader_master_start,
     set_emissions_cap,
     solve_leader_master_lexicographic,
     solve_follower_lexicographic,
@@ -114,27 +131,6 @@ class IncumbentSolution:
 
 
 @dataclass(frozen=True, slots=True)
-class TaxSolveSnapshot:
-    iteration: int
-    tax_index: int
-    solve_seconds: float
-    objective_value: float | None
-    cost: float
-    emissions: float
-    follower_objective: float
-    mip_gap: float | None
-    scale_factor: float = TAX_SCALE_FACTOR
-    lex_primary_mip_gap: float | None = None
-    lex_secondary_mip_gap: float | None = None
-    variable_values: dict[str, float] | None = None
-
-    @property
-    def tax_rate(self) -> float:
-        """Real carbon tax rate (USD/kg CO2e) for this solution's ``tax_index``."""
-        return self.scale_factor * self.tax_index
-
-
-@dataclass(frozen=True, slots=True)
 class BoundCertificate:
     value: float
     exact: bool
@@ -163,6 +159,26 @@ class DbpIterationRecord:
     # solved lexicographically (ablation A2) or when Gurobi reported no pass boundary.
     relaxation_emissions_seconds: float | None = None
     relaxation_tax_seconds: float | None = None
+    # The master's own MIP gap at this iteration (worst of its two stages) and whether it stopped
+    # on its time limit instead of reaching its gap target. A partial master still yields a valid
+    # lower bound (its dual bound) and a tax proposal, but not a Stage-2 minimum -- see
+    # _is_usable_partial_master. Recorded per iteration so a reader can see how much of a final
+    # gap is the master's.
+    relaxation_mip_gap: float | None = None
+    relaxation_partial: bool = False
+    # The same gap split by stage. `relaxation_mip_gap` is the WORSE of the two, which hides that
+    # only Stage 1's gap bears on the lower bound; Stage 2's is about the proposed tax.
+    relaxation_emissions_mip_gap: float | None = None
+    relaxation_tax_mip_gap: float | None = None
+    # Sum of the master's elastic cut slacks D_k at the point it returned (P5-D); > 0 means the
+    # proposal violates some cut and cannot confirm the tax.
+    relaxation_elastic_slack: float | None = None
+    # How the follower ended this iteration: its worst stage gap, whether it stopped on its time
+    # limit, whether (P6) improved it, and whether the tie-break fell back to the Step-2 response.
+    follower_mip_gap: float | None = None
+    follower_time_limited: bool = False
+    follower_improved: bool | None = None
+    follower_stage2_fallback: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,7 +215,6 @@ class BilevelSolveResult:
     iteration_records: tuple[DbpIterationRecord, ...]
     dbp_timing: DbpTimingSummary
     incumbent_solution: SolveResult | None = None
-    enumeration_solutions: tuple[TaxSolveSnapshot, ...] = ()
     # Certified LOWER bound on the least-intervention tax index: the smallest tax the master
     # can still reach within the leader's indifference band of the certified emissions floor.
     # With the incumbent's own tax as the attained upper bound, [tax_index_lower_bound, incumbent
@@ -244,10 +259,6 @@ def relative_optimality_gap(
 ) -> float:
     gap = max(0.0, emissions_follower_ub - emissions_leader_lb)
     return gap / max(1.0, abs(emissions_follower_ub))
-
-
-def follower_objective_cap(follower_objective: float, mip_gap: float | None = None) -> float:
-    return follower_objective + lex_freeze_tolerance(follower_objective, mip_gap)
 
 
 def _coerce_instance(instance_or_path: InstanceData | str | Path) -> InstanceData:
@@ -403,6 +414,42 @@ def _require_optimal_result(result: SolveResult, label: str) -> None:
         raise SubproblemStatusError(label, result)
 
 
+def _is_partial_master(result: SolveResult) -> bool:
+    """The relaxation master stopped on its time limit instead of reaching its gap target."""
+    return result.status_name == "TIME_LIMIT"
+
+
+def _is_usable_partial_master(result: SolveResult) -> bool:
+    """A timed-out master the loop can continue from: it proved a finite dual bound AND holds a
+    point whose tax can be proposed next. The bound is a valid lower bound on the bilevel optimum
+    whatever the gap (lem:lb_validity is about the relaxation, not about its optimality), which is
+    Soares et al. (2021, Sect. 7)'s treatment of an unsolved relaxation: use the solver's own
+    bound, do not abandon the run. Without a point there is no next proposal; the caller then
+    folds the bound in and stops, as it always did on a timeout."""
+    return (
+        _is_partial_master(result)
+        and result.has_solution
+        and result.tax_index is not None
+        and result.emissions is not None
+        and result.leader_lower_bound is not None
+    )
+
+
+def _master_returned_no_point(result: SolveResult) -> bool:
+    """The master gave the loop nothing to propose: timed out without an incumbent, or
+    reported infeasible (which, with every cut valid and the incumbent meeting the cap, can only
+    be numerical). This is Soares et al. (2021)'s Difficulty 1, the trigger for (P5-D)."""
+    if result.status_name in ("INFEASIBLE", "INF_OR_UNBD"):
+        return True
+    return _is_partial_master(result) and not _is_usable_partial_master(result)
+
+
+def _require_optimal_or_usable_partial_master(result: SolveResult, label: str) -> None:
+    if _is_usable_partial_master(result):
+        return
+    _require_optimal_result(result, label)
+
+
 def _timeout_reason(budget: "_WallClockBudget") -> str:
     """Which budget ran out: the run's wall-clock cap, or one subproblem's own limit."""
     return "incumbent_wall_clock_cap" if budget.expired() else "incumbent_time_limit"
@@ -481,11 +528,19 @@ class _WallClockBudget:
     A cap of ``None`` disables both (the budget never expires).
     """
 
-    __slots__ = ("deadline", "per_subproblem_limit")
+    __slots__ = ("deadline", "per_subproblem_limit", "master_limit")
 
-    def __init__(self, cap: float | None, per_subproblem_limit: float | None) -> None:
+    def __init__(
+        self,
+        cap: float | None,
+        per_subproblem_limit: float | None,
+        master_limit: float | None = None,
+    ) -> None:
         self.deadline = None if cap is None else time.perf_counter() + cap
         self.per_subproblem_limit = per_subproblem_limit
+        # The relaxation master and the follower are different problems with different cost
+        # profiles, so they may carry different limits. None keeps one shared limit.
+        self.master_limit = per_subproblem_limit if master_limit is None else master_limit
 
     def remaining(self) -> float | None:
         return None if self.deadline is None else self.deadline - time.perf_counter()
@@ -494,15 +549,16 @@ class _WallClockBudget:
         remaining = self.remaining()
         return remaining is not None and remaining <= 0.0
 
-    def subproblem_time_limit(self) -> float | None:
+    def subproblem_time_limit(self, *, master: bool = False) -> float | None:
+        limit = self.master_limit if master else self.per_subproblem_limit
         remaining = self.remaining()
         if remaining is None:
-            return self.per_subproblem_limit
+            return limit
         # Never hand Gurobi a non-positive limit: it would be read as "no limit".
         remaining = max(remaining, 1.0)
-        if self.per_subproblem_limit is None:
+        if limit is None:
             return remaining
-        return min(self.per_subproblem_limit, remaining)
+        return min(limit, remaining)
 
 
 def _build_bilevel_result(
@@ -520,7 +576,6 @@ def _build_bilevel_result(
     iteration_records: tuple[DbpIterationRecord, ...],
     dbp_timing: DbpTimingSummary,
     incumbent_solution: SolveResult | None,
-    enumeration_solutions: tuple[TaxSolveSnapshot, ...] = (),
     tax_index_lower_bound: int | None = None,
 ) -> BilevelSolveResult:
     return BilevelSolveResult(
@@ -537,7 +592,6 @@ def _build_bilevel_result(
         iteration_records=iteration_records,
         dbp_timing=dbp_timing,
         incumbent_solution=incumbent_solution,
-        enumeration_solutions=enumeration_solutions,
         tax_index_lower_bound=tax_index_lower_bound,
     )
 
@@ -630,7 +684,7 @@ def _gap_closed_tax_unconfirmed_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
-    tax_index_lower_bound: int,
+    tax_index_lower_bound: int | None,
 ) -> BilevelSolveResult:
     """The emissions gap has closed -- this result's emissions_leader_lb_certificate is exact, E* itself
     is certified -- but the tax-descent phase spent its probe budget without the master
@@ -743,8 +797,11 @@ def solve_bilevel_dbp_lex(
     *,
     output_flag: bool = False,
     time_limit: float | None = None,
+    master_time_limit: float | None = None,
+    master_tax_time_limit: float | None = None,
     wall_clock_cap: float | None = None,
     mip_gap: float | None = None,
+    master_mip_gap: float | None = None,
     dbp_relative_gap: float | None = None,
     leader_indifference_relative: float | None = None,
     threads: int | None = None,
@@ -754,6 +811,9 @@ def solve_bilevel_dbp_lex(
     use_warm_start: bool = True,
     use_emissions_cap: bool = True,
     use_lex_master_stage2: bool = True,
+    use_follower_improvement: bool = True,
+    use_elastic_master: bool = True,
+    use_emissions_floor: bool = False,
 ) -> BilevelSolveResult:
     """DBP with the leader's lexicographic objective: minimise emissions, then
     minimise ``tax_index`` among the emissions-tied candidates.
@@ -795,11 +855,24 @@ def solve_bilevel_dbp_lex(
 
     ``mip_gap``/``threads``/``mip_focus`` override the corresponding
     :class:`clsc.config.gap_tol.ToleranceConfig` default (``None`` keeps the
-    default) for every Gurobi sub-solve. ``dbp_relative_gap`` overrides the
+    default) for every Gurobi sub-solve. ``mip_gap`` is the FOLLOWER's target: it sizes the
+    freeze band that decides which responses count as optimal, so it is what the leader's
+    emissions are measured against. ``master_mip_gap`` is the relaxation master's own target and
+    defaults to ``mip_gap`` (``None``), which reproduces the single-gap behaviour. The two are
+    different quantities: the master's gap only loosens the lower bound (its dual bound stays
+    valid), while the follower's gap loosens what counts as a best response. A master that
+    stops on its time limit does not end the run: its dual bound is taken as the lower bound and
+    its incumbent's tax is proposed next, as in Soares et al. (2021, Sect. 7); such an iteration
+    cannot confirm the least-intervention tax (``epsilon_optimal_tax_unconfirmed``).
+    ``master_tax_time_limit`` caps the master's Stage 2 (the tax minimisation) on its own; Stage 1,
+    which supplies the lower bound, keeps the full master limit. ``None`` leaves Stage 2 under the
+    same limit as Stage 1.
+    ``dbp_relative_gap`` overrides the
     DBP loop's own outer stopping criterion the same way -- it is unrelated
     to any Gurobi parameter.
 
-    ``time_limit`` bounds ONE subproblem; ``wall_clock_cap`` bounds the whole DBP run. The cap
+    ``time_limit`` bounds ONE follower subproblem (and the master too unless ``master_time_limit``
+    is given, which bounds ONE relaxation-master solve on its own); ``wall_clock_cap`` bounds the whole DBP run. The cap
     is enforced from inside: each subproblem's limit is clamped to the budget that remains, and
     the loop stops between iterations once it is exhausted, returning
     ``termination_reason="incumbent_wall_clock_cap"`` with the incumbent, its variable values and the
@@ -816,6 +889,20 @@ def solve_bilevel_dbp_lex(
     but changes the iteration/time path (and, for A1/A2, the reported tax is no
     longer certified minimal).
 
+    Three flags carry Soares et al. (2021, Sect. 7-8)'s treatment of subproblems that cannot be
+    solved to optimality inside their budget. ``use_follower_improvement`` (default True) runs
+    (P6) when the follower stops on its time limit. ``use_elastic_master`` (default True) is
+    their (P5-D) used as they introduce it, as a remedy: the master starts with plain cuts, and
+    only the first time it returns no point at all (timed out with no incumbent, or infeasible)
+    are the cuts made elastic in place and the master re-solved from the best evaluated point,
+    which the elastic master must accept -- from then on it always has a point.
+    ``use_emissions_floor`` (default False) adds E >= LB, their ``F <= UB_F`` written for a
+    minimising leader; it is off by default because on STD_I17_M4_T3 it slowed every master
+    solve (419 s vs 162 s for the same certified answer, 2026-10-08). A follower
+    that stops on its time limit no longer ends the run: its best response is used, as Soares et
+    al. use a gapped (P3)/(P4-D) solution, and the run can then report at most an epsilon-optimal
+    interval, never a certified optimum.
+
     ``leader_indifference_relative`` (epsilon) is the LEADER'S POLICY PARAMETER: the
     relative emissions margin the regulator treats as immaterial when choosing the least
     tax that still attains the optimum. It sets the Stage-2 freeze band, decides which
@@ -829,8 +916,9 @@ def solve_bilevel_dbp_lex(
     """
     effective_use_tax_confirmation = use_tax_confirmation and use_lex_master_stage2
     instance = _coerce_instance(instance_or_path)
-    budget = _WallClockBudget(wall_clock_cap, time_limit)
+    budget = _WallClockBudget(wall_clock_cap, time_limit, master_time_limit)
     effective_dbp_relative_gap = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
+    effective_master_mip_gap = mip_gap if master_mip_gap is None else master_mip_gap
     # THE LEADER'S INDIFFERENCE BAND IS A POLICY PARAMETER, NOT A TOLERANCE.
     #
     # epsilon answers "how much emissions is the regulator willing to forgo to avoid
@@ -868,6 +956,7 @@ def solve_bilevel_dbp_lex(
         )
     iteration_records: list[DbpIterationRecord] = []
     iteration_timings: list[DbpIterationTiming] = []
+    # Plain cuts to begin with; made elastic in place only if the master ever returns no point.
     relaxation_master = build_leader_master(instance)
     follower_master = build_follower_master(instance)
 
@@ -875,21 +964,27 @@ def solve_bilevel_dbp_lex(
         solve_leader_master_lexicographic,
         relaxation_master,
         output_flag=output_flag,
-        time_limit=budget.subproblem_time_limit(),
-        mip_gap=mip_gap,
+        time_limit=budget.subproblem_time_limit(master=True),
+        mip_gap=effective_master_mip_gap,
         threads=threads,
         mip_focus=mip_focus,
         seed=seed,
         lex_stage2=use_lex_master_stage2,
         leader_indifference_relative=leader_indifference_relative,
+        tax_stage_time_limit=master_tax_time_limit,
     )
-    _require_optimal_result(relaxation, "initial DBP relaxation")
+    _require_optimal_or_usable_partial_master(relaxation, "initial DBP relaxation")
 
     emissions_leader_lb = _required_value(relaxation.emissions, "initial relaxation emissions")
     incumbent: IncumbentSolution | None = None
     incumbent_solution = None
     previous_lexicographic_values: dict[str, float] | None = None
     emissions_follower_ub_certificate: BoundCertificate | None = None
+    # The best-emissions evaluated point (the one behind the UB certificate): the MIP start the
+    # elastic master is re-solved from, because it alone is sure to meet the emissions cap.
+    best_ub_values: dict[str, float] | None = None
+    best_ub_tax_index: int | None = None
+    follower_variable_names: list[str] | None = None
     iterations_without_bound_update = 0
     # Probes spent in the tax-descent phase (see the confirmation branch below).
     tax_descent_probes = 0
@@ -926,8 +1021,12 @@ def solve_bilevel_dbp_lex(
             threads=threads,
             mip_focus=mip_focus,
             seed=seed,
+            use_follower_improvement=use_follower_improvement,
         )
-        if lexicographic.status_name == "TIME_LIMIT":
+        # A follower that stopped on its time limit WITH a response is used, as Soares et al.
+        # (2021, Sect. 7) use a gapped (P3)/(P4-D) solution; only a follower with no response
+        # at all ends the run.
+        if not lexicographic.has_solution and lexicographic.status_name == "TIME_LIMIT":
             if incumbent is not None:
                 iteration_timings.append(DbpIterationTiming(
                     iteration=iteration,
@@ -949,7 +1048,11 @@ def solve_bilevel_dbp_lex(
             raise SubproblemStatusError(
                 f"lexicographic follower solve at tax_index={tax_index}", lexicographic,
             )
-        _require_optimal_result(lexicographic, f"lexicographic follower solve at tax_index={tax_index}")
+        if not lexicographic.has_solution or lexicographic.status_name not in ("OPTIMAL", "TIME_LIMIT"):
+            raise SubproblemStatusError(
+                f"lexicographic follower solve at tax_index={tax_index}", lexicographic,
+            )
+        follower_time_limited = lexicographic.status_name != "OPTIMAL"
         if lexicographic.variable_values is not None:
             previous_lexicographic_values = lexicographic.variable_values
 
@@ -986,16 +1089,24 @@ def solve_bilevel_dbp_lex(
         if emissions_follower_ub_certificate is None or candidate.emissions < emissions_follower_ub_certificate.value:
             emissions_follower_ub_certificate = BoundCertificate(
                 value=candidate.emissions,
-                exact=True,
+                # A response from a follower that stopped on its time limit is the best one
+                # found, not a proven best response: its emissions bound the leader only up to
+                # that follower's own gap.
+                exact=not follower_time_limited,
                 mip_gap=lexicographic.mip_gap,
                 slack=0.0,
-                source="lexicographic",
+                source="lexicographic" if not follower_time_limited else "lexicographic_time_limited",
             )
+            best_ub_values = lexicographic.variable_values
+            best_ub_tax_index = tax_index
 
-        follower_objective_upper = follower_objective_cap(candidate.follower_objective, lexicographic.mip_gap)
+        # (P5-eps'): f(x, y) <= f(x, y_k) + eps', with eps' added by add_value_function_cut. Not
+        # loosened by the follower's MIP gap: the cut is valid for ANY feasible y_k (Soares et
+        # al.'s Lemma 2 -- the follower's constraints do not depend on x), proven best response
+        # or not, so widening it only weakens the master.
         cut = ValueFunctionCut(
             tax_index=tax_index,
-            cost=candidate.cost + max(0.0, follower_objective_upper - candidate.follower_objective),
+            cost=candidate.cost,
             emissions=candidate.emissions,
             # The cut's tau-coefficient must be the quantity the follower was
             # actually taxed on -- the discounted base -- while `emissions`
@@ -1014,15 +1125,53 @@ def solve_bilevel_dbp_lex(
             solve_leader_master_lexicographic,
             relaxation_master,
             output_flag=output_flag,
-            time_limit=budget.subproblem_time_limit(),
-            mip_gap=mip_gap,
+            time_limit=budget.subproblem_time_limit(master=True),
+            mip_gap=effective_master_mip_gap,
             threads=threads,
             mip_focus=mip_focus,
             seed=seed,
             lex_stage2=use_lex_master_stage2,
             leader_indifference_relative=leader_indifference_relative,
+            tax_stage_time_limit=master_tax_time_limit,
         )
-        if relaxation.status_name == "TIME_LIMIT":
+        if (
+            use_elastic_master
+            and _master_returned_no_point(relaxation)
+            and not relaxation_master.elastic
+            and best_ub_values is not None
+            and best_ub_tax_index is not None
+        ):
+            # (P5-D) as a remedy (Soares et al. 2021, Difficulty 1): the plain master returned
+            # no point, so make its cuts elastic and re-solve from the best evaluated point,
+            # which the elastic master is bound to accept. Its time counts toward this
+            # iteration's relaxation_seconds.
+            enable_elastic_cuts(relaxation_master)
+            if follower_variable_names is None:
+                follower_variable_names = [
+                    variable.VarName for variable in follower_master.artifacts.model.getVars()
+                ]
+            set_leader_master_start(
+                relaxation_master, best_ub_values, follower_variable_names, best_ub_tax_index,
+            )
+            relaxation, elastic_retry_seconds = _solve_with_wall_time(
+                solve_leader_master_lexicographic,
+                relaxation_master,
+                output_flag=output_flag,
+                time_limit=budget.subproblem_time_limit(master=True),
+                mip_gap=effective_master_mip_gap,
+                threads=threads,
+                mip_focus=mip_focus,
+                seed=seed,
+                lex_stage2=use_lex_master_stage2,
+                leader_indifference_relative=leader_indifference_relative,
+                tax_stage_time_limit=master_tax_time_limit,
+            )
+            relaxation_seconds += elastic_retry_seconds
+        if _is_partial_master(relaxation) and not _is_usable_partial_master(relaxation):
+            # Timed out with nothing to propose next (no incumbent point). The dual bound it did
+            # prove is still valid, so keep it in the reported gap before stopping.
+            if relaxation.leader_lower_bound is not None:
+                emissions_leader_lb = max(emissions_leader_lb, relaxation.leader_lower_bound)
             # Follower completed OPTIMAL this iteration, so incumbent is guaranteed set.
             return _build_time_limit_result(
                 incumbent=incumbent,
@@ -1035,7 +1184,8 @@ def solve_bilevel_dbp_lex(
                 initial_relaxation_seconds=initial_relaxation_seconds,
                 termination_reason=_timeout_reason(budget),
             )
-        _require_optimal_result(relaxation, f"DBP relaxation after iteration {iteration}")
+        _require_optimal_or_usable_partial_master(relaxation, f"DBP relaxation after iteration {iteration}")
+        relaxation_is_partial = _is_partial_master(relaxation)
 
         # The master only ever GAINS constraints, so its optimum cannot fall -- but the value
         # read off it is ObjBound at mip_gap, which oscillates within that gap (measured: a
@@ -1048,6 +1198,11 @@ def solve_bilevel_dbp_lex(
         previous_lower_bound = emissions_leader_lb
         emissions_leader_lb = max(emissions_leader_lb, relaxation_lower_bound)
         lower_bound_updated = emissions_leader_lb > previous_lower_bound + DEFAULT.eps
+        if use_emissions_floor and lower_bound_updated:
+            set_emissions_floor(relaxation_master, emissions_leader_lb)
+        relaxation_elastic_slack = relaxation.slack_value
+        # The penalty is in tonnes per USD of violation, so anything above round-off is a real one.
+        elastic_active = relaxation_elastic_slack is not None and relaxation_elastic_slack > 1e-6
         next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
         iteration_records.append(
             DbpIterationRecord(
@@ -1065,6 +1220,15 @@ def solve_bilevel_dbp_lex(
                 next_relaxation_lower_bound=emissions_leader_lb,
                 relaxation_emissions_seconds=relaxation.lex_primary_seconds,
                 relaxation_tax_seconds=relaxation.lex_secondary_seconds,
+                relaxation_mip_gap=relaxation.mip_gap,
+                relaxation_partial=relaxation_is_partial,
+                relaxation_emissions_mip_gap=relaxation.lex_primary_mip_gap,
+                relaxation_tax_mip_gap=relaxation.lex_secondary_mip_gap,
+                relaxation_elastic_slack=relaxation_elastic_slack,
+                follower_mip_gap=lexicographic.mip_gap,
+                follower_time_limited=follower_time_limited,
+                follower_improved=lexicographic.follower_improved,
+                follower_stage2_fallback=lexicographic.follower_stage2_fallback,
             )
         )
         iteration_timings.append(
@@ -1083,6 +1247,26 @@ def solve_bilevel_dbp_lex(
             )
             <= effective_dbp_relative_gap
         ):
+            if relaxation_is_partial or elastic_active or not emissions_follower_ub_certificate.exact:
+                # The emissions gap closed on a valid dual bound. But at least one ingredient of
+                # a certificate is missing: the master never reached its Stage-2 minimum, or its
+                # point violates a cut (elastic slack > 0), so its tax is a proposal rather than
+                # a lower bound on the least-intervention tax; or the upper bound comes from a
+                # follower that stopped on its time limit, so it is not a proven best response.
+                # Soares et al. (2021)'s Step 6 else-branch applies -- report the epsilon-optimal
+                # result, never a certified one.
+                return _gap_closed_tax_unconfirmed_result(
+                    iteration=iteration,
+                    emissions_leader_lb=emissions_leader_lb,
+                    incumbent=incumbent,
+                    incumbent_solution=incumbent_solution,
+                    emissions_follower_ub_certificate=emissions_follower_ub_certificate,
+                    relaxation_mip_gap=relaxation.mip_gap,
+                    iteration_records=iteration_records,
+                    iteration_timings=iteration_timings,
+                    initial_relaxation_seconds=initial_relaxation_seconds,
+                    tax_index_lower_bound=None,
+                )
             tax_proposal_confirms = next_tax_index >= incumbent.tax_index
             if effective_use_tax_confirmation and not _min_tax_confirmed(
                 incumbent_emissions=emissions_follower_ub_certificate.value,

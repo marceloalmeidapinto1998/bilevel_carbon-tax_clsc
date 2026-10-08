@@ -21,12 +21,12 @@ from clsc.config.tax_scale import TAX_SCALE_FACTOR
 ALGORITHM_VARIANTS = ("full", "no_tax_confirmation", "no_emissions_cap")
 
 # Execution modes understood by the orchestrator.
-EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint", "enumeration")
+EXECUTION_MODES = ("bilevel", "fixed_tax", "min_emissions", "epsilon_constraint")
 
 # --- Carbon-tax resolution -------------------------------------------------------------------------
 # The project's one tax resolution: TAX_SCALE_FACTOR (clsc.config.tax_scale), imported above.
 # Every base instance is generated at this resolution and every execution mode (bilevel,
-# fixed_tax, enumeration) solves on it -- there is no separate "native" instance grid and
+# fixed_tax) solves on it -- there is no separate "native" instance grid and
 # "campaign" solve grid to keep in sync. That used to be two grids spanning the same real range
 # [0, TAX_CEILING_USD_PER_KG] at different resolutions, and mixing them (a tax RATE is comparable
 # across grids, a tax INDEX is not) is what once made bilevel tau* and fixed-tax probes silently
@@ -54,7 +54,9 @@ class DesignPoint:
     base_instance_id: str
     execution_mode: str                               # one of EXECUTION_MODES
     per_subproblem_time_limit_seconds: float
-    per_run_wall_clock_cap_seconds: float
+    # None = no cap on the whole run, as in Soares et al. (2021): a run ends on its own stopping
+    # criteria (gap, tax confirmation, or 10 iterations without a bound update).
+    per_run_wall_clock_cap_seconds: float | None = None
     # --- instance-variant knobs ---
     factor_levels: dict[str, float] = field(default_factory=dict)
     seed_offset: int = 0                              # 0 = base instance's own seed

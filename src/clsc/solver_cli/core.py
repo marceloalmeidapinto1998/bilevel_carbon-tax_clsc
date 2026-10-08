@@ -43,6 +43,7 @@ SUMMARY_FIELDNAMES = [
     "input_path",
     "success",
     "exact",
+    "result_class",
     "termination_reason",
     "iterations",
     "tax_index",
@@ -75,6 +76,15 @@ TRACE_FIELDNAMES = [
     "relaxation_tax_seconds",
     "next_relaxation_tax_index",
     "next_relaxation_lower_bound",
+    "relaxation_mip_gap",
+    "relaxation_emissions_mip_gap",
+    "relaxation_tax_mip_gap",
+    "relaxation_partial",
+    "relaxation_elastic_slack",
+    "follower_mip_gap",
+    "follower_time_limited",
+    "follower_improved",
+    "follower_stage2_fallback",
 ]
 
 
@@ -99,7 +109,24 @@ def build_parser() -> argparse.ArgumentParser:
             "the relaxation master -- no separate tax-tiebreak phase."
         ),
     )
-    parser.add_argument("--time-limit", type=float, help="Per-subproblem Gurobi time limit in seconds.")
+    parser.add_argument("--time-limit", type=float, help="Per-subproblem Gurobi time limit in seconds (follower; also the master unless --master-time-limit is given).")
+    parser.add_argument(
+        "--master-tax-time-limit",
+        type=float,
+        help=(
+            "Gurobi time limit in seconds for the relaxation master's Stage 2 only (the tax "
+            "minimisation), on top of --master-time-limit, which still caps Stage 1 (the lower "
+            "bound). Default: no separate cap. Only supported with --method dbp_lex."
+        ),
+    )
+    parser.add_argument(
+        "--master-time-limit",
+        type=float,
+        help=(
+            "Gurobi time limit in seconds for ONE relaxation-master solve (default: the same "
+            "as --time-limit). Only supported with --method dbp_lex."
+        ),
+    )
     parser.add_argument(
         "--wall-clock-cap",
         type=float,
@@ -116,8 +143,20 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Override the Gurobi MIPGap target for every follower sub-solve "
-            "(default: clsc.config.gap_tol.DEFAULT.mip_gap). Only supported with "
+            "(default: clsc.config.gap_tol.DEFAULT.mip_gap). Also the relaxation "
+            "master's target unless --master-mip-gap is given. Only supported with "
             "--method dbp_lex."
+        ),
+    )
+    parser.add_argument(
+        "--master-mip-gap",
+        type=float,
+        help=(
+            "Gurobi MIPGap target for the DBP relaxation master only (default: the same "
+            "value as --mip-gap). The master's gap only loosens the lower bound -- its dual "
+            "bound stays valid -- so it can be looser than the follower's. A master that "
+            "stops on its time limit still contributes its dual bound and a tax proposal. "
+            "Only supported with --method dbp_lex."
         ),
     )
     parser.add_argument(
@@ -224,7 +263,34 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Ablation A2: disable the relaxation master's lexicographic Stage-2 tax minimisation.",
     )
-    parser.set_defaults(use_warm_start=True, use_emissions_cap=True, use_lex_master_stage2=True)
+    parser.add_argument(
+        "--no-follower-improvement",
+        dest="use_follower_improvement",
+        action="store_false",
+        help="Disable Soares et al. (2021)'s subproblem (P6) for a follower that stops on its time limit.",
+    )
+    parser.add_argument(
+        "--no-elastic-master",
+        dest="use_elastic_master",
+        action="store_false",
+        help=(
+            "Disable the elastic-cut remedy (Soares et al. 2021's P5-D): by default, the first time "
+            "the relaxation master returns no point its cuts are made elastic and it is re-solved."
+        ),
+    )
+    parser.add_argument(
+        "--emissions-floor",
+        dest="use_emissions_floor",
+        action="store_true",
+        help=(
+            "Enable the E >= LB bound on the relaxation master (Soares et al. 2021 / Mitsos 2010's "
+            "F <= UB_F). Off by default: it was measured to slow the master."
+        ),
+    )
+    parser.set_defaults(
+        use_warm_start=True, use_emissions_cap=True, use_lex_master_stage2=True,
+        use_follower_improvement=True, use_elastic_master=True, use_emissions_floor=False,
+    )
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
     parser.add_argument(
         "--results-root",
@@ -275,11 +341,12 @@ def main() -> int:
     except ValueError as error:
         parser.error(str(error))
     tolerance_override_flags = (
-        args.mip_gap, args.dbp_relative_gap, args.leader_indifference, args.threads, args.mip_focus,
+        args.mip_gap, args.master_mip_gap, args.master_time_limit, args.master_tax_time_limit,
+        args.dbp_relative_gap, args.leader_indifference, args.threads, args.mip_focus,
     )
     if any(value is not None for value in tolerance_override_flags) and args.method != "dbp_lex":
         parser.error(
-            "--mip-gap/--dbp-relative-gap/--leader-indifference/--threads/--mip-focus are "
+            "--mip-gap/--master-mip-gap/--master-time-limit/--master-tax-time-limit/--dbp-relative-gap/--leader-indifference/--threads/--mip-focus are "
             "currently only supported with --method dbp_lex"
         )
 
@@ -343,8 +410,11 @@ def main() -> int:
                     instance,
                     output_flag=args.solver_output,
                     time_limit=args.time_limit,
+                    master_time_limit=args.master_time_limit,
+                    master_tax_time_limit=args.master_tax_time_limit,
                     wall_clock_cap=args.wall_clock_cap,
                     mip_gap=args.mip_gap,
+                    master_mip_gap=args.master_mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
                     leader_indifference_relative=args.leader_indifference,
                     threads=args.threads,
@@ -353,6 +423,9 @@ def main() -> int:
                     seed=args.seed,
                     use_warm_start=args.use_warm_start,
                     use_emissions_cap=args.use_emissions_cap,
+                    use_follower_improvement=args.use_follower_improvement,
+                    use_elastic_master=args.use_elastic_master,
+                    use_emissions_floor=args.use_emissions_floor,
                     use_lex_master_stage2=args.use_lex_master_stage2,
                 )
             else:
@@ -521,6 +594,11 @@ def build_manifest(
     tolerance_config: dict[str, object] = {
         "eps": DEFAULT.eps,
         "mip_gap": DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap,
+        "master_mip_gap": (
+            (DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap)
+            if args.master_mip_gap is None
+            else args.master_mip_gap
+        ),
         "dbp_relative_gap": DEFAULT.dbp_relative_gap if args.dbp_relative_gap is None else args.dbp_relative_gap,
         "lex_epsilon_prime": DEFAULT.lex_epsilon_prime,
         "dbp_cut_epsilon": DEFAULT.dbp_cut_epsilon,
@@ -535,6 +613,8 @@ def build_manifest(
         "method": args.method,
         "mode": args.dbp_mode,
         "time_limit": args.time_limit,
+        "master_time_limit": args.time_limit if args.master_time_limit is None else args.master_time_limit,
+        "master_tax_time_limit": args.master_tax_time_limit,
         "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
         "tax_scale_factor": args.scale_factor,
@@ -542,6 +622,9 @@ def build_manifest(
         "gurobi_seed": args.seed,
         "use_warm_start": bool(args.use_warm_start),
         "use_emissions_cap": bool(args.use_emissions_cap),
+        "use_follower_improvement": bool(args.use_follower_improvement),
+        "use_elastic_master": bool(args.use_elastic_master),
+        "use_emissions_floor": bool(args.use_emissions_floor),
         "use_lex_master_stage2": bool(args.use_lex_master_stage2),
         "fail_fast": bool(args.fail_fast),
     }
@@ -573,6 +656,22 @@ def build_manifest(
     }
 
 
+def classify_result(result) -> str:
+    """How strong a claim the result supports, in Soares et al. (2021)'s terms.
+
+    ``certified``        gap <= dbp_relative_gap with every certificate in hand (``exact``).
+    ``epsilon_optimal``  gap <= dbp_relative_gap, but the tax or a bound is not certified.
+    ``bounded``          the gap did not close: the result is the interval [LB, UB] and the
+                         incumbent that attains UB -- "optimal or nearly optimal" at best, with
+                         convergence not guaranteed under positive subproblem gaps.
+    """
+    if result.exact:
+        return "certified"
+    if result.termination_reason.startswith(("optimal", "epsilon_optimal")):
+        return "epsilon_optimal"
+    return "bounded"
+
+
 def build_summary_record(
     *,
     instance: InstanceData,
@@ -586,6 +685,7 @@ def build_summary_record(
         "input_path": to_posix(instance_path),
         "success": True,
         "exact": result.exact,
+        "result_class": classify_result(result),
         "termination_reason": result.termination_reason,
         "iterations": result.iterations,
         "tax_index": result.incumbent.tax_index,
@@ -711,7 +811,6 @@ def build_instance_result_payload(
         },
         "files": {
             "solution_file": "solution.json",
-            "enumeration_solutions_file": "enumeration_solutions.json" if result.enumeration_solutions else None,
             "diagnostics_file": None,
         },
     }
@@ -744,6 +843,15 @@ def build_dbp_trace_row(record) -> dict[str, object]:
         "relaxation_tax_seconds": getattr(record, "relaxation_tax_seconds", None),
         "next_relaxation_tax_index": record.next_relaxation_tax_index,
         "next_relaxation_lower_bound": record.next_relaxation_lower_bound,
+        "relaxation_mip_gap": getattr(record, "relaxation_mip_gap", None),
+        "relaxation_emissions_mip_gap": getattr(record, "relaxation_emissions_mip_gap", None),
+        "relaxation_tax_mip_gap": getattr(record, "relaxation_tax_mip_gap", None),
+        "relaxation_partial": getattr(record, "relaxation_partial", False),
+        "relaxation_elastic_slack": getattr(record, "relaxation_elastic_slack", None),
+        "follower_mip_gap": getattr(record, "follower_mip_gap", None),
+        "follower_time_limited": getattr(record, "follower_time_limited", False),
+        "follower_improved": getattr(record, "follower_improved", None),
+        "follower_stage2_fallback": getattr(record, "follower_stage2_fallback", False),
     }
 
 
@@ -934,6 +1042,7 @@ def build_failure_summary_record(
         "input_path": to_posix(instance_path),
         "success": False,
         "exact": False,
+        "result_class": "failed",
         "termination_reason": "failed",
         "iterations": None,
         "tax_index": None,
@@ -1000,7 +1109,6 @@ def build_failure_result_payload(
         },
         "files": {
             "solution_file": None,
-            "enumeration_solutions_file": None,
             "diagnostics_file": "diagnostics.json",
         },
     }

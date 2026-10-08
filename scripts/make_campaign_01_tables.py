@@ -9,7 +9,6 @@ Table plan, mapped to the paper's claims:
   T2  plateau characterisation      -- HEADLINE: tau*, E*, plateau width, abatement
   T3  policy-rule comparison        -- HEADLINE: what the naive rules cost at identical emissions
   T4  ablation                      -- each DBP component earns its place
-  T5  benchmark vs enumeration      -- DBP is worth having against the obvious exact alternative
   T6  sensitivity screening         -- which parameters drive the responses, and seed stability
   T7  valuation-ratio calibration   -- the validity envelope on absolute USD/t claims
 
@@ -272,40 +271,6 @@ def t4_ablation(df: pd.DataFrame) -> None:
                "removing the guarantee buys.")
 
 
-# --- T5: benchmark vs exhaustive enumeration ---------------------------------
-def t5_benchmark(df: pd.DataFrame) -> None:
-    ref = m0_seed0(df)
-    e8 = df[df.experiment_id == "exp8"].set_index("base_instance_id")
-    dbp_solves = {"STD_I17_M4_T3": 11, "STD_I17_M4_T6": 15}   # loop follower + Phase-2 bisection
-    rows = []
-    for cell in e8.index:
-        r, base = e8.loc[cell], ref.loc[cell]
-        summary = json.loads((REPO_ROOT / r.output_path).read_text(encoding="utf-8"))
-        visited, total = summary["follower_solve_count"], summary["grid_points_total"]
-        exhausted = summary["termination_reason"] == "exhausted"
-        n_dbp = dbp_solves.get(cell)
-        rows.append({
-            "Cell": cell_label(cell),
-            "Grid covered": f"{visited}/{total}" + ("" if exhausted else " (censored)"),
-            r"$\tau^*$ DBP": f"{base.tax_rate_usd_per_tonne:.1f}",
-            r"$\tau^*$ enum.": f"{r.tax_rate_usd_per_tonne:.1f}",
-            "Agree": "yes" if abs(r.tax_rate_usd_per_tonne - base.tax_rate_usd_per_tonne) < 0.15 else "not reached",
-            "Solves DBP": f"{n_dbp}" if n_dbp else "--",
-            "Solves enum.": f"{visited}",
-            "Reduction": f"{visited / n_dbp:.0f}$\\times$" if n_dbp else "--",
-            "Enum. time (h)": f"{r.runtime_seconds / 3600:.1f}",
-        })
-    write(pd.DataFrame(rows), "t5_benchmark",
-          "DBP against exhaustive enumeration of the 2001-point tax grid -- an exact method by "
-          "construction, and the natural alternative. Where enumeration completes, both methods "
-          "certify the same $(E^*,\\tau^*)$, and DBP needs two orders of magnitude fewer "
-          "follower solves.",
-          "tab:benchmark",
-          note="Solves DBP counts follower MILPs in the main loop plus the Phase-2 bisection. "
-               "The two censored cells stopped at a 2 h cap; on I25-M4-T6 enumeration had already "
-               "reached the same $\\tau^*$, on I17-M8-T6 it had not yet reached it.")
-
-
 # --- T6: sensitivity screening ------------------------------------------------
 def t6_sensitivity(df: pd.DataFrame) -> None:
     e6 = df[(df.experiment_id == "exp6") & (df.design_point_id.str.contains("cont"))]
@@ -391,7 +356,6 @@ def main() -> int:
     t2_plateau(df)
     t3_policy_rules(df)
     t4_ablation(df)
-    t5_benchmark(df)
     t6_sensitivity(df)
     t7_calibration(df)
     print(f"\ntables -> {TABLES}")

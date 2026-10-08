@@ -1,14 +1,14 @@
 """Experiment 2 - Computational Performance (docs/Experimental_Plan.md §2).
 
-Merges the prior campaign's ablation, scalability, and enumeration-benchmark experiments into one:
+Merges the prior campaign's ablation and scalability experiments into one:
 they all answer "does DBP work, and is it worth having." M0 (full DBP) runs on the 6 representative
 cells (2 fast + 2 medium + 2 hard), with a light seed-noise check on 2 of them. Both ablation
 variants run on the same 3 cells spanning the tiers (fast, medium, hard): A1 (no in-loop min-tax
 confirmation), the claim-carrying one, and A5 (no incumbent cut), the one efficiency-only variant
 that showed a real timing effect in the prior campaign (A2/A3 did not). Two scalability escalation
 probes -- one per axis, materials/products richness (M8 -> M12 -> M16 at fixed I25-T6) and node
-count (I17 -> I25 -> I33 at fixed M8-T6) -- and exhaustive-enumeration benchmarks on 2 cells (fast
-+ medium) round out the module.
+count (I17 -> I25 -> I33 at fixed M8-T6) -- round out the module. (The exhaustive-enumeration
+benchmark that used to sit here was removed from the code on 2026-10-08.)
 
 The escalation curves' first two points on each axis are free: `STD_I25_M4_T6`/`STD_I25_M8_T6`
 (M-axis) and `STD_I17_M8_T6`/`STD_I25_M8_T6` (I-axis) are already solved as part of the M0
@@ -53,12 +53,6 @@ ESCALATION_CELLS = {
     # point.
     "escalation_I33": "STD_I33_M8_T6",
 }
-
-# Exhaustive-enumeration benchmark: 1 fast + 1 medium cell (enumeration is exact by construction
-# but expensive per point; 2 cells are enough to establish the follower-solve-count ratio).
-BENCHMARK_CELLS = (FAST_CELLS[0], MEDIUM_CELLS[0])
-BENCHMARK_MEDIUM_SUBPROBLEM_TIME_LIMIT_SECONDS = 1800.0   # 30 min: generous for one fixed-tax MILP
-BENCHMARK_MEDIUM_WALL_CLOCK_CAP_SECONDS = 7200.0          # 2 h: bounds the tail
 
 
 def _bilevel(cell: str, *, run_code: str, dpid: str, variant: str = "full",
@@ -106,20 +100,6 @@ def build_design_matrix() -> list[DesignPoint]:
             run_code=run_code, base_instance_id=cell, execution_mode="bilevel",
             per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
             notes=f"Scalability escalation probe ({run_code}) (H2.3).",
-        ))
-
-    # Exhaustive-enumeration benchmark.
-    for cell in BENCHMARK_CELLS:
-        if cell in MEDIUM_CELLS:
-            sub, wall = (BENCHMARK_MEDIUM_SUBPROBLEM_TIME_LIMIT_SECONDS,
-                         BENCHMARK_MEDIUM_WALL_CLOCK_CAP_SECONDS)
-        else:
-            sub, wall = time_limits(cell)
-        points.append(DesignPoint(
-            experiment_id=EXPERIMENT_ID, design_point_id=f"exp2-enum-{cell}",
-            run_code="enumeration", base_instance_id=cell, execution_mode="enumeration",
-            per_subproblem_time_limit_seconds=sub, per_run_wall_clock_cap_seconds=wall,
-            notes="Exhaustive fine-grid enumeration baseline (H2.4).",
         ))
 
     return points

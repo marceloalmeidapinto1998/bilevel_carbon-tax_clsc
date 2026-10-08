@@ -7,7 +7,10 @@ plateau refinement depends on Experiment 2's M0 manifests, and the rho*-anchored
 its own ratio-sweep results -- both read back from disk.
 
 Bilevel (leader-optimizing) runs solve on the project's one tax resolution (`TAX_SCALE_FACTOR`) with
-`dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, and in-loop min-tax confirmation
+`dbp_relative_gap = 1e-4` (Soares et al. 2021's eps), follower `mip_gap = 1e-2` (Tautenhain et al.
+2021's CPLEX stopping criterion for this follower model), master `mip_gap = 1e-4` (the solver's
+default, which is what Soares et al. ran their relaxation at), a 600 s budget per subproblem and no
+cap on the run (Soares et al.), and in-loop min-tax confirmation
 (`use_tax_confirmation`, Soares et al. 2021's Lemma-3 stopping rule) ON. The computational-performance
 experiment (Exp2) selects weakened variants by algorithm_variant -> solver flags
 (`_VARIANT_FLAGS`): A1 no min-tax confirmation and A5 no incumbent objective-upper-bound cut are
@@ -26,11 +29,12 @@ Execution modes (per design point, set by the experiment spec):
   min_emissions      -> `solve_fixed_tax_min_emissions` in-process (AUGMECON min-emissions anchor).
   epsilon_constraint -> `solve_epsilon_constraint_follower` in-process (emissions <= epsilon).
 
-Two time budgets bound every design point. `per_subproblem_time_limit_seconds` is handed to Gurobi
-and bounds ONE MILP; `per_run_wall_clock_cap_seconds` bounds the whole run and is enforced here --
-by killing the DBP subprocess for bilevel points, and by clamping the single solve's own limit for
-the in-process follower modes. A run stopped by the cap is recorded as `censored` with
-`termination_reason="incumbent_wall_clock_cap"`.
+`per_subproblem_time_limit_seconds` is handed to Gurobi and bounds ONE MILP. A design point may
+also carry `per_run_wall_clock_cap_seconds`, which bounds the whole run (enforced inside the
+solver, with a subprocess kill as backstop, and by clamping the single solve's own limit for the
+in-process follower modes); a run stopped by it is recorded as `censored` with
+`termination_reason="incumbent_wall_clock_cap"`. Since 2026-10-08 no design point sets one:
+Soares et al. (2021) bound only the subproblems, and a run ends on its own stopping criteria.
 
 Resumable (plan §10): `run` skips any design point whose `campaign_manifest.json` already records a
 terminal status. `--fail-fast` defaults to False so one run's exception never aborts the batch.
@@ -98,13 +102,23 @@ TWO_PHASE_EXPERIMENTS = ("exp3",)
 
 BILEVEL_METHOD = "dbp_lex"
 
-# Campaign-wide solver defaults. Chosen from the prior campaign's solver-configuration experiment
-# and re-confirmed by an ad hoc 2-point spot check on the hardest cell (not a formal experiment in
-# this campaign -- see docs/Experimental_Plan.md's implementation notes).
+# Campaign-wide solver defaults. Threads/MIPFocus come from the prior campaign's
+# solver-configuration experiment. The tolerances follow the literature (2026-10-08):
+# - dbp_relative_gap: Soares et al. (2021)'s eps = 1e-4.
+# - follower mip_gap: Tautenhain et al. (2021)'s 1% CPLEX stopping criterion for this follower
+#   model (a single-level MILP, which is what their criterion was set for).
+# - master mip_gap: 1e-4, the solver default (CPLEX's and Gurobi's alike). Soares et al. never set
+#   a percentage target on their relaxation: its gaps of a few percent are what CPLEX reached
+#   inside the time budget, corrected for afterwards. A 1% TARGET on the master was tried and
+#   freezes the lower bound at the master's first dual bound -- the master stops as soon as its
+#   own incumbent is within 1% of that bound, so the bound never moves and the run can only end
+#   on the auxiliary stop (measured on STD_I17_M4_T3: gap 0.33% after 13 iterations at 1%,
+#   certified at 7e-9 in 4 iterations at 1e-4).
 DEFAULT_THREADS = 4
 DEFAULT_MIP_FOCUS = 2
 CAMPAIGN_DBP_RELATIVE_GAP = 1e-4
-CAMPAIGN_MIP_GAP = 1e-6
+CAMPAIGN_MIP_GAP = 1e-2
+CAMPAIGN_MASTER_MIP_GAP = 1e-4
 USE_TAX_CONFIRMATION = True
 
 # Ablation variant -> extra solver flags for the bilevel (DBP) subprocess. Each key names the
@@ -410,8 +424,10 @@ def _effective_subproblem_time_limit(point: DesignPoint) -> float:
     """Time limit for an in-process follower solve.
 
     These modes are a single Gurobi call, so clamping that call's own limit to the run's
-    wall-clock cap enforces the cap exactly -- no external kill needed.
+    wall-clock cap (when the point has one) enforces the cap exactly -- no external kill needed.
     """
+    if point.per_run_wall_clock_cap_seconds is None:
+        return point.per_subproblem_time_limit_seconds
     return min(point.per_subproblem_time_limit_seconds, point.per_run_wall_clock_cap_seconds)
 
 
@@ -452,17 +468,19 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
                 sys.executable, "-m", "clsc.solver_cli.solve_batch", str(instance_path),
                 "--method", BILEVEL_METHOD,
                 "--time-limit", str(point.per_subproblem_time_limit_seconds),
-                # The solver enforces the cap itself and stops between iterations with its
-                # incumbent intact; the subprocess timeout below is only a backstop.
-                "--wall-clock-cap", str(point.per_run_wall_clock_cap_seconds),
                 "--results-root", str(scratch_root),
                 "--scale-factor", str(_tax_grid_step(point)),
             ]
+            if point.per_run_wall_clock_cap_seconds is not None:
+                # The solver enforces the cap itself and stops between iterations with its
+                # incumbent intact; the subprocess timeout below is only a backstop.
+                cmd += ["--wall-clock-cap", str(point.per_run_wall_clock_cap_seconds)]
             if not USE_TAX_CONFIRMATION:
                 cmd += ["--no-tax-confirmation"]
             cmd += _VARIANT_FLAGS.get(point.algorithm_variant, [])
             if point.mip_gap is not None:
                 cmd += ["--mip-gap", str(point.mip_gap)]
+            cmd += ["--master-mip-gap", str(CAMPAIGN_MASTER_MIP_GAP)]
             if point.dbp_relative_gap is not None:
                 cmd += ["--dbp-relative-gap", str(point.dbp_relative_gap)]
             if point.threads is not None:
@@ -479,7 +497,10 @@ def _solve_bilevel(point: DesignPoint, instance_path: Path, out_dir: Path) -> di
             try:
                 completed = subprocess.run(
                     cmd, cwd=REPO_ROOT, capture_output=True, text=True,
-                    timeout=point.per_run_wall_clock_cap_seconds + _WALL_CLOCK_BACKSTOP_GRACE,
+                    timeout=(
+                        None if point.per_run_wall_clock_cap_seconds is None
+                        else point.per_run_wall_clock_cap_seconds + _WALL_CLOCK_BACKSTOP_GRACE
+                    ),
                 )
             except subprocess.TimeoutExpired as exc:
                 _salvage_partial_dbp_trace(scratch_root, out_dir)
@@ -629,56 +650,6 @@ def _solve_epsilon_constraint(point: DesignPoint, instance_path: Path, out_dir: 
     )
 
 
-def _solve_enumeration(point: DesignPoint, instance_path: Path, out_dir: Path) -> dict[str, Any]:
-    """The enumeration execution mode's baseline: solve the fixed-tax lexicographic follower at
-    EVERY grid point.
-
-    Exact by construction (no cuts, no theory) -- the naive method a referee would propose as
-    DBP's alternative. Reused fields (cost/emissions/tax_index/solution.json) come from
-    `_write_follower_result` so the aggregator reads enumeration rows the same way it reads any
-    other follower-mode row; enumeration-specific fields (follower-solve count, grid coverage,
-    total follower time) ride along in ``extra``.
-    """
-    import csv as _csv
-
-    from clsc.models.instance import InstanceData
-    from clsc.solvers.enumeration import enumerate_tax_grid
-
-    instance = InstanceData.from_file(instance_path).with_tax_grid_step(_tax_grid_step(point))
-    start = time.perf_counter()
-    enum_result = enumerate_tax_grid(
-        instance, instance,
-        time_limit=point.per_subproblem_time_limit_seconds,
-        wall_clock_cap=point.per_run_wall_clock_cap_seconds,
-        mip_gap=point.mip_gap, threads=point.threads, mip_focus=point.mip_focus,
-        seed=point.gurobi_seed,
-    )
-    solve_seconds = time.perf_counter() - start
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    trace_path = out_dir / "enumeration_trace.csv"
-    with trace_path.open("w", newline="", encoding="utf-8") as fh:
-        writer = _csv.writer(fh)
-        writer.writerow(["tax_index", "emissions", "cost", "solve_seconds"])
-        for record in enum_result.grid_records:
-            writer.writerow([record.tax_index, record.emissions, record.cost, record.solve_seconds])
-
-    summary = _write_follower_result(
-        point, instance, enum_result.incumbent_solution, instance_path, out_dir,
-        solve_seconds=solve_seconds, tax_index_for_report=enum_result.incumbent.tax_index,
-        extra={
-            "termination_reason": enum_result.termination_reason,
-            "exact": enum_result.exact,
-            "follower_solve_count": enum_result.points_visited,
-            "grid_points_total": enum_result.points_total,
-            "grid_coverage_fraction": enum_result.points_visited / enum_result.points_total,
-            "follower_seconds_total": enum_result.follower_seconds_total,
-            "enumeration_trace_file": str(trace_path.relative_to(REPO_ROOT)),
-        },
-    )
-    return summary
-
-
 def run_point(
     point: DesignPoint,
     *,
@@ -708,7 +679,6 @@ def run_point(
         "fixed_tax": "fixed_tax_follower",
         "min_emissions": "fixed_tax_min_emissions",
         "epsilon_constraint": "epsilon_constraint_follower",
-        "enumeration": "exhaustive_grid_enumeration",
     }
     manifest: dict[str, Any] = {
         "campaign_id": CAMPAIGN_ID,
@@ -770,8 +740,6 @@ def run_point(
             summary = _solve_min_emissions(point, instance_path, out_dir)
         elif point.execution_mode == "epsilon_constraint":
             summary = _solve_epsilon_constraint(point, instance_path, out_dir)
-        elif point.execution_mode == "enumeration":
-            summary = _solve_enumeration(point, instance_path, out_dir)
         else:
             raise ValueError(f"Unknown execution_mode: {point.execution_mode!r}")
 

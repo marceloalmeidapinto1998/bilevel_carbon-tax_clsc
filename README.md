@@ -5,8 +5,7 @@ policy. A **leader** (regulator) chooses a carbon tax rate `τ` to minimize tota
 emissions — lexicographically preferring the smallest (least-intervention) tax that still
 attains that minimum — and a **follower** (industry) responds by choosing its network
 configuration to minimize cost given the tax. Solved by a Decomposition-Based Procedure (DBP)
-with a lexicographic leader objective and in-loop certification of the least-intervention tax,
-benchmarked against exhaustive grid enumeration.
+with a lexicographic leader objective and in-loop certification of the least-intervention tax.
 
 ## Repository layout
 
@@ -16,8 +15,7 @@ src/clsc/                 # ALL active code (installable package: pip install -e
   config/                 #   solver tolerances (gap_tol.ToleranceConfig) + the project's one
                           #   carbon-tax scale factor (tax_scale.TAX_SCALE_FACTOR)
   models/                 #   instance data model + Gurobi subproblem builders
-  solvers/                #   DBP lexicographic bilevel solver (dbp_lex) + the exhaustive-grid
-                          #   exact baseline it is benchmarked against (enumeration)
+  solvers/                #   DBP lexicographic bilevel solver (dbp_lex)
   solver_cli/             #   batch runner CLI (core.py; run via solve_batch)
   campaign/               #   experimental campaign layer (campaign_01)
     orchestrator.py       #     generate / run, keyed by experiment (exp1..exp4)
@@ -61,8 +59,8 @@ python -m clsc.generator benchmark --output-dir data/instances/base
 # carries it, so the flag is only for a deliberate probe at another resolution.
 python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
     --method dbp_lex \
-    --mip-gap 1e-6 --dbp-relative-gap 1e-4 --threads 4 --mip-focus 2 \
-    --time-limit 10800 --wall-clock-cap 50400 --results-root results/runs
+    --mip-gap 1e-2 --master-mip-gap 1e-4 --dbp-relative-gap 1e-4 --threads 4 --mip-focus 2 \
+    --time-limit 600 --results-root results/runs
 
 # --- Campaign (campaign_01): build design matrices, then solve ---
 python -m clsc.campaign.orchestrator generate --experiment all
@@ -80,12 +78,35 @@ python -m clsc.analysis.tables.iterations
 ## Solver configuration (campaign method)
 
 Bilevel (leader-optimizing) solves use a **single tax resolution**
-(`TAX_SCALE_FACTOR = 1e-3`, index {0..200} over 0-200 USD/t, i.e. a whole 1 USD/t per step)
-with `dbp_relative_gap = 1e-4` and per-MILP `mip_gap = 1e-6`
-(`CAMPAIGN_*` in `clsc.campaign.orchestrator`). These are applied per-run
-by the orchestrator/CLI; `clsc.config.gap_tol.DEFAULT` holds the neutral coarse-grid fallback
-(1% tolerances) used only when no override is given. Each run's `manifest.json` records
-`tax_grid_scale_factor`, tolerances, and the code version.
+(`TAX_SCALE_FACTOR = 1e-3`, index {0..200} over 0-200 USD/t, i.e. a whole 1 USD/t per step).
+The tolerances and budgets follow the literature (`CAMPAIGN_*` in `clsc.campaign.orchestrator`,
+`clsc.campaign.designs._cells`):
+
+| Parameter | Value | Source |
+|---|---|---|
+| DBP stopping tolerance `dbp_relative_gap` (eps) | 1e-4 | Soares et al. (2021) |
+| Subproblem slack eps' | 1e-5 absolute floor (`dbp_cut_epsilon`); ~1e-6 relative (`lex_epsilon_prime`) | Soares et al. (2021) |
+| MIP gap, follower | 1e-2 | Tautenhain et al. (2021), this follower model |
+| MIP gap, relaxation master | 1e-4 | solver default, as Soares et al. ran it (a 1% target freezes the lower bound) |
+| Time limit per MILP subproblem | 600 s | Soares et al. (2021) |
+| Time limit per run | none | Soares et al. (2021) |
+| Auxiliary stop | 10 iterations without a bound update | Soares et al. (2021) |
+
+Where a subproblem stops on its time limit, the eps criterion cannot be met and the run ends on
+the auxiliary stop and reports the interval
+`[emissions_leader_lb, emissions_follower_ub]` with the incumbent attaining the upper bound
+(`result_class`: `certified` / `epsilon_optimal` / `bounded`). Soares et al.'s Section 7
+treatment of subproblems that cannot be solved to optimality is implemented in full: the lower
+bound is the master's dual bound even when it times out (their `UB_F = F(1+gap)`); the first
+time the master returns no point, its cuts are made elastic in place -- one penalised slack per
+cut (P5-D) -- and it is re-solved from the best evaluated point (`--no-elastic-master`
+disables this); a follower that times out is improved by
+subproblem P6 (`--no-follower-improvement`); and a tie-break that finds nothing keeps the
+Step-2 response (P4-D). Their `F <= UB_F` bound, written `E >= LB` for this minimising leader,
+is implemented but off by default (`--emissions-floor`): it slowed the master about 2.6x on
+STD_I17_M4_T3 for the same certified answer. `clsc.config.gap_tol.DEFAULT` holds the neutral fallback used only when
+no override is given. Each run's `manifest.json` records `tax_grid_scale_factor`, tolerances,
+budgets and the code version.
 
 The least-intervention tax is checked **inside** the DBP loop (`use_tax_confirmation`, on by default),
 at the exact point the emissions gap closes. The gap is the gate, exactly as in Soares et al.

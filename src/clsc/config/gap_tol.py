@@ -21,10 +21,10 @@ class ToleranceConfig:
     amount: it is the baseline numerical-noise floor for the Stage-1 ->
     Stage-2 freeze used by the optimistic tie-break (see
     ``subproblems.lex_freeze_tolerance``). The freeze tolerance actually
-    applied is ``max(eps, lex_epsilon_prime * |primary_optimum|,
-    primary_mip_gap * |primary_optimum|)``, so it automatically widens to
-    cover whatever MIP gap Stage 1 actually stopped at, regardless of the
-    instance's objective scale.
+    applied is ``max(eps, lex_epsilon_prime * |primary_optimum|)`` -- Soares
+    et al. (2021)'s ``f <= f* + eps'``. It is no longer widened by Stage 1's
+    MIP gap (see lex_freeze_tolerance for why that widening admitted
+    non-optimal responses rather than protecting optimal ones).
 
     ``dbp_cut_epsilon`` and ``dbp_cut_epsilon_relative`` together size the
     slack added to the leader-side DBP relaxation cuts' right-hand side,
@@ -43,23 +43,23 @@ class ToleranceConfig:
 
     # ----- Primary algorithm knobs (8) -----
     eps: float = 1e-7
-    # NEUTRAL / COARSE-GRID FALLBACK, not the campaign setting. These 1% defaults date from the
-    # original coarse tax resolution (theta = 0.01, index {0..20}), aligned then with Tautenhain et al.
-    # (2021)'s explicit CPLEX stopping criterion ("GAP ... less than or equal to 1%"). They are
-    # kept as the fallback for coarse-grid solves and the unit-test suite, NOT changed here,
-    # because the production bilevel campaign OVERRIDES them per-run (see
-    # clsc.campaign.orchestrator: CAMPAIGN_MIP_GAP = 1e-6,
-    # CAMPAIGN_DBP_RELATIVE_GAP = 1e-4). Under that method the two are DELIBERATELY UNEQUAL: the
-    # tax resolution's emissions plateau needs an outer dbp_relative_gap (1e-4) far tighter than 1%, and
-    # a still-tighter per-MILP mip_gap (1e-6) so the follower can certify that outer gap. The
-    # earlier "dbp_relative_gap == mip_gap" invariant therefore holds only for this fallback, not
+    # NEUTRAL FALLBACK, not the campaign setting. The campaign (clsc.campaign.orchestrator, from
+    # 2026-10-08) sets mip_gap = 1e-2 -- Tautenhain et al. (2021)'s CPLEX stopping criterion for
+    # this very follower model ("GAP ... less than or equal to 1%") -- for the follower, 1e-4 (the
+    # solver default) for the relaxation master, and dbp_relative_gap = 1e-4, Soares et al.
+    # (2021)'s eps. Where a subproblem stops on its time limit the eps criterion cannot be met,
+    # and the run ends on the auxiliary stagnation stop and reports the interval [LB, UB]. The values below remain the fallback for
+    # direct calls that pass no override. The earlier "dbp_relative_gap == mip_gap" invariant
+    # therefore holds only for this fallback, not
     # for the campaign. A dbp_lex solve run without CAMPAIGN_* overrides falls back to these 1%
     # tolerances; the run is not hidden (manifest.json records the tolerances used), but it is
     # NOT the campaign method.
     mip_gap: float = 1e-2
     dbp_relative_gap: float = 1e-2
     lex_epsilon_prime: float = 1e-6
-    dbp_cut_epsilon: float = 1e-6
+    # Soares et al. (2021)'s eps' = 1e-5, as the cuts' absolute slack floor. At this project's
+    # cost scale (~1e6 USD) the relative term below (~0.1 USD) is the one that binds.
+    dbp_cut_epsilon: float = 1e-5
     dbp_cut_epsilon_relative: float = 1e-7
     # Was raised 10 -> 20 (2026-07-07) after several bilevel solves (STD_I25_M8_T3's baseline,
     # some Family D large-instance cells) hit stagnation_limit_gap_not_closed in the outer DBP

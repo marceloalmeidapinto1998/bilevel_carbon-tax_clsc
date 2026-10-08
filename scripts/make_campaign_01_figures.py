@@ -5,7 +5,7 @@ Outputs PDF (vector, for LaTeX) + PNG (for viewing) to results/analysis/campaign
 
 Design notes (dataviz method):
 - Form is chosen by the data's job, before color. Fig 1/2/4 are single-series
-  (emphasis: one hue + gray); only Fig 3 and Fig 5 carry a real categorical
+  (emphasis: one hue + gray); only Fig 3 carries a real categorical
   distinction, and both use exactly two slots.
 - The two categorical slots are the reference palette's slots 1-2 (#2a78d6 blue,
   #eb6834 orange), validated against paper white: normal-vision OKLab dE 33.6
@@ -295,48 +295,6 @@ def fig_tau_vs_rho(df: pd.DataFrame) -> None:
     save(fig, "fig4_tau_vs_rho")
 
 
-# --- Fig 5: exp8 DBP vs exhaustive enumeration --------------------------------
-def fig_exp8_benchmark(df: pd.DataFrame) -> None:
-    """Job: compare a cost magnitude between two methods -> 2 categorical slots + hatch."""
-    exhausted = {"STD_I17_M4_T3": 11, "STD_I17_M4_T6": 15}   # DBP follower solves (loop + Phase 2)
-    enum_n = 2001
-
-    fig, ax = plt.subplots(figsize=(7.6, 3.0))
-    cells = list(exhausted)
-    ypos = np.arange(len(cells))
-    h = 0.26
-    ax.barh(ypos + h * 0.62, [exhausted[c] for c in cells], height=h,
-            color=SERIES_1, label="DBP (loop + Phase 2)", zorder=3)
-    ax.barh(ypos - h * 0.62, [enum_n] * len(cells), height=h,
-            color=SERIES_2, hatch="///", edgecolor="white", linewidth=0.0,
-            label="exhaustive enumeration", zorder=3)
-
-    for y, c in enumerate(cells):
-        ax.text(exhausted[c] * 1.3, y + h * 0.62, f"{exhausted[c]}", va="center",
-                fontsize=8.2, color=INK)
-        ax.text(enum_n * 1.3, y - h * 0.62, f"{enum_n}", va="center", fontsize=8.2, color=INK)
-        ax.text(9500, y, f"{enum_n / exhausted[c]:.0f}× fewer",
-                va="center", ha="left", fontsize=8.6, color=INK)
-
-    ax.set_xscale("log")
-    ax.set_xlim(4, 33000)
-    ax.set_ylim(-0.55, len(cells) - 0.45)
-    ax.set_yticks(ypos, [cell_label(c) for c in cells])
-    ax.set_xlabel("follower MILP solves to certify $(E^*, \\tau^*)$  (log scale)")
-    ax.grid(axis="x", zorder=0)
-    ax.set_axisbelow(True)
-    # Legend above the plot area: inside it would sit on top of the 2001 labels.
-    ax.legend(loc="lower right", bbox_to_anchor=(1.0, 1.02), ncol=2)
-    ax.set_title("Both methods certify the same optimum; one needs two orders of magnitude fewer solves",
-                 color=INK, pad=26, fontsize=9.5)
-    fig.text(0.5, -0.08,
-             "Only the two cells where enumeration exhausted the full 2001-point grid are shown; "
-             "on those, both methods return identical $(E^*, \\tau^*)$.",
-             ha="center", fontsize=8, color=INK_2)
-    fig.tight_layout()
-    save(fig, "fig5_exp8_benchmark")
-
-
 def main() -> int:
     df = load()
     print(f"loaded {len(df)} runs")
@@ -344,7 +302,6 @@ def main() -> int:
     fig_burden_ratio(df)
     fig_exp6_effects(df)
     fig_tau_vs_rho(df)
-    fig_exp8_benchmark(df)
     print(f"\nfigures -> {FIGDIR}")
     return 0
 

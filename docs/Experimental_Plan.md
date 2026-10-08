@@ -17,9 +17,10 @@ the compute.
    objective is flat over a wide range of tax levels — and that the least-intervention tax τ\* (the
    lexicographic Phase-2 result) is the defensible selection from that plateau. Every experiment
    either establishes that claim or earns its place by making it credible.
-2. **A certificate is necessary but not sufficient: there must be a baseline.** DBP's own
-   lower-bound/upper-bound convergence proves the algorithm is *correct*. It does not prove it is
-   *worth having*. Exhaustive grid enumeration is the exact baseline any referee would propose.
+2. **A certificate is necessary but not sufficient.** DBP's own lower-bound/upper-bound
+   convergence proves the algorithm is *correct*; it does not by itself prove it is *worth
+   having*. v4 planned exhaustive grid enumeration as that baseline; it was **removed from the
+   code on 2026-10-08** (see §4), so this principle is now carried by the ablations alone.
 3. **Replication where it means something.** The solver is deterministic, so re-solving the same
    instance is not replication. Variability is designed in through *instance seeds* (generalization
    over the problem distribution) and *Gurobi `Seed`* (MIP performance variability; Lodi &
@@ -44,7 +45,7 @@ hard cell.
 | Experiment | Design | Status |
 |---|---|---|
 | exp1 — verification | 24 pts | designed, not yet run |
-| exp2 — computational performance | 19 pts | designed, not yet run |
+| exp2 — computational performance | 17 pts | designed, not yet run |
 | **exp3 — policy value & calibration (headline)** | 12 (P0-P2) + 16 (refinement) + 5 (ρ sweep) + 13 (anchored suite) = 46 pts | designed, not yet run |
 | exp4 — sensitivity | 32 pts | designed, not yet run |
 
@@ -58,7 +59,7 @@ hard cell.
 | # | Question | Experiment | Paper section |
 |---|---|---|---|
 | **Q1** | **Is the optimal carbon tax identified, and what does the bilevel leader add over simpler policy rules?** | **exp3** | **Contribution (headline)** |
-| Q2 | Does DBP earn its complexity against the obvious exact alternative? | exp2 | Algorithm |
+| Q2 | ~~Does DBP earn its complexity against the obvious exact alternative?~~ Dropped with the enumeration baseline (2026-10-08). | — | — |
 | Q3 | Does every component of the algorithm earn its place? | exp2 | Algorithm (ablation table) |
 | Q4 | How does it scale; where are its limits? | exp2 | Scalability |
 | Q5 | Are the policy claims defensible in absolute monetary terms? | exp3 | Policy analysis |
@@ -104,17 +105,23 @@ doesn't spend:
 
 ### 2.3 Time limits, tolerances, environment
 
-Unchanged from v3. Two-tier limits (`clsc/campaign/designs/_cells.py`): standard tier 3600 s per
-sub-MILP / 28800 s wall clock; hard tier 10800 s / 50400 s. Both caps are enforced inside the
-solver (`per_run_wall_clock_cap_seconds`), not by an external kill: the DBP loop (or the
-enumeration scan) stops between iterations once the budget is spent, returning
-`termination_reason="wall_clock_cap"` with the incumbent, its variable values, and the certified
-gap intact. A subprocess kill remains only as a 900 s-grace backstop, logged distinctly
-(`wall_clock_cap_killed`).
+Revised 2026-10-08 to follow the literature instead of v3's calibration. Every MILP subproblem
+gets a 600 s budget; the follower stops at a 1% MIP gap and the relaxation master at the solver
+default 1e-4 (a 1% target on the master freezes the lower bound at its first dual bound); there
+is no cap on a run as a whole (`clsc/campaign/designs/_cells.py`, `CAMPAIGN_*` in the orchestrator). Sources: Soares et
+al. (2021) bound each subproblem (5 and 10 min) and not the run, and use eps = 1e-4, eps' = 1e-5
+and a 10-iteration auxiliary stop; Tautenhain et al. (2021) stop CPLEX at a 1% gap on this very
+follower model.
 
-Tolerances: `dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-6`, Phase-2 min-tax bisection ON,
-`threads = 4`, `MIPFocus = 2` (see §5). One machine, one fixed software stack; solver version and
-code commit recorded per run.
+Tolerances: `dbp_relative_gap = 1e-4`, follower `mip_gap = 1e-2`, master `mip_gap = 1e-4`, in-loop min-tax
+confirmation ON, `threads = 4`, `MIPFocus = 2` (see §5). One machine, one fixed software stack;
+solver version and code commit recorded per run.
+
+Consequence for reporting: where a subproblem stops on its time limit the 1e-4 criterion cannot
+be met, and the run ends on the auxiliary stop and reports the
+interval [LB, UB] with the incumbent (`result_class = bounded`), exactly as Soares et al. report
+their harder model ("optimal or nearly optimal", convergence not guaranteed under positive
+subproblem gaps). The hard gate of §3 (certified-exact rate) must be read in that light.
 
 The leader's tax grid is `[0, 200]` USD/t CO2e on the project's one carbon-tax grid (index 0..400,
 `TAX_GRID_SCALE_FACTOR = 5e-4`, i.e. 0.5 USD/t per step). Every base instance is generated
@@ -170,9 +177,9 @@ hand derivation (H1.2); structural-invariant probe agreement (H1.3); seed-invari
 ## 4. Experiment 2 — Computational Performance
 
 **Objective.** Establish that DBP works, that each of its components earns its keep, that it scales
-to the full testbed's range, and that it beats the obvious exact alternative (exhaustive grid
-enumeration). Consolidates v3's ablation, scalability, and enumeration-benchmark experiments, which
-all ultimately answered this one question from different angles.
+to the full testbed's range. Consolidates v3's ablation and scalability experiments, which all
+ultimately answered this one question from different angles. (The exhaustive-enumeration benchmark
+v4 also placed here was removed from the code on 2026-10-08.)
 
 **Design.**
 - **`full` DBP reference:** the 6 `REPRESENTATIVE_CELLS`, seed 0. A light seed-noise check adds
@@ -201,9 +208,6 @@ all ultimately answered this one question from different angles.
   than certify exact; that is the point of these probes, not a failure of them — a curve showing
   *how* the optimality gap grows past the tractable range is more informative than one that stops
   exactly at the edge.
-- **Enumeration benchmark:** 1 fast + 1 medium cell, exhaustive fine-grid enumeration
-  (`clsc.solvers.enumeration`) as the exact baseline DBP is compared against on follower-solve
-  count and wall-clock time.
 
 **Why no KKT/Big-M single-level reformulation baseline.** The follower problem is a genuine MIP,
 not an LP or convex NLP: it has ten families of binary decision variables (`y_s`, `y_f`, `y_w`,
@@ -211,17 +215,16 @@ not an LP or convex NLP: it has ten families of binary decision variables (`y_s`
 `clsc.models.subproblems`). KKT-stationarity and strong-duality single-level reformulations of a
 bilevel program both require the lower level to be continuous — neither is valid when the lower
 level is a MIP. This is a structural fact about this problem class, not a modelling choice left
-unexplored: there is no exact single-level reformulation to compare against. Because the leader's
-variable is instead a single scalar on a finite grid, exhaustive enumeration over that grid *is*
-the theoretically appropriate exact comparator — which is exactly what this experiment already
-implements. (This note belongs in the paper's methodology or limitations section too, once
+unexplored: there is no exact single-level reformulation to compare against. (Because the leader's
+variable is a single scalar on a finite grid, exhaustive enumeration over that grid would be the
+theoretically appropriate exact comparator; it is no longer implemented.) (This note belongs in the paper's methodology or limitations section too, once
 `paper/sections/06_computational_experiments.tex` — already known-stale — is redrafted.)
 
 **Instances / repetitions.** 8 (`full`) + 3 (`no_tax_confirmation` × 3 cells) + 3 (`no_emissions_cap` × 3 cells) + 3 (escalation: M12,
-M16, I33) + 2 (enumeration) = 19 solves.
+M16, I33) = 17 solves.
 
 **Metrics.** Paired per-instance comparison of (E\*, τ\*) and runtime, `full` vs. each variant; runtime
-growth in I/M/T; follower-solve-count ratio and wall-clock ratio, DBP vs. enumeration.
+growth in I/M/T.
 
 ---
 

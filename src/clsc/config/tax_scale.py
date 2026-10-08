@@ -24,7 +24,7 @@ from __future__ import annotations
 # a master that is ~95% of every run's wall time.
 #
 # ONE resolution for the whole project: every base instance, every campaign design point and
-# every execution mode (bilevel, fixed_tax, enumeration) is generated, stored, and solved at it.
+# every execution mode (bilevel, fixed_tax) is generated, stored, and solved at it.
 # There used to be two -- a coarse 0.01 baked into the generated base instances and a finer 5e-4
 # the campaign rescaled onto at solve time -- and keeping them apart caused a silent 100x
 # tau-scale mismatch once (see clsc.campaign.orchestrator, "Tax-scale consistency"). Base

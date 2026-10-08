@@ -122,30 +122,29 @@ so they never silently appear in the standard 12.
 | `M0_seed0.json`, `M0_seed1.json` | The cell solved with the full, unmodified algorithm ("M0"); `seed1` is a second run with a different solver seed, to gauge run-to-run noise. |
 | `A1.json` | Same cell, with the algorithm's in-loop minimum-tax confirmation step disabled. |
 | `A5.json` | Same cell, with the algorithm's incumbent-bound cut disabled. |
-| `enumeration.json` | Same cell, solved by brute force — every tax value on the grid, one at a time — as the benchmark the algorithm is compared against. |
 | `escalation_M12.json`, `escalation_M16.json` | The materials/products-richness escalation cells (`STD_I25_M12_T6`, `STD_I25_M16_T6`), the 3rd/4th points on that scalability axis (M4, M8 come from the `M0_seed0` runs on `STD_I25_M4_T6`/`STD_I25_M8_T6` above). |
 | `escalation_I33.json` | The node-count escalation cell (`STD_I33_M8_T6`), the 3rd point on that axis (I17, I25 come from the `M0_seed0` runs on `STD_I17_M8_T6`/`STD_I25_M8_T6` above). |
 
 Not every cell gets every `run_code` — each cell answers only the question it was picked for:
 
-| cell | `M0_seed0` | `M0_seed1` | `A1` | `A5` | `enumeration` | `escalation_*` |
-|---|---|---|---|---|---|---|
-| `STD_I17_M4_T3` | ✓ | ✓ | ✓ | ✓ | ✓ | |
-| `STD_I17_M4_T6` | ✓ | | | | | |
-| `STD_I17_M8_T6` | ✓ | | ✓ | ✓ | ✓ | |
-| `STD_I25_M4_T6` | ✓ | | | | | |
-| `STD_I25_M8_T6` | ✓ | ✓ | ✓ | ✓ | | |
-| `STD_I25_M8_T12` | ✓ | | | | | |
-| `STD_I25_M12_T6` | | | | | | ✓ (`escalation_M12`) |
-| `STD_I25_M16_T6` | | | | | | ✓ (`escalation_M16`) |
-| `STD_I33_M8_T6` | | | | | | ✓ (`escalation_I33`) |
+| cell | `M0_seed0` | `M0_seed1` | `A1` | `A5` | `escalation_*` |
+|---|---|---|---|---|---|
+| `STD_I17_M4_T3` | ✓ | ✓ | ✓ | ✓ | |
+| `STD_I17_M4_T6` | ✓ | | | | |
+| `STD_I17_M8_T6` | ✓ | | ✓ | ✓ | |
+| `STD_I25_M4_T6` | ✓ | | | | |
+| `STD_I25_M8_T6` | ✓ | ✓ | ✓ | ✓ | |
+| `STD_I25_M8_T12` | ✓ | | | | |
+| `STD_I25_M12_T6` | | | | | ✓ (`escalation_M12`) |
+| `STD_I25_M16_T6` | | | | | ✓ (`escalation_M16`) |
+| `STD_I33_M8_T6` | | | | | ✓ (`escalation_I33`) |
 
 `M0_seed0` is the one run_code every cell gets — it's the full-method reference every other column
 is compared against, and the source of the M-axis's and I-axis's first two escalation points (read
 directly off `STD_I25_M4_T6`/`STD_I25_M8_T6` and `STD_I17_M8_T6`/`STD_I25_M8_T6`, no separate
 file). The remaining columns each land on the smallest set of cells that can support their claim:
-`A1`/`A5` need cells spanning easy-to-hard to show the effect holds generally; the seed check,
-`enumeration`, and the three `escalation_*` cells each need only their own one cell.
+`A1`/`A5` need cells spanning easy-to-hard to show the effect holds generally; the seed check
+and the three `escalation_*` cells each need only their own one cell.
 
 ## exp3 — policy value & calibration
 
