@@ -595,10 +595,12 @@ def solve_leader_master_lexicographic(
     fraction of the Stage-1 optimum: Stage 2 minimises the tax over every point within that
     band of the optimum, not merely over exact ties. Omit it to keep the pure numerical band.
 
-    ``tax_stage_time_limit`` caps Stage 2 alone (``time_limit`` still caps each stage). Stage 1
-    delivers the lower bound and is usually the cheap stage; Stage 2 only picks the next tax to
-    propose, and its incumbent already satisfies the freeze, so cutting it short costs a possibly
-    higher proposed tax and the Stage-2 minimum that tax confirmation needs -- never the bound.
+    ``tax_stage_time_limit`` is Stage 2's own limit, replacing ``time_limit`` for that stage
+    (shorter or longer). Stage 1 delivers the lower bound; Stage 2 picks the next tax to propose
+    and, once the gap has closed, is the minimum that tax confirmation needs. Cutting it short
+    costs a possibly higher proposed tax and that confirmation -- never the bound -- and giving
+    it longer is how the least-intervention tax gets certified on cells where it is the slow
+    stage.
 
     ``lex_stage2=False`` runs Stage 1 only (the DBP-ablation variant A2, no
     lexicographic Stage-2 in the master): the returned ``tax_index`` is then an
@@ -750,11 +752,7 @@ def solve_leader_master_lexicographic(
     # decision; the relative MIPGap stays as the caller set it, and whichever criterion is met
     # first ends the pass.
     model.setObjective(tax_index_var, GRB.MINIMIZE)
-    stage2_time_limit = (
-        time_limit
-        if tax_stage_time_limit is None
-        else tax_stage_time_limit if time_limit is None else min(time_limit, tax_stage_time_limit)
-    )
+    stage2_time_limit = time_limit if tax_stage_time_limit is None else tax_stage_time_limit
     stage2 = optimize_model(
         artifacts,
         tax_index=None,

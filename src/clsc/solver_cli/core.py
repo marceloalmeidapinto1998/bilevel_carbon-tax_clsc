@@ -115,8 +115,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Gurobi time limit in seconds for the relaxation master's Stage 2 only (the tax "
-            "minimisation), on top of --master-time-limit, which still caps Stage 1 (the lower "
-            "bound). Default: no separate cap. Only supported with --method dbp_lex."
+            "minimisation), shorter or longer than --master-time-limit, which keeps governing "
+            "Stage 1 (the lower bound). Default: same as Stage 1. Only supported with --method dbp_lex."
         ),
     )
     parser.add_argument(

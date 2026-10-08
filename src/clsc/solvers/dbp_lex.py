@@ -220,7 +220,8 @@ class BilevelSolveResult:
     # With the incumbent's own tax as the attained upper bound, [tax_index_lower_bound, incumbent
     # tax] brackets the true least-intervention tax. Set once the emissions bounds have closed,
     # which is the precondition that makes the master's proposal a valid bound at all (see
-    # _min_tax_confirmed); None before that, and on paths that stop for time or stagnation.
+    # _min_tax_confirmed); None until a complete master has certified one. Kept through every later
+    # exit, including those for time or stagnation, so a timed-out master cannot erase it.
     tax_index_lower_bound: int | None = None
 
 
@@ -435,6 +436,13 @@ def _is_usable_partial_master(result: SolveResult) -> bool:
     )
 
 
+def _tax_bracket_lower(certified: int | None, incumbent: IncumbentSolution | None) -> int | None:
+    """The certified lower bound on the least-intervention tax, never above the incumbent's."""
+    if certified is None or incumbent is None:
+        return certified
+    return min(certified, incumbent.tax_index)
+
+
 def _master_returned_no_point(result: SolveResult) -> bool:
     """The master gave the loop nothing to propose: timed out without an incumbent, or
     reported infeasible (which, with every cut valid and the incumbent meeting the cap, can only
@@ -466,6 +474,7 @@ def _build_time_limit_result(
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
     termination_reason: str = "time_limit",
+    tax_index_lower_bound: int | None = None,
 ) -> BilevelSolveResult:
     """Return the best incumbent found so far when a time budget runs out.
 
@@ -498,6 +507,7 @@ def _build_time_limit_result(
             initial_relaxation_seconds=initial_relaxation_seconds,
             iteration_timings=tuple(iteration_timings),
         ),
+        tax_index_lower_bound=tax_index_lower_bound,
         incumbent_solution=incumbent_solution,
     )
 
@@ -548,6 +558,13 @@ class _WallClockBudget:
     def expired(self) -> bool:
         remaining = self.remaining()
         return remaining is not None and remaining <= 0.0
+
+    def tax_stage_time_limit(self, limit: float | None) -> float | None:
+        """The master's Stage-2 limit, clamped to what remains of the run's budget."""
+        if limit is None:
+            return None
+        remaining = self.remaining()
+        return limit if remaining is None else min(limit, max(remaining, 1.0))
 
     def subproblem_time_limit(self, *, master: bool = False) -> float | None:
         limit = self.master_limit if master else self.per_subproblem_limit
@@ -746,6 +763,7 @@ def _stagnation_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
+    tax_index_lower_bound: int | None = None,
 ) -> BilevelSolveResult:
     """``DEFAULT.stagnation_limit`` consecutive iterations moved neither bound: give up and report
     the best certificate in hand, classified by whether the achieved gap happens to already be
@@ -784,6 +802,7 @@ def _stagnation_result(
             initial_relaxation_seconds=initial_relaxation_seconds,
             iteration_timings=tuple(iteration_timings),
         ),
+        tax_index_lower_bound=tax_index_lower_bound,
         incumbent_solution=incumbent_solution,
     )
 
@@ -864,9 +883,10 @@ def solve_bilevel_dbp_lex(
     stops on its time limit does not end the run: its dual bound is taken as the lower bound and
     its incumbent's tax is proposed next, as in Soares et al. (2021, Sect. 7); such an iteration
     cannot confirm the least-intervention tax (``epsilon_optimal_tax_unconfirmed``).
-    ``master_tax_time_limit`` caps the master's Stage 2 (the tax minimisation) on its own; Stage 1,
-    which supplies the lower bound, keeps the full master limit. ``None`` leaves Stage 2 under the
-    same limit as Stage 1.
+    ``master_tax_time_limit`` is the master's Stage-2 (tax minimisation) limit on its own, shorter
+    or longer than the master limit; Stage 1, which supplies the lower bound, keeps the master
+    limit. ``None`` gives Stage 2 the same limit as Stage 1. This stage has no counterpart in
+    Soares et al. (their leader has no second criterion), so its budget is this method's choice.
     ``dbp_relative_gap`` overrides the
     DBP loop's own outer stopping criterion the same way -- it is unrelated
     to any Gurobi parameter.
@@ -971,7 +991,7 @@ def solve_bilevel_dbp_lex(
         seed=seed,
         lex_stage2=use_lex_master_stage2,
         leader_indifference_relative=leader_indifference_relative,
-        tax_stage_time_limit=master_tax_time_limit,
+        tax_stage_time_limit=budget.tax_stage_time_limit(master_tax_time_limit),
     )
     _require_optimal_or_usable_partial_master(relaxation, "initial DBP relaxation")
 
@@ -988,6 +1008,11 @@ def solve_bilevel_dbp_lex(
     iterations_without_bound_update = 0
     # Probes spent in the tax-descent phase (see the confirmation branch below).
     tax_descent_probes = 0
+    # The highest tax the master has CERTIFIED as a lower bound on the least-intervention tax: a
+    # Stage-2 proposal from a complete (not timed-out, not elastic) master once the emissions gap
+    # has closed (see _min_tax_confirmed). tau* is fixed, so a bound once valid stays valid; it is
+    # kept so that a later master that times out does not erase it from the report.
+    certified_tax_lower_bound: int | None = None
 
     for iteration in itertools.count(1):
         if budget.expired() and incumbent is not None:
@@ -1004,6 +1029,7 @@ def solve_bilevel_dbp_lex(
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
                 termination_reason="incumbent_wall_clock_cap",
+                tax_index_lower_bound=_tax_bracket_lower(certified_tax_lower_bound, incumbent),
             )
 
         current_relaxation_lower_bound = emissions_leader_lb
@@ -1044,6 +1070,7 @@ def solve_bilevel_dbp_lex(
                     iteration_timings=iteration_timings,
                     initial_relaxation_seconds=initial_relaxation_seconds,
                     termination_reason=_timeout_reason(budget),
+                    tax_index_lower_bound=_tax_bracket_lower(certified_tax_lower_bound, incumbent),
                 )
             raise SubproblemStatusError(
                 f"lexicographic follower solve at tax_index={tax_index}", lexicographic,
@@ -1132,7 +1159,7 @@ def solve_bilevel_dbp_lex(
             seed=seed,
             lex_stage2=use_lex_master_stage2,
             leader_indifference_relative=leader_indifference_relative,
-            tax_stage_time_limit=master_tax_time_limit,
+            tax_stage_time_limit=budget.tax_stage_time_limit(master_tax_time_limit),
         )
         if (
             use_elastic_master
@@ -1164,7 +1191,7 @@ def solve_bilevel_dbp_lex(
                 seed=seed,
                 lex_stage2=use_lex_master_stage2,
                 leader_indifference_relative=leader_indifference_relative,
-                tax_stage_time_limit=master_tax_time_limit,
+                tax_stage_time_limit=budget.tax_stage_time_limit(master_tax_time_limit),
             )
             relaxation_seconds += elastic_retry_seconds
         if _is_partial_master(relaxation) and not _is_usable_partial_master(relaxation):
@@ -1183,6 +1210,7 @@ def solve_bilevel_dbp_lex(
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
                 termination_reason=_timeout_reason(budget),
+                tax_index_lower_bound=_tax_bracket_lower(certified_tax_lower_bound, incumbent),
             )
         _require_optimal_or_usable_partial_master(relaxation, f"DBP relaxation after iteration {iteration}")
         relaxation_is_partial = _is_partial_master(relaxation)
@@ -1265,8 +1293,15 @@ def solve_bilevel_dbp_lex(
                     iteration_records=iteration_records,
                     iteration_timings=iteration_timings,
                     initial_relaxation_seconds=initial_relaxation_seconds,
-                    tax_index_lower_bound=None,
+                    # The last bound a complete master certified, if any: this master's own
+                    # proposal is not one.
+                    tax_index_lower_bound=_tax_bracket_lower(certified_tax_lower_bound, incumbent),
                 )
+            certified_tax_lower_bound = (
+                next_tax_index
+                if certified_tax_lower_bound is None
+                else max(certified_tax_lower_bound, next_tax_index)
+            )
             tax_proposal_confirms = next_tax_index >= incumbent.tax_index
             if effective_use_tax_confirmation and not _min_tax_confirmed(
                 incumbent_emissions=emissions_follower_ub_certificate.value,
@@ -1314,7 +1349,7 @@ def solve_bilevel_dbp_lex(
                     iteration_records=iteration_records,
                     iteration_timings=iteration_timings,
                     initial_relaxation_seconds=initial_relaxation_seconds,
-                    tax_index_lower_bound=next_tax_index,
+                    tax_index_lower_bound=_tax_bracket_lower(certified_tax_lower_bound, incumbent),
                 )
             return _gap_closed_result(
                 iteration=iteration,
@@ -1346,5 +1381,6 @@ def solve_bilevel_dbp_lex(
                 iteration_records=iteration_records,
                 iteration_timings=iteration_timings,
                 initial_relaxation_seconds=initial_relaxation_seconds,
+                tax_index_lower_bound=_tax_bracket_lower(certified_tax_lower_bound, incumbent),
             )
 
