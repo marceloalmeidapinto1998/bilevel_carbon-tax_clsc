@@ -764,11 +764,6 @@ def _solve_bilevel_dbp(
 
     ``seed`` sets the Gurobi ``Seed`` on every sub-solve (MIP performance-variability probes).
     """
-    instance = _coerce_instance(instance_or_path)
-    effective_time_limit = DEFAULT.time_limit if time_limit is None else time_limit
-    budget = _WallClockBudget(wall_clock_cap, effective_time_limit, master_time_limit)
-    effective_dbp_relative_gap = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
-    effective_master_mip_gap = DEFAULT.master_mip_gap if master_mip_gap is None else master_mip_gap
     if leader_tax_weight is not None and leader_tax_weight_relative is not None:
         raise ValueError("give either leader_tax_weight or leader_tax_weight_relative, not both")
     if leader_tax_weight is None and leader_tax_weight_relative is None:
@@ -778,115 +773,236 @@ def _solve_bilevel_dbp(
             "the leader's tax weight must be positive: with w = 0 the leader has no criterion "
             "to choose among taxes that abate the same"
         )
-
-    iteration_records: list[DbpIterationRecord] = []
-    iteration_timings: list[DbpIterationTiming] = []
-    # Plain cuts to begin with; made elastic in place only if the master ever returns no point.
-    relaxation_master = build_leader_master(instance)
-    follower_master = build_follower_master(instance)
-
-    def _solve_master():
-        return _solve_with_wall_time(
-            solve_dbp_master,
-            relaxation_master,
-            output_flag=output_flag,
-            time_limit=budget.subproblem_time_limit(master=True),
-            mip_gap=effective_master_mip_gap,
-            threads=threads,
-            mip_focus=mip_focus,
-            seed=seed,
-        )
-
-    scale_seconds = 0.0
-    usd_per_tonne_per_index = instance.scale_factor * 1000.0  # USD/t that one grid index is
-    if leader_tax_weight_relative is not None:
-        # The weight is relative to the least emissions the cut-free master can reach, which is a
-        # lower bound on the leader's emissions at any tax: a scale that exists before any
-        # follower has been solved, and that is the same on every instance. The master has no
-        # tax term yet, so this solve returns that emissions bound.
-        scale_run, scale_seconds = _solve_master()
-        _require_optimal_or_usable_partial_master(scale_run, "initial DBP relaxation (weight scale)")
-        reference_emissions = _required_value(scale_run.emissions, "reference emissions")
-        weight_usd_per_tonne = leader_tax_weight_relative * float(reference_emissions)
-    else:
-        weight_usd_per_tonne = float(leader_tax_weight)
-    tax_weight_per_index = weight_usd_per_tonne * usd_per_tonne_per_index
-    set_leader_tax_weight(relaxation_master, tax_weight_per_index)
+    run = _DbpRun(
+        _coerce_instance(instance_or_path),
+        output_flag=output_flag,
+        time_limit=DEFAULT.time_limit if time_limit is None else time_limit,
+        master_time_limit=master_time_limit,
+        wall_clock_cap=wall_clock_cap,
+        mip_gap=mip_gap,
+        master_mip_gap=DEFAULT.master_mip_gap if master_mip_gap is None else master_mip_gap,
+        dbp_relative_gap=DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap,
+        threads=threads,
+        mip_focus=mip_focus,
+        seed=seed,
+        use_warm_start=use_warm_start,
+        use_emissions_cap=use_emissions_cap,
+        use_follower_improvement=use_follower_improvement,
+        use_elastic_master=use_elastic_master,
+    )
+    weight_usd_per_tonne = run.set_tax_weight(leader_tax_weight, leader_tax_weight_relative)
     if _effective_tax_weight_sink is not None:
         _effective_tax_weight_sink["usd_per_tonne"] = weight_usd_per_tonne
+    return run.run()
 
-    relaxation, initial_relaxation_seconds = _solve_master()
-    initial_relaxation_seconds += scale_seconds
-    _require_optimal_or_usable_partial_master(relaxation, "initial DBP relaxation")
 
-    leader_objective_lb = _required_value(relaxation.emissions, "initial relaxation bound")
-    incumbent: IncumbentSolution | None = None
-    incumbent_solution = None
-    previous_follower_values: dict[str, float] | None = None
-    leader_objective_ub_certificate: BoundCertificate | None = None
-    # The best evaluated point (the one behind the UB certificate): the MIP start the elastic
-    # master is re-solved from, because it alone is sure to meet the objective cap.
-    best_ub_values: dict[str, float] | None = None
-    best_ub_tax_index: int | None = None
-    follower_variable_names: list[str] | None = None
-    iterations_without_bound_update = 0
+class _DbpRun:
+    """One DBP run: the fixed settings, the two models, and the state the loop carries.
 
-    for iteration in itertools.count(1):
-        if budget.expired() and incumbent is not None:
-            # Stop cleanly at the top of an iteration: the incumbent, its variable values and
-            # the last certified lower bound are all in hand, so the run reports a real
-            # (cost, emissions, gap) rather than nothing.
-            return _build_time_limit_result(
-                incumbent=incumbent,
-                incumbent_solution=incumbent_solution,
-                leader_objective_ub_certificate=leader_objective_ub_certificate,
-                leader_objective_lb=leader_objective_lb,
-                iteration=len(iteration_records),
-                iteration_records=iteration_records,
-                iteration_timings=iteration_timings,
-                initial_relaxation_seconds=initial_relaxation_seconds,
-                termination_reason="incumbent_wall_clock_cap",
+    ``run`` is Soares et al. (2021)'s loop; each step is one method. From here on
+    ``leader_objective_lb`` and ``ub_certificate`` are the bounds on the leader's objective F.
+    """
+
+    def __init__(
+        self,
+        instance: InstanceData,
+        *,
+        output_flag: bool,
+        time_limit: float,
+        master_time_limit: float | None,
+        wall_clock_cap: float | None,
+        mip_gap: float | None,
+        master_mip_gap: float,
+        dbp_relative_gap: float,
+        threads: int | None,
+        mip_focus: int | None,
+        seed: int | None,
+        use_warm_start: bool,
+        use_emissions_cap: bool,
+        use_follower_improvement: bool,
+        use_elastic_master: bool,
+    ) -> None:
+        self.instance = instance
+        self.output_flag = output_flag
+        self.budget = _WallClockBudget(wall_clock_cap, time_limit, master_time_limit)
+        self.mip_gap = mip_gap
+        self.master_mip_gap = master_mip_gap
+        self.dbp_relative_gap = dbp_relative_gap
+        self.threads = threads
+        self.mip_focus = mip_focus
+        self.seed = seed
+        self.use_warm_start = use_warm_start
+        self.use_emissions_cap = use_emissions_cap
+        self.use_follower_improvement = use_follower_improvement
+        self.use_elastic_master = use_elastic_master
+
+        # Plain cuts to begin with; made elastic in place only if the master ever returns no point.
+        self.relaxation_master = build_leader_master(instance)
+        self.follower_master = build_follower_master(instance)
+
+        self.tax_weight_per_index = 0.0
+        self.scale_seconds = 0.0
+        self.initial_relaxation_seconds = 0.0
+        self.iteration_records: list[DbpIterationRecord] = []
+        self.iteration_timings: list[DbpIterationTiming] = []
+        self.leader_objective_lb = 0.0
+        self.incumbent: IncumbentSolution | None = None
+        self.incumbent_solution: SolveResult | None = None
+        self.previous_follower_values: dict[str, float] | None = None
+        self.ub_certificate: BoundCertificate | None = None
+        # The best evaluated point (the one behind the UB certificate): the MIP start the elastic
+        # master is re-solved from, because it alone is sure to meet the objective cap.
+        self.best_ub_values: dict[str, float] | None = None
+        self.best_ub_tax_index: int | None = None
+        self.follower_variable_names: list[str] | None = None
+        self.iterations_without_bound_update = 0
+
+    # ---------------------------------------------------------------- setup
+
+    def solve_master(self) -> tuple[SolveResult, float]:
+        return _solve_with_wall_time(
+            solve_dbp_master,
+            self.relaxation_master,
+            output_flag=self.output_flag,
+            time_limit=self.budget.subproblem_time_limit(master=True),
+            mip_gap=self.master_mip_gap,
+            threads=self.threads,
+            mip_focus=self.mip_focus,
+            seed=self.seed,
+        )
+
+    def set_tax_weight(self, leader_tax_weight: float | None, leader_tax_weight_relative: float | None) -> float:
+        """Fix w in the master's objective and return it in kg per USD/t."""
+        usd_per_tonne_per_index = self.instance.scale_factor * 1000.0  # USD/t that one grid index is
+        if leader_tax_weight_relative is not None:
+            # The weight is relative to the least emissions the cut-free master can reach, which is a
+            # lower bound on the leader's emissions at any tax: a scale that exists before any
+            # follower has been solved, and that is the same on every instance. The master has no
+            # tax term yet, so this solve returns that emissions bound.
+            scale_run, self.scale_seconds = self.solve_master()
+            _require_optimal_or_usable_partial_master(scale_run, "initial DBP relaxation (weight scale)")
+            reference_emissions = _required_value(scale_run.emissions, "reference emissions")
+            weight_usd_per_tonne = leader_tax_weight_relative * float(reference_emissions)
+        else:
+            weight_usd_per_tonne = float(leader_tax_weight)
+        self.tax_weight_per_index = weight_usd_per_tonne * usd_per_tonne_per_index
+        set_leader_tax_weight(self.relaxation_master, self.tax_weight_per_index)
+        return weight_usd_per_tonne
+
+    # ---------------------------------------------------------------- results
+
+    def _result_inputs(self, iteration: int) -> dict:
+        return dict(
+            iteration=iteration,
+            leader_objective_lb=self.leader_objective_lb,
+            incumbent=self.incumbent,
+            incumbent_solution=self.incumbent_solution,
+            leader_objective_ub_certificate=self.ub_certificate,
+            iteration_records=self.iteration_records,
+            iteration_timings=self.iteration_timings,
+            initial_relaxation_seconds=self.initial_relaxation_seconds,
+        )
+
+    def time_limit_result(self, iteration: int, termination_reason: str) -> BilevelSolveResult:
+        return _build_time_limit_result(**self._result_inputs(iteration), termination_reason=termination_reason)
+
+    # ---------------------------------------------------------------- the loop
+
+    def run(self) -> BilevelSolveResult:
+        relaxation, initial_seconds = self.solve_master()
+        self.initial_relaxation_seconds = initial_seconds + self.scale_seconds
+        _require_optimal_or_usable_partial_master(relaxation, "initial DBP relaxation")
+        self.leader_objective_lb = _required_value(relaxation.emissions, "initial relaxation bound")
+
+        for iteration in itertools.count(1):
+            if self.budget.expired() and self.incumbent is not None:
+                # Stop cleanly at the top of an iteration: the incumbent, its variable values and
+                # the last certified lower bound are all in hand, so the run reports a real
+                # (cost, emissions, gap) rather than nothing.
+                return self.time_limit_result(len(self.iteration_records), "incumbent_wall_clock_cap")
+
+            current_relaxation_lower_bound = self.leader_objective_lb
+            tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
+
+            evaluated = self.evaluate_follower(tax_index, iteration)
+            if isinstance(evaluated, BilevelSolveResult):
+                return evaluated
+            follower_response, follower_seconds, follower_time_limited, candidate = evaluated
+            incumbent_updated = self.update_incumbent(candidate, follower_response, follower_time_limited)
+            self.add_cut(candidate, follower_response, iteration)
+
+            relaxation, relaxation_seconds = self.solve_master_with_remedy()
+            if _is_partial_master(relaxation) and not _is_usable_partial_master(relaxation):
+                # Timed out with nothing to propose next (no incumbent point). The dual bound it did
+                # prove is still valid, so keep it in the reported gap before stopping.
+                if relaxation.leader_lower_bound is not None:
+                    self.leader_objective_lb = max(self.leader_objective_lb, relaxation.leader_lower_bound)
+                # Follower completed this iteration, so the incumbent is guaranteed set.
+                return self.time_limit_result(iteration, _timeout_reason(self.budget))
+            _require_optimal_or_usable_partial_master(relaxation, f"DBP relaxation after iteration {iteration}")
+
+            lower_bound_updated = self.update_lower_bound(relaxation)
+            self.record_iteration(
+                iteration=iteration,
+                tax_index=tax_index,
+                current_relaxation_lower_bound=current_relaxation_lower_bound,
+                follower_response=follower_response,
+                follower_seconds=follower_seconds,
+                follower_time_limited=follower_time_limited,
+                candidate=candidate,
+                relaxation=relaxation,
+                relaxation_seconds=relaxation_seconds,
             )
 
-        current_relaxation_lower_bound = leader_objective_lb
-        tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
+            stop = self.step6(relaxation, tax_index, iteration)
+            if stop is not None:
+                return stop
 
+            if incumbent_updated or lower_bound_updated:
+                self.iterations_without_bound_update = 0
+            else:
+                self.iterations_without_bound_update += 1
+            if self.iterations_without_bound_update >= DEFAULT.stagnation_limit:
+                return _stagnation_result(
+                    **self._result_inputs(iteration),
+                    relaxation_mip_gap=relaxation.mip_gap,
+                    effective_dbp_relative_gap=self.dbp_relative_gap,
+                )
+        raise AssertionError("unreachable")  # pragma: no cover - itertools.count never ends
+
+    # ---------------------------------------------------------------- one step each
+
+    def evaluate_follower(self, tax_index: int, iteration: int):
+        """Steps 2-3: the follower's optimistic response at ``tax_index``.
+
+        Returns (response, seconds, time_limited, candidate), or the result to stop with.
+        """
         follower_response, follower_seconds = _solve_with_wall_time(
             solve_follower_lexicographic,
-            follower_master,
+            self.follower_master,
             tax_index=tax_index,
-            output_flag=output_flag,
-            time_limit=budget.subproblem_time_limit(),
+            output_flag=self.output_flag,
+            time_limit=self.budget.subproblem_time_limit(),
             capture_solution=True,
-            warm_start_values=previous_follower_values if use_warm_start else None,
-            mip_gap=mip_gap,
-            threads=threads,
-            mip_focus=mip_focus,
-            seed=seed,
-            use_follower_improvement=use_follower_improvement,
+            warm_start_values=self.previous_follower_values if self.use_warm_start else None,
+            mip_gap=self.mip_gap,
+            threads=self.threads,
+            mip_focus=self.mip_focus,
+            seed=self.seed,
+            use_follower_improvement=self.use_follower_improvement,
         )
         # A follower that stopped on its time limit WITH a response is used, as Soares et al.
         # (2021, Sect. 7) use a gapped (P3)/(P4-D) solution; only a follower with no response
         # at all ends the run.
         if not follower_response.has_solution and follower_response.status_name == "TIME_LIMIT":
-            if incumbent is not None:
-                iteration_timings.append(DbpIterationTiming(
+            if self.incumbent is not None:
+                self.iteration_timings.append(DbpIterationTiming(
                     iteration=iteration,
                     follower_seconds=follower_seconds,
                     optimistic_seconds=0.0,
                     relaxation_seconds=0.0,
                 ))
-                return _build_time_limit_result(
-                    incumbent=incumbent,
-                    incumbent_solution=incumbent_solution,
-                    leader_objective_ub_certificate=leader_objective_ub_certificate,
-                    leader_objective_lb=leader_objective_lb,
-                    iteration=len(iteration_records),
-                    iteration_records=iteration_records,
-                    iteration_timings=iteration_timings,
-                    initial_relaxation_seconds=initial_relaxation_seconds,
-                    termination_reason=_timeout_reason(budget),
-                )
+                return self.time_limit_result(len(self.iteration_records), _timeout_reason(self.budget))
             raise SubproblemStatusError(
                 f"follower solve at tax_index={tax_index}", follower_response,
             )
@@ -896,7 +1012,7 @@ def _solve_bilevel_dbp(
             )
         follower_time_limited = follower_response.status_name != "OPTIMAL"
         if follower_response.variable_values is not None:
-            previous_follower_values = follower_response.variable_values
+            self.previous_follower_values = follower_response.variable_values
 
         candidate = IncumbentSolution(
             tax_index=tax_index,
@@ -906,17 +1022,22 @@ def _solve_bilevel_dbp(
                 follower_response.follower_objective,
                 "follower objective",
             ),
-            scale_factor=instance.scale_factor,
+            scale_factor=self.instance.scale_factor,
         )
-        # The leader's value at this point, F = E + w * tax_index. The incumbent IS the point that
-        # attains the upper bound: the least F evaluated, and at an exact tie the lower tax.
-        candidate_value = candidate.emissions + tax_weight_per_index * tax_index
-        incumbent_updated = _is_better_scalar(candidate, incumbent, tax_weight_per_index)
+        return follower_response, follower_seconds, follower_time_limited, candidate
+
+    def update_incumbent(
+        self, candidate: IncumbentSolution, follower_response: SolveResult, follower_time_limited: bool,
+    ) -> bool:
+        """Step 4: the upper bound. The incumbent IS the point that attains it: the least
+        F = E + w * tax_index evaluated, and at an exact tie the lower tax."""
+        candidate_value = candidate.emissions + self.tax_weight_per_index * candidate.tax_index
+        incumbent_updated = _is_better_scalar(candidate, self.incumbent, self.tax_weight_per_index)
         if incumbent_updated:
-            incumbent = candidate
-            incumbent_solution = follower_response
-        if leader_objective_ub_certificate is None or candidate_value < leader_objective_ub_certificate.value:
-            leader_objective_ub_certificate = BoundCertificate(
+            self.incumbent = candidate
+            self.incumbent_solution = follower_response
+        if self.ub_certificate is None or candidate_value < self.ub_certificate.value:
+            self.ub_certificate = BoundCertificate(
                 value=candidate_value,
                 # A response from a follower that stopped on its time limit is the best one
                 # found, not a proven best response: its F bounds the leader only up to that
@@ -926,15 +1047,18 @@ def _solve_bilevel_dbp(
                 slack=0.0,
                 source="follower" if not follower_time_limited else "follower_time_limited",
             )
-            best_ub_values = follower_response.variable_values
-            best_ub_tax_index = tax_index
+            self.best_ub_values = follower_response.variable_values
+            self.best_ub_tax_index = candidate.tax_index
+        return incumbent_updated
 
+    def add_cut(self, candidate: IncumbentSolution, follower_response: SolveResult, iteration: int) -> None:
+        """Step 5: add the evaluated point's value-function cut, and the objective caps."""
         # (P5-eps'): f(x, y) <= f(x, y_k) + eps', with eps' added by add_value_function_cut. Not
         # loosened by the follower's MIP gap: the cut is valid for ANY feasible y_k (Soares et
         # al.'s Lemma 2 -- the follower's constraints do not depend on x), proven best response
         # or not, so widening it only weakens the master.
         cut = ValueFunctionCut(
-            tax_index=tax_index,
+            tax_index=candidate.tax_index,
             cost=candidate.cost,
             emissions=candidate.emissions,
             # The cut's tau-coefficient must be the quantity the follower was
@@ -944,72 +1068,65 @@ def _solve_bilevel_dbp(
             tax_base=follower_response.tax_base,
             iteration=iteration,
         )
-        add_value_function_cut(relaxation_master, cut)
-        if use_emissions_cap:
+        add_value_function_cut(self.relaxation_master, cut)
+        if self.use_emissions_cap:
             # E <= UB holds at any point with F <= UB (the tax term is non-negative), and it is
             # what lets the one-hot gadget's big-M be tightened; set_leader_objective_cap adds the
             # tighter F <= UB (Soares et al. / Mitsos).
-            set_emissions_cap(
-                relaxation_master, leader_objective_ub_certificate.value,
-            )
-            set_leader_objective_cap(relaxation_master, leader_objective_ub_certificate.value)
+            set_emissions_cap(self.relaxation_master, self.ub_certificate.value)
+            set_leader_objective_cap(self.relaxation_master, self.ub_certificate.value)
 
-        relaxation, relaxation_seconds = _solve_master()
+    def solve_master_with_remedy(self) -> tuple[SolveResult, float]:
+        """Step 5 (re-solve): the master, made elastic in place the first time it returns no point."""
+        relaxation, relaxation_seconds = self.solve_master()
         if (
-            use_elastic_master
+            self.use_elastic_master
             and _master_returned_no_point(relaxation)
-            and not relaxation_master.elastic
-            and best_ub_values is not None
-            and best_ub_tax_index is not None
+            and not self.relaxation_master.elastic
+            and self.best_ub_values is not None
+            and self.best_ub_tax_index is not None
         ):
             # (P5-D) as a remedy (Soares et al. 2021, Difficulty 1): the plain master returned
             # no point, so make its cuts elastic and re-solve from the best evaluated point,
             # which the elastic master is bound to accept. Its time counts toward this
             # iteration's relaxation_seconds.
-            enable_elastic_cuts(relaxation_master)
-            if follower_variable_names is None:
-                follower_variable_names = [
-                    variable.VarName for variable in follower_master.artifacts.model.getVars()
+            enable_elastic_cuts(self.relaxation_master)
+            if self.follower_variable_names is None:
+                self.follower_variable_names = [
+                    variable.VarName for variable in self.follower_master.artifacts.model.getVars()
                 ]
             set_leader_master_start(
-                relaxation_master, best_ub_values, follower_variable_names, best_ub_tax_index,
+                self.relaxation_master, self.best_ub_values, self.follower_variable_names, self.best_ub_tax_index,
             )
-            relaxation, elastic_retry_seconds = _solve_master()
+            relaxation, elastic_retry_seconds = self.solve_master()
             relaxation_seconds += elastic_retry_seconds
-        if _is_partial_master(relaxation) and not _is_usable_partial_master(relaxation):
-            # Timed out with nothing to propose next (no incumbent point). The dual bound it did
-            # prove is still valid, so keep it in the reported gap before stopping.
-            if relaxation.leader_lower_bound is not None:
-                leader_objective_lb = max(leader_objective_lb, relaxation.leader_lower_bound)
-            # Follower completed this iteration, so the incumbent is guaranteed set.
-            return _build_time_limit_result(
-                incumbent=incumbent,
-                incumbent_solution=incumbent_solution,
-                leader_objective_ub_certificate=leader_objective_ub_certificate,
-                leader_objective_lb=leader_objective_lb,
-                iteration=iteration,
-                iteration_records=iteration_records,
-                iteration_timings=iteration_timings,
-                initial_relaxation_seconds=initial_relaxation_seconds,
-                termination_reason=_timeout_reason(budget),
-            )
-        _require_optimal_or_usable_partial_master(relaxation, f"DBP relaxation after iteration {iteration}")
-        relaxation_is_partial = _is_partial_master(relaxation)
+        return relaxation, relaxation_seconds
 
+    def update_lower_bound(self, relaxation: SolveResult) -> bool:
         # The master only ever GAINS constraints, so its optimum cannot fall -- but the value
         # read off it is ObjBound at mip_gap, which oscillates within that gap (measured: a
         # 15 kg drop between consecutive iterations on STD_I17_M4_T3). Each iteration's value is
         # individually a valid bound, so their maximum is too, and keeping it makes the
         # certified lower bound monotone.
         relaxation_lower_bound = _required_value(relaxation.emissions, "relaxation bound")
-        previous_lower_bound = leader_objective_lb
-        leader_objective_lb = max(leader_objective_lb, relaxation_lower_bound)
-        lower_bound_updated = leader_objective_lb > previous_lower_bound + DEFAULT.eps
-        relaxation_elastic_slack = relaxation.slack_value
-        # The penalty is in tonnes per USD of violation, so anything above round-off is a real one.
-        elastic_active = relaxation_elastic_slack is not None and relaxation_elastic_slack > 1e-6
-        next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
-        iteration_records.append(
+        previous_lower_bound = self.leader_objective_lb
+        self.leader_objective_lb = max(self.leader_objective_lb, relaxation_lower_bound)
+        return self.leader_objective_lb > previous_lower_bound + DEFAULT.eps
+
+    def record_iteration(
+        self,
+        *,
+        iteration: int,
+        tax_index: int,
+        current_relaxation_lower_bound: float,
+        follower_response: SolveResult,
+        follower_seconds: float,
+        follower_time_limited: bool,
+        candidate: IncumbentSolution,
+        relaxation: SolveResult,
+        relaxation_seconds: float,
+    ) -> None:
+        self.iteration_records.append(
             DbpIterationRecord(
                 iteration=iteration,
                 relaxation_tax_index=tax_index,
@@ -1019,20 +1136,20 @@ def _solve_bilevel_dbp(
                 optimistic_seconds=0.0,
                 optimistic_cost=candidate.cost,
                 optimistic_emissions=candidate.emissions,
-                leader_objective_ub=leader_objective_ub_certificate.value,
+                leader_objective_ub=self.ub_certificate.value,
                 relaxation_seconds=relaxation_seconds,
-                next_relaxation_tax_index=next_tax_index,
-                next_relaxation_lower_bound=leader_objective_lb,
+                next_relaxation_tax_index=_required_value(relaxation.tax_index, "next relaxation tax_index"),
+                next_relaxation_lower_bound=self.leader_objective_lb,
                 relaxation_mip_gap=relaxation.mip_gap,
-                relaxation_partial=relaxation_is_partial,
-                relaxation_elastic_slack=relaxation_elastic_slack,
+                relaxation_partial=_is_partial_master(relaxation),
+                relaxation_elastic_slack=relaxation.slack_value,
                 follower_mip_gap=follower_response.mip_gap,
                 follower_time_limited=follower_time_limited,
                 follower_improved=follower_response.follower_improved,
                 follower_stage2_fallback=follower_response.follower_stage2_fallback,
             )
         )
-        iteration_timings.append(
+        self.iteration_timings.append(
             DbpIterationTiming(
                 iteration=iteration,
                 follower_seconds=follower_seconds,
@@ -1041,61 +1158,25 @@ def _solve_bilevel_dbp(
             )
         )
 
+    def step6(self, relaxation: SolveResult, tax_index: int, iteration: int) -> BilevelSolveResult | None:
+        """Step 6: once the gap has closed the result is at least epsilon-optimal; if the master
+        re-proposes the tax just evaluated, Lemma 3 makes it optimal. The lemma needs a proper
+        master solution (not a timed-out incumbent, not an elastic point) and a proven best
+        response behind the upper bound. Returns None while the gap is open."""
+        gap = relative_optimality_gap(
+            leader_objective_ub=self.ub_certificate.value,
+            leader_objective_lb=self.leader_objective_lb,
+        )
+        if gap > self.dbp_relative_gap:
+            return None
+        # The penalty is in tonnes per USD of violation, so anything above round-off is a real one.
+        elastic_active = relaxation.slack_value is not None and relaxation.slack_value > 1e-6
+        next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
         if (
-            relative_optimality_gap(
-                leader_objective_ub=leader_objective_ub_certificate.value,
-                leader_objective_lb=leader_objective_lb,
-            )
-            <= effective_dbp_relative_gap
+            not _is_partial_master(relaxation)
+            and not elastic_active
+            and self.ub_certificate.exact
+            and next_tax_index == tax_index
         ):
-            # Step 6: the gap has closed, so the result is at least epsilon-optimal; if the
-            # master re-proposes the tax just evaluated, Lemma 3 makes it optimal. The lemma
-            # needs a proper master solution (not a timed-out incumbent, not an elastic point)
-            # and a proven best response behind the upper bound.
-            if (
-                not relaxation_is_partial
-                and not elastic_active
-                and leader_objective_ub_certificate.exact
-                and next_tax_index == tax_index
-            ):
-                return _gap_closed_result(
-                    iteration=iteration,
-                    leader_objective_lb=leader_objective_lb,
-                    incumbent=incumbent,
-                    incumbent_solution=incumbent_solution,
-                    leader_objective_ub_certificate=leader_objective_ub_certificate,
-                    relaxation_mip_gap=relaxation.mip_gap,
-                    iteration_records=iteration_records,
-                    iteration_timings=iteration_timings,
-                    initial_relaxation_seconds=initial_relaxation_seconds,
-                )
-            return _epsilon_optimal_result(
-                iteration=iteration,
-                leader_objective_lb=leader_objective_lb,
-                incumbent=incumbent,
-                incumbent_solution=incumbent_solution,
-                leader_objective_ub_certificate=leader_objective_ub_certificate,
-                relaxation_mip_gap=relaxation.mip_gap,
-                iteration_records=iteration_records,
-                iteration_timings=iteration_timings,
-                initial_relaxation_seconds=initial_relaxation_seconds,
-            )
-
-        if incumbent_updated or lower_bound_updated:
-            iterations_without_bound_update = 0
-        else:
-            iterations_without_bound_update += 1
-
-        if iterations_without_bound_update >= DEFAULT.stagnation_limit:
-            return _stagnation_result(
-                iteration=iteration,
-                leader_objective_lb=leader_objective_lb,
-                incumbent=incumbent,
-                incumbent_solution=incumbent_solution,
-                leader_objective_ub_certificate=leader_objective_ub_certificate,
-                relaxation_mip_gap=relaxation.mip_gap,
-                effective_dbp_relative_gap=effective_dbp_relative_gap,
-                iteration_records=iteration_records,
-                iteration_timings=iteration_timings,
-                initial_relaxation_seconds=initial_relaxation_seconds,
-            )
+            return _gap_closed_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)
+        return _epsilon_optimal_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)
