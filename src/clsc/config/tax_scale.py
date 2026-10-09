@@ -23,21 +23,14 @@ from __future__ import annotations
 # described that way. It also halves the one-hot gadget: 201 binaries instead of 401, in
 # a master that is ~95% of every run's wall time.
 #
-# ONE resolution for the whole project: every base instance, every campaign design point and
-# every execution mode (bilevel, fixed_tax) is generated, stored, and solved at it.
-# There used to be two -- a coarse 0.01 baked into the generated base instances and a finer 5e-4
-# the campaign rescaled onto at solve time -- and keeping them apart caused a silent 100x
-# tau-scale mismatch once (see clsc.campaign.orchestrator, "Tax-scale consistency"). Base
-# instances are now generated directly at this resolution (clsc.generator.config.TAX_SCALE_FACTOR
-# imports this constant), so with_tax_grid_step() is a no-op on any current one; it survives as
-# the mechanism for a deliberate probe at a different resolution, not as part of the normal path.
+# ONE resolution for the whole project: every base instance is generated, stored and solved at
+# it (clsc.generator.config.TAX_SCALE_FACTOR imports this constant), so with_tax_grid_step() is a
+# no-op on any current instance; it survives as the mechanism for a deliberate probe at a
+# different resolution. Two resolutions used to coexist (a coarse one baked into the instances and
+# a finer one applied at solve time), and keeping them apart once caused a silent 100x tau-scale
+# mismatch -- which is why there is now only this one.
 #
-# 5e-4 (0.5 USD/t per step, 401 levels) was chosen over the previously-planned 1e-4 (0.1 USD/t,
-# 2001 levels) because the DBP loop did not converge at that finer resolution: on STD_TOY6 it
-# exhausted its iteration cap and reported a tax far from its least-intervention edge. The
-# failure looked like a threshold in level count rather than a gradient -- <=401 converged in
-# single-digit iterations, >=1001 never did. That finding predates the 2026-09-10 scale fix
-# (EMISSIONS_SCALE 1e6 -> 1e3), which repaired an invalid lower bound caused by the master's
-# coefficient range; whether the fine-resolution non-convergence survives that repair has NOT
-# been retested. Treat it as an open question, not a settled limit.
+# Finer grids (1e-4, 2001 levels) were once observed not to converge, before the 2026-09-10 fix
+# of EMISSIONS_SCALE (1e6 -> 1e3) repaired an invalid lower bound caused by the master's
+# coefficient range. Whether that non-convergence survives the repair has NOT been retested.
 TAX_SCALE_FACTOR = 1e-3

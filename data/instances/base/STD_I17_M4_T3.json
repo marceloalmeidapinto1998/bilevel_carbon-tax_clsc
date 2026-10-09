@@ -3,7 +3,6 @@
   "metadata": {
     "generated_at_utc": "2026-09-09T10:59:23.042686+00:00",
     "seed": 1456480296,
-    "source_model": "paper/bilevel_model.tex",
     "sampling_rules_module": "clsc.generator.tautenhain_data",
     "config": {
       "suppliers": 3,

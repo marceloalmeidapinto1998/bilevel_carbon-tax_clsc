@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bilevel-clsc-carbon-pricing"
 version = "0.1.0"
-description = "Bilevel optimization of a Closed-Loop Supply Chain under a carbon tax (DBP solver + DOE campaign)."
+description = "Bilevel optimization of a Closed-Loop Supply Chain under a carbon tax (DBP solver)."
 readme = "README.md"
 requires-python = ">=3.12"
 # TODO(publication): choose a license (MIT / Apache-2.0 / BSD-3-Clause) and add a LICENSE
@@ -25,11 +25,6 @@ keywords = [
 dependencies = [
     "gurobipy>=13,<14",
     "pyyaml>=6,<7",
-    "pandas>=2,<3",
-    "matplotlib>=3.8,<4",
-    "numpy>=1.26,<3",
-    "seaborn>=0.13,<1",
-    "SALib>=1.4,<2",
 ]
 
 [project.optional-dependencies]

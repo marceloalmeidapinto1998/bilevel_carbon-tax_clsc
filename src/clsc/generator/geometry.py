@@ -78,16 +78,6 @@ def _connect_layers(
     return [[origin, destination] for origin, destination in ordered_pairs], distance_lookup
 
 
-def _distances_for_arcs(
-    arcs: list[list[str]],
-    coordinates: dict[str, dict[str, float]],
-) -> dict[tuple[str, str], float]:
-    return {
-        (origin, destination): _distance_km(origin, destination, coordinates)
-        for origin, destination in arcs
-    }
-
-
 def _unique_arcs(*arc_groups: Iterable[list[str]]) -> list[list[str]]:
     arcs: set[tuple[str, str]] = set()
     for group in arc_groups:

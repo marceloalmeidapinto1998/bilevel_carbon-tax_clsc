@@ -37,7 +37,7 @@ SIZE_PATTERN = re.compile(r"^I(?P<entities>\d+)_M(?P<materials>\d+)_T(?P<periods
 
 # Escalation-only bases: NOT part of the standard 12 (SIZE_SUFFIXES) and not written by
 # `python -m clsc.generator benchmark`. Each pushes one axis (materials/products richness, or
-# node count) past the standard testbed's range, for the scalability curves in Experiment 2.
+# node count) past the standard testbed's range, for scalability probes.
 # STD_I25_M12_T6 is the pre-existing escalation probe; STD_I25_M16_T6 and STD_I33_M8_T6 extend
 # the materials/products and node-count axes by one further point each.
 ESCALATION_SUFFIXES = (
@@ -169,7 +169,7 @@ def build_base_benchmark_specs(seed_base: int = 0) -> list[BenchmarkSpec]:
 
 def build_escalation_specs(seed_base: int = 0) -> list[BenchmarkSpec]:
     """Escalation-only bases (`ESCALATION_SUFFIXES`): one point beyond the standard 12 on each of
-    the materials/products and node-count axes, for Experiment 2's scalability curves. Built the
+    the materials/products and node-count axes, for scalability probes. Built the
     same deterministic way as `build_base_benchmark_specs`, just over a different suffix list --
     these are not part of the standard benchmark set and are not written by
     `python -m clsc.generator benchmark`.
@@ -282,22 +282,6 @@ def _deterministic_seed(seed_base: int, prefix: str, suffix: str) -> int:
     seed_material = f"{seed_base}:{prefix}:{suffix}".encode("utf-8")
     digest = hashlib.sha256(seed_material).hexdigest()
     return int(digest[:8], 16)
-
-
-def _equalized_dictionary(values: dict[str, float], *, decimals: int) -> dict[str, float]:
-    if not values:
-        return {}
-    mean_value = round(sum(values.values()) / len(values), decimals)
-    return {key: mean_value for key in values}
-
-
-def _require_nested_parameter(instance: GeneratedInstance, parameter_name: str) -> dict[str, Any]:
-    if parameter_name not in instance.parameters:
-        raise KeyError(f"Missing required parameter '{parameter_name}' in instance '{instance.name}'")
-    parameter = instance.parameters[parameter_name]
-    if not isinstance(parameter, dict):
-        raise TypeError(f"Parameter '{parameter_name}' must be a dictionary")
-    return parameter
 
 
 def _set_base_metadata(instance: GeneratedInstance, spec: BenchmarkSpec) -> None:

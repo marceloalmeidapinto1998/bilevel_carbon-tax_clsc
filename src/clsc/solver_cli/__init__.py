@@ -1,8 +1,7 @@
 """Command-line batch solver for bilevel CLSC instances.
 
-The implementation lives in :mod:`clsc.solver_cli.core`; the campaign orchestrator
-shells out to ``python -m clsc.solver_cli.solve_batch`` (or the equivalent
-``clsc/solver_cli/solve_batch.py`` script path).
+The implementation lives in :mod:`clsc.solver_cli.core`; run it as
+``python -m clsc.solver_cli.solve_batch``.
 """
 
 from .core import (

@@ -5,77 +5,55 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class ToleranceConfig:
-    """All gap, tolerance, and solver-configuration parameters for the
-    bilevel CLSC solver suite.
+    """Tolerances, budgets and Gurobi settings for the bilevel CLSC solver.
 
-    Eight primary algorithm knobs and three Gurobi pass-through settings.
-    ``eps`` is the single numerical tolerance used everywhere a tolerance
-    is required. ``mip_gap`` is the single MIP-gap target used for every
-    follower sub-solve (plain, optimistic tie-break, and both stages of
-    the lexicographic solve) across all five bilevel solvers, so that no
-    solver can report a different incumbent than another purely because
-    it stopped at a looser gap.
+    The defaults ARE the method: a solve with no override runs the configuration below, whose
+    values come from the literature rather than from calibration on these instances.
 
-    ``lex_epsilon_prime`` is a *relative* fraction of the primary
-    (cost + tau*emissions) objective's magnitude, not a fixed absolute
-    amount: it is the baseline numerical-noise floor for the Stage-1 ->
-    Stage-2 freeze used by the optimistic tie-break (see
-    ``subproblems.lex_freeze_tolerance``). The freeze tolerance actually
-    applied is ``max(eps, lex_epsilon_prime * |primary_optimum|)`` -- Soares
-    et al. (2021)'s ``f <= f* + eps'``. It is no longer widened by Stage 1's
-    MIP gap (see lex_freeze_tolerance for why that widening admitted
-    non-optimal responses rather than protecting optimal ones).
+    ``dbp_relative_gap`` (eps = 1e-4) is the DBP's own stopping tolerance, Soares et al. (2021)'s
+    eps. ``mip_gap`` (1e-2) is the follower's MIP gap, Tautenhain et al. (2021)'s CPLEX stopping
+    criterion for this follower model. ``master_mip_gap`` (1e-4) is the relaxation master's, the
+    solver default, which is what Soares et al. ran their relaxation at: a percentage target on the
+    master would freeze the lower bound at its first dual bound, since the master would stop as
+    soon as its incumbent sat within that percentage of the bound. ``time_limit`` (600 s) bounds
+    each MILP subproblem, as in Soares et al., who bound the subproblems and not the run.
+    ``stagnation_limit`` (10) is their auxiliary stop: the run ends after that many iterations in
+    which neither bound moved.
 
-    ``dbp_cut_epsilon`` and ``dbp_cut_epsilon_relative`` together size the
-    slack added to the leader-side DBP relaxation cuts' right-hand side,
-    guarding against floating-point round-off in ``cut.cost`` (a *different*
-    Gurobi model reconstructing the same physical point) rather than against
-    any MIP-gap uncertainty. The slack actually applied is
-    ``max(dbp_cut_epsilon, dbp_cut_epsilon_relative * |cut.cost|)``:
-    ``dbp_cut_epsilon`` is a genuinely round-off-scale absolute floor for
-    near-zero-cost degenerate cases, and ``dbp_cut_epsilon_relative`` is the
-    term that actually does the work at realistic cost scales (it lands
-    close to this project's previous fixed 0.1 USD at the ~1e6 USD scale of
-    the real instances, but -- unlike a fixed constant -- shrinks
-    proportionally on a small (e.g. unit-test-scale) instance instead of
-    becoming a large fraction of its cost differences.
+    ``tax_weight_relative`` (q = 1e-4) sets the leader's tax weight w = q * E_ref, E_ref being the
+    least emissions the cut-free master can reach: q is the fraction of the minimum emissions the
+    regulator gives up per 1 USD/t of tax saved. It is a POLICY ASSUMPTION, not a tolerance --
+    q = 1e-4 reads "lose 1% of the minimum emissions to avoid 100 USD/t of tax" -- and it is meant
+    to be declared and varied. The DBP resolves the tax to about ``dbp_relative_gap / q`` USD/t
+    (1 USD/t at these values).
+
+    ``lex_epsilon_prime`` is eps' for the follower's optimistic tie-break, ``f <= f* + eps'``, as a
+    relative fraction of the follower objective (Soares et al.'s eps' = 1e-5 sits on objectives
+    of a few euros, i.e. ~1e-6 relative). ``dbp_cut_epsilon`` (their eps' = 1e-5, absolute) and
+    ``dbp_cut_epsilon_relative`` size the slack on the master's cuts,
+    ``max(dbp_cut_epsilon, dbp_cut_epsilon_relative * |cut.cost|)``, which guards against
+    round-off between two Gurobi models reconstructing the same point; at this project's cost
+    scale (~1e6 USD) the relative term (~0.1 USD) is the one that binds. ``eps`` is the absolute
+    numerical floor used where a tolerance is needed near zero. ``elastic_penalty_mult`` sizes
+    the penalty on the master's elastic cut slacks (see build_leader_master).
     """
 
-    # ----- Primary algorithm knobs (8) -----
+    # ----- Algorithm -----
     eps: float = 1e-7
-    # NEUTRAL FALLBACK, not the campaign setting. The campaign (clsc.campaign.orchestrator, from
-    # 2026-10-08) sets mip_gap = 1e-2 -- Tautenhain et al. (2021)'s CPLEX stopping criterion for
-    # this very follower model ("GAP ... less than or equal to 1%") -- for the follower, 1e-4 (the
-    # solver default) for the relaxation master, and dbp_relative_gap = 1e-4, Soares et al.
-    # (2021)'s eps. Where a subproblem stops on its time limit the eps criterion cannot be met,
-    # and the run ends on the auxiliary stagnation stop and reports the interval [LB, UB]. The values below remain the fallback for
-    # direct calls that pass no override. The earlier "dbp_relative_gap == mip_gap" invariant
-    # therefore holds only for this fallback, not
-    # for the campaign. A dbp_lex solve run without CAMPAIGN_* overrides falls back to these 1%
-    # tolerances; the run is not hidden (manifest.json records the tolerances used), but it is
-    # NOT the campaign method.
+    dbp_relative_gap: float = 1e-4
     mip_gap: float = 1e-2
-    dbp_relative_gap: float = 1e-2
+    master_mip_gap: float = 1e-4
+    time_limit: float = 600.0
+    stagnation_limit: int = 10
+    tax_weight_relative: float = 1e-4
     lex_epsilon_prime: float = 1e-6
-    # Soares et al. (2021)'s eps' = 1e-5, as the cuts' absolute slack floor. At this project's
-    # cost scale (~1e6 USD) the relative term below (~0.1 USD) is the one that binds.
     dbp_cut_epsilon: float = 1e-5
     dbp_cut_epsilon_relative: float = 1e-7
-    # Was raised 10 -> 20 (2026-07-07) after several bilevel solves (STD_I25_M8_T3's baseline,
-    # some Family D large-instance cells) hit stagnation_limit_gap_not_closed in the outer DBP
-    # loop well before the 1% mip_gap target. Reverted to 10 (2026-09-09) to match Soares et al.
-    # (2021)'s own auxiliary stopping condition exactly ("if both UB_F and LB_F remain unchanged
-    # over 10 iterations, then the DBP algorithm terminates with the incumbent solution", their
-    # Section 7) -- a calibration choice, not a correctness one; the doubling addressed a
-    # symptom of the master's earlier non-convex QCP formulation (see
-    # build_leader_master), which no longer applies now that tau*emissions is linearised
-    # exactly by a one-hot disaggregation instead of McCormick + spatial branch-and-bound.
-    stagnation_limit: int = 10
     elastic_penalty_mult: float = 10.0
 
-    # ----- Gurobi pass-through (3) -----
-    threads: int = 6
-    mip_focus: int = 0
+    # ----- Gurobi pass-through -----
+    threads: int = 4
+    mip_focus: int = 2
     output_flag: bool = False
 
 

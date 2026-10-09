@@ -343,20 +343,6 @@ def sample_selling_price(rng: random.Random) -> float:
     return round(rng.uniform(*SELLING_PRICE_RANGE), 2)
 
 
-def sample_recovery_cost(
-    rng: random.Random,
-    *,
-    remanufacturing_bom: float,
-    selling_price: float,
-) -> float:
-    return round(
-        remanufacturing_bom
-        * selling_price
-        * rng.uniform(*RECOVERY_COST_FRACTION_RANGE),
-        4,
-    )
-
-
 def sample_area_installation_cost(rng: random.Random) -> float:
     return round(rng.uniform(*AREA_INSTALLATION_COST_RANGE), 2)
 
@@ -380,11 +366,6 @@ def technology_workers(operating_cost: float) -> int:
 def mode_workers(family: str) -> float:
     """wa_a: crew per owned vehicle; zero for outsourced carriers."""
     return TRUCK_WORKERS_PER_VEHICLE if family == "truck" else OUTSOURCED_WORKERS_PER_VEHICLE
-
-
-def labour_hours_per_period() -> float:
-    """wwh * wpt: paid hours per worker per planning period."""
-    return round(WEEKLY_WORKING_HOURS * WEEKS_PER_PERIOD, 4)
 
 
 def sample_distance_km(rng: random.Random, *, lower: float, upper: float) -> float:

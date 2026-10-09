@@ -350,7 +350,7 @@ def _normalize_sets(raw_sets: dict[str, Any]) -> dict[str, Any]:
     # V (Nv, the inventory-holding nodes) is warehouses only: factories carry
     # no inventory and recovered items are never held in stock anywhere,
     # matching the Mota et al. (2018) / Tautenhain et al. (2021) inventory
-    # policy (paper/sections/04a_notation.tex).
+    # policy.
     normalized["V"] = warehouses
     if recovered_products == ("raw", "fp", "rp") and legacy_recovered_products:
         recovered_products = legacy_recovered_products
@@ -594,7 +594,7 @@ def _validate_mode_parameters(sets: dict[str, Any], parameters: dict[str, Any]) 
 
 
 def _validate_technology_coverage(sets: dict[str, Any]) -> None:
-    """as:feas precondition: every product in P must be reachable via at least one compatible
+    """Feasibility precondition: every product in P must be reachable via at least one compatible
     production technology (Omega^p, H_prod) or remanufacturing technology (Omega^r, H_rem).
     A product with no compatible technology of either kind can never be supplied, so the
     follower's feasible region would be empty for any positive demand of that product."""
@@ -609,10 +609,9 @@ def _validate_technology_coverage(sets: dict[str, Any]) -> None:
 
 
 def _validate_capacity_feasibility(sets: dict[str, Any], parameters: dict[str, Any]) -> None:
-    """as:feas (paper/sections/04a_notation.tex): the follower's feasible region must be
-    non-empty for every admissible tax_index, which the paper states "can be verified a priori by
-    checking that the network has sufficient installed capacity to cover maximum aggregate
-    demand." This is a necessary, not sufficient, a-priori check: it sums each product's
+    """The follower's feasible region must be non-empty for every admissible tax_index, which can
+    be verified a priori by checking that the network has sufficient installed capacity to cover
+    maximum aggregate demand. This is a necessary, not sufficient, a-priori check: it sums each product's
     production and remanufacturing capacity across every factory (since technology installation
     is an independent per-factory binary decision, this is the network's maximum *potential*
     capacity) and compares it against that product's largest single-period aggregate demand
@@ -659,7 +658,7 @@ def _validate_capacity_feasibility(sets: dict[str, Any], parameters: dict[str, A
     if insufficient:
         raise InstanceValidationError(
             "Network installed capacity cannot cover maximum aggregate demand for products "
-            f"(as:feas violated; (product, max_capacity, max_period_demand)): {insufficient}",
+            f"(follower feasible region empty; (product, max_capacity, max_period_demand)): {insufficient}",
         )
 
 

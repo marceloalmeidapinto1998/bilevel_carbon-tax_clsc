@@ -1,168 +1,102 @@
 # Bilevel CLSC under a Carbon Tax
 
 Bilevel optimization model of a **Closed-Loop Supply Chain (CLSC)** under a carbon-tax
-policy. A **leader** (regulator) chooses a carbon tax rate `τ` to minimize total supply-chain
-emissions — lexicographically preferring the smallest (least-intervention) tax that still
-attains that minimum — and a **follower** (industry) responds by choosing its network
-configuration to minimize cost given the tax. Solved by a Decomposition-Based Procedure (DBP)
-with a lexicographic leader objective and in-loop certification of the least-intervention tax.
+policy. A **leader** (regulator) chooses a carbon tax rate `τ` to minimize `F = E + w·τ` — total
+supply-chain emissions `E` plus a small weight `w` on the tax, so that among taxes that abate the
+same it prefers the lower one — and a **follower** (industry) responds by choosing its network
+configuration to minimize cost given the tax. Solved by the Deterministic Bounding Procedure (DBP)
+of Soares et al. (2021).
 
 ## Repository layout
 
 ```
-src/clsc/                 # ALL active code (installable package: pip install -e .)
-  generator/              #   instance generator (Tautenhain-based sampler; pure data code)
-  config/                 #   solver tolerances (gap_tol.ToleranceConfig) + the project's one
-                          #   carbon-tax scale factor (tax_scale.TAX_SCALE_FACTOR)
-  models/                 #   instance data model + Gurobi subproblem builders
-  solvers/                #   DBP lexicographic bilevel solver (dbp_lex)
-  solver_cli/             #   batch runner CLI (core.py; run via solve_batch)
-  campaign/               #   experimental campaign layer (campaign_01)
-    orchestrator.py       #     generate / run, keyed by experiment (exp1..exp4)
-    designs/              #     one spec module per experiment (exp1_verification .. exp4_sensitivity)
-    doe/                  #     generic DOE primitives (fractional_factorial, frontier_sweep)
-    instances.py          #     instance materialization for design points
-    toy.py                #     hand-verifiable toy instances (Experiment 1)
-    factors.py            #     continuous factor registry (Experiment 4)
-    structural.py         #     5-way technology/transport menu expansions (scenario builders only;
-                           #     not used by campaign_01's own design points)
-    valuation.py          #     emissions-valuation rescale (Experiment 3's rho sweep)
-    scenarios/            #     scenario instance builders
-  analysis/               #   run aggregation -> master table, plus the paper tables
-data/instances/           # base + campaign instances (DATA only; generator lives in src/clsc/generator)
-experiments/              # generated design matrices (experiments/<campaign>/<experiment>/)
-results/                  # solve outputs (git-ignored except README)
-scripts/                  # figure and table drivers for the paper
-docs/                     # notes (Experimental_Plan.md: the campaign specification)
-paper/                    # LaTeX manuscript
-pyproject.toml            # packaging + pytest config  (LICENSE/CITATION.cff: still TODO)
+src/clsc/            # the installable package (pip install -e .)
+  generator/         #   instance generator (Tautenhain-based sampler; pure data code)
+  config/            #   solver defaults (gap_tol.ToleranceConfig) + the one tax-grid step
+                     #   (tax_scale.TAX_SCALE_FACTOR)
+  models/            #   instance data model + Gurobi models (follower, relaxation master)
+  solvers/           #   the DBP (dbp.py)
+  solver_cli/        #   batch CLI (python -m clsc.solver_cli.solve_batch)
+data/instances/base/ # base instances (the 12-cell testbed + 3 escalation cells)
+pyproject.toml       # packaging (LICENSE / CITATION.cff: still TODO)
 ```
 
 ## Environment
 
-- Developed on Python 3.14 with Gurobi 13 (academic licence); virtualenv `.venv_py314_gurobi13`.
-  The package itself declares `requires-python = ">=3.12"`.
-- Install (editable, from repo root): `pip install -e .` — puts the `clsc` package on
-  the path so every `python -m clsc.*` command below works from any directory.
-  (`requirements.txt` mirrors the runtime deps declared in `pyproject.toml`.)
+- Developed on Python 3.14 with Gurobi 13 (academic licence). The package declares
+  `requires-python = ">=3.12"`.
+- Install (editable, from the repo root): `pip install -e .`. `requirements.txt` mirrors the
+  runtime dependencies declared in `pyproject.toml`.
 
-## Canonical commands
-
-Run from the repo root (the venv Python is used in examples).
+## Commands
 
 ```bash
-# --- Generate a fresh instance base set (deterministic) ---
+# Generate the base instance set (deterministic)
 python -m clsc.generator benchmark --output-dir data/instances/base
 
-# --- Solve one instance on the project's tax resolution + Phase-2 min-tax ---
-# No --scale-factor: every instance is generated at the project's one grid and
-# carries it, so the flag is only for a deliberate probe at another resolution.
-python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json \
-    --method dbp_lex \
-    --mip-gap 1e-2 --master-mip-gap 1e-4 --dbp-relative-gap 1e-4 --threads 4 --mip-focus 2 \
-    --time-limit 600 --results-root results/runs
-
-# --- Campaign (campaign_01): build design matrices, then solve ---
-python -m clsc.campaign.orchestrator generate --experiment all
-python -m clsc.campaign.orchestrator run --experiment 1    # resumable; --fail-fast optional
-# (--experiment accepts exp1..exp4 or 1..4 or 'all'; --base-instance restricts to one cell)
-# `run` refuses to start (exit 3) unless src/, data/instances/base/ and pyproject.toml match
-# HEAD -- see "Provenance" below. Add --allow-dirty for a development run.
-
-# --- Post-campaign analysis ---
-python -m clsc.analysis.campaign_01.aggregate
-python -m clsc.analysis.tables.optimization
-python -m clsc.analysis.tables.iterations
+# Solve one instance with the default method (see "Solver configuration")
+python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json --results-root results/runs
 ```
 
-## Solver configuration (campaign method)
+Each run writes `summary.json`/`summary.csv`, `result.json`, `solution.json`, `dbp_trace.csv`
+and a `manifest.json` recording the tolerances, budgets, tax weight and code version.
 
-Bilevel (leader-optimizing) solves use a **single tax resolution**
-(`TAX_SCALE_FACTOR = 1e-3`, index {0..200} over 0-200 USD/t, i.e. a whole 1 USD/t per step).
-The tolerances and budgets follow the literature (`CAMPAIGN_*` in `clsc.campaign.orchestrator`,
-`clsc.campaign.designs._cells`):
+## Solver configuration
 
-| Parameter | Value | Source |
+The tax is chosen on a single grid (`TAX_SCALE_FACTOR = 1e-3` USD/kg per index, i.e. 1 USD/t per
+step, index 0..200). The defaults in `clsc.config.gap_tol.DEFAULT` are the method; every CLI flag
+only overrides one of them.
+
+| Parameter | Default | Source |
 |---|---|---|
 | DBP stopping tolerance `dbp_relative_gap` (eps) | 1e-4 | Soares et al. (2021) |
 | Subproblem slack eps' | 1e-5 absolute floor (`dbp_cut_epsilon`); ~1e-6 relative (`lex_epsilon_prime`) | Soares et al. (2021) |
-| MIP gap, follower | 1e-2 | Tautenhain et al. (2021), this follower model |
-| MIP gap, relaxation master | 1e-4 | solver default, as Soares et al. ran it (a 1% target freezes the lower bound) |
-| Time limit per MILP subproblem | 600 s | Soares et al. (2021) |
-| Time limit per run | none | Soares et al. (2021) |
+| MIP gap, follower (`--mip-gap`) | 1e-2 | Tautenhain et al. (2021), this follower model |
+| MIP gap, relaxation master (`--master-mip-gap`) | 1e-4 | solver default, as Soares et al. ran it (a percentage target freezes the lower bound) |
+| Time limit per MILP subproblem (`--time-limit`) | 600 s | Soares et al. (2021) |
+| Time limit per run (`--wall-clock-cap`) | none | Soares et al. (2021) |
 | Auxiliary stop | 10 iterations without a bound update | Soares et al. (2021) |
+| Leader's tax weight `q` (`--leader-tax-weight-relative`) | 1e-4 | policy assumption (below) |
+| Gurobi threads / MIPFocus | 4 / 2 | |
 
-Where a subproblem stops on its time limit, the eps criterion cannot be met and the run ends on
-the auxiliary stop and reports the interval
-`[emissions_leader_lb, emissions_follower_ub]` with the incumbent attaining the upper bound
-(`result_class`: `certified` / `epsilon_optimal` / `bounded`). Soares et al.'s Section 7
-treatment of subproblems that cannot be solved to optimality is implemented in full: the lower
-bound is the master's dual bound even when it times out (their `UB_F = F(1+gap)`); the first
-time the master returns no point, its cuts are made elastic in place -- one penalised slack per
-cut (P5-D) -- and it is re-solved from the best evaluated point (`--no-elastic-master`
-disables this); a follower that times out is improved by
-subproblem P6 (`--no-follower-improvement`); and a tie-break that finds nothing keeps the
-Step-2 response (P4-D). Their `F <= UB_F` bound, written `E >= LB` for this minimising leader,
-is implemented but off by default (`--emissions-floor`): it slowed the master about 2.6x on
-STD_I17_M4_T3 for the same certified answer. `clsc.config.gap_tol.DEFAULT` holds the neutral fallback used only when
-no override is given. Each run's `manifest.json` records `tax_grid_scale_factor`, tolerances,
-budgets and the code version.
+### The leader's objective
 
-The least-intervention tax is checked **inside** the DBP loop (`use_tax_confirmation`, on by default),
-at the exact point the emissions gap closes. The gap is the gate, exactly as in Soares et al.
-(2021)'s Step 6: a run that reaches the check has already closed `UB - LB <= dbp_relative_gap`
-and is **epsilon-optimal** whatever follows. What the check adds is the upgrade to a certified
-optimum, and it is their Lemma 3 verbatim -- one condition, `x^{u(K+1)} = x^{uK}`: the master,
-re-solved with every accumulated cut, proposes a tax no lower than the confirmed one.
+The leader minimizes `F = E + w·τ`. One criterion means Soares et al. (2021)'s DBP applies as
+written: a single master stage, the `UB_F − LB_F` gap against `dbp_relative_gap`, and their
+Step 6 — once the gap has closed, the result is **optimal** if the master re-proposes the tax just
+evaluated (Lemma 3) and **epsilon-optimal** otherwise. The bounds in the summary
+(`emissions_leader_lb`, `emissions_follower_ub`; the names are historical) are bounds on `F`;
+`leader_tax_weight` records `w` (kg CO2e per USD/t) and `emissions` the incumbent's own emissions.
 
-When the proposal *does* undercut the incumbent, the loop **probes it** rather than stopping:
-the master's proposal is a certified lower bound on the least-intervention tax, so a smaller
-proposal is a direction to search, not a reason to quit. This is the one place the workflow
-extends Soares et al. rather than following them, and it exists because their leader has no
-second criterion to certify. The probe is budgeted (`stagnation_limit`), because an unbounded
-one has no limit short of the grid: it once took STD_TOY6 2002 iterations. Runs that exhaust
-the budget report `termination_reason="relative_gap_tax_unconfirmed"`, `exact=False`, and carry
-`tax_index_lower_bound` -- the bracket `[tax_index_lower_bound, tax_index]` containing the true minimum,
-rather than a bare "unconfirmed".
+`w` is a **policy assumption**, not a tolerance: how much emissions the regulator gives up to avoid
+1 USD/t of tax. `--leader-tax-weight-relative q` sets `w = q · E_ref`, with `E_ref` the least
+emissions the cut-free master can reach, so that `q` means the same on every instance; the default
+`q = 1e-4` states *the regulator accepts losing 1 % of the minimum achievable emissions to avoid
+100 USD/t of tax*. `--leader-tax-weight` gives `w` directly in kg per USD/t instead. It is a value
+judgement, recorded per run and meant to be varied (0.1 % / 1 % / 10 % per 100 USD/t is
+`q = 1e-5 / 1e-4 / 1e-3`). The tax resolution follows from it: the gap cannot tell two taxes apart
+if their `F` differ by less than `dbp_relative_gap`, so the tax is resolved to about
+`dbp_relative_gap / q` USD/t — 1 USD/t at the defaults — and that resolution should be reported
+with the results.
 
-There is **no separate refinement phase and no bisection**; the earlier two-phase workflow
-(`lf_lex_exact`) was retired. `--no-tax-confirmation` disables the check entirely (ablation A1)
-and reports the incumbent's tax, an upper bound on the true minimum; confirmation also requires
-the Stage-2 lexicographic master (`use_lex_master_stage2`, ablation A2).
+### Subproblems that cannot be solved to optimality
 
-## Provenance
+Soares et al.'s Section 7 treatment is implemented in full. The lower bound is the master's dual
+bound even when it times out (the exact form of their `UB_F = F(1+gap)`), and a timed-out master's
+incumbent tax is proposed next instead of ending the run. The first time the master returns no
+point at all, its cuts are made elastic in place — one penalised slack per cut (P5-D) — and it is
+re-solved from the best evaluated point (`--no-elastic-master` disables this). A follower that
+times out is improved by their subproblem P6 (`--no-follower-improvement`), its best response is
+used, and a tie-break that finds nothing keeps the Step-2 response (P4-D). The master carries
+`F <= UB` (their `F <= UB_F`, after Mitsos 2010; `--no-emissions-cap` removes it).
 
-Every run writes a `campaign_manifest.json` recording the commit it ran at. That hash only means
-something if the working tree matched it, so `orchestrator run` **refuses to start** (exit code 3)
-while any result-bearing path differs from HEAD:
-
-| Path | Watched | Why |
-|---|---|---|
-| `src/` | yes | the code that produced the numbers |
-| `data/instances/base/` | yes | campaign instances are materialized from these |
-| `pyproject.toml` | yes | dependency pins |
-| `paper/`, `docs/`, `tests/`, `results/`, `experiments/` | no | editing the manuscript mid-campaign is normal and cannot change a result |
-
-`--allow-dirty` lifts the refusal for development runs; it prints a warning and stamps
-`code_dirty: true` on every manifest it produces, so such runs stay identifiable afterwards.
-
-Each manifest (and each row of `master_runs_campaign_01.csv`) carries:
-
-- `code_version` -- the commit, or `"unknown"` if git could not be consulted;
-- `code_dirty` -- `false` (verified clean), `true` (ran anyway), or `null` (unverifiable; **not**
-  the same as clean, and never publication-safe);
-- `code_dirty_paths` -- exactly which paths differed;
-- `instance_sha256` -- the bytes actually solved, for verification against the committed instance;
-- `instance_content_sha256` -- only the problem-defining fields (`name`/`sets`/`parameters`), so
-  it is comparable across re-materializations, which rewrite `metadata.generated_at_utc`.
+Where a subproblem stops on its time limit the eps criterion cannot be certified, and the run ends
+on the auxiliary stop and reports the interval `[emissions_leader_lb, emissions_follower_ub]` with
+the incumbent attaining the upper bound. `result_class` in the summary says which case applies:
+`certified`, `epsilon_optimal` or `bounded`.
 
 ## Tests
 
-**There is no test suite.** It was removed in `a612b27` (2026-09-09) along with its CI workflow:
-13 modules and ~4000 lines against a formulation that was still moving, being maintained rather
-than used. It is recoverable from history if the formulation settles and it is worth rebuilding
-against the final one.
-
-`pyproject.toml` keeps the pytest markers and the `dev` extra so that a rebuilt suite drops
-straight back in. Until then, correctness rests on the provenance guard (below), on the
-certified-exact status each run reports, and on manual verification.
+There is no test suite. It was removed in `a612b27` (2026-09-09) against a formulation that was
+still moving, and is recoverable from history. `pyproject.toml` keeps the `dev` extra and the
+pytest configuration so that a rebuilt suite drops straight back in.

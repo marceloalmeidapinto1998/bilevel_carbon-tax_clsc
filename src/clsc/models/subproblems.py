@@ -4,7 +4,6 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field, replace
 import math
-import os
 from typing import Iterable
 
 import gurobipy as gp
@@ -36,13 +35,6 @@ from .instance import InstanceData
 EMISSIONS_SCALE = 1_000.0  # kg to tonnes
 BOUND_SNAP_TOL = max(DEFAULT.eps, 1e-6)
 INTEGER_SNAP_TOL = max(DEFAULT.eps, 1e-5)
-# Absolute MIP-gap target for the tax-minimising pass of the master's hierarchical solve.
-# That pass minimises `tax_index`, a pure INTEGER variable with unit steps, so stopping once
-# the incumbent is within 0.5 of the bound is EXACT, not a loosening: an incumbent integer i
-# with bound b > i - 0.5 leaves no smaller integer in [b, i], so i is optimal. It only stops
-# Gurobi from spending the usual proving tail closing a gap that carries no decision.
-TAX_INDEX_PASS_ABSOLUTE_GAP = 0.5
-
 # Gurobi NumericFocus for the DBP relaxation master, and ONLY for it -- the follower and
 # fixed-tax models are well behaved and pay nothing for the default.
 #
@@ -68,7 +60,6 @@ TAX_INDEX_PASS_ABSOLUTE_GAP = 0.5
 # generator's own feasibility gate under NumericFocus=3. Presolve=0 also restores the bound and
 # has not been tested past that point. The underlying problem is the master's coefficient range,
 # and neither parameter addresses it.
-_DBP_MASTER_NUMERIC_FOCUS_DOES_NOT_WORK = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,23 +114,17 @@ class SolveResult:
     iis_constraints: tuple[str, ...] = ()
     iis_variable_bounds: tuple[str, ...] = ()
     slack_value: float | None = None
-    # Populated only by two-stage lexicographic solves. Each field carries the
+    # Populated only by the follower's two-stage solve. Each field carries the
     # MIP gap reported by Gurobi at the corresponding stage; `mip_gap` (above)
     # carries the worst (largest) of the two for compatibility with single-
     # objective callers.
     lex_primary_mip_gap: float | None = None
     lex_secondary_mip_gap: float | None = None
-    # Wall-clock seconds per lexicographic stage: each stage's own Gurobi runtime. Recorded
-    # because the two stages ask very different questions of the same model -- Stage 1 finds
-    # the emissions optimum, Stage 2 searches the tax resolution for the least index tied to it --
-    # and only the split says which of the two a slow master solve is actually spending on.
-    lex_primary_seconds: float | None = None
-    lex_secondary_seconds: float | None = None
-    # Populated only by the lexicographic leader master: the PROVEN dual bound on total
-    # emissions in physical units (kg), i.e. Stage 1's ObjBound. Always a valid lower bound on
-    # the bilevel optimum, whether or not the solve reached OPTIMAL -- which is what lets the DBP
-    # loop keep a partially solved master's bound instead of discarding it. None when Gurobi
-    # reported no finite bound.
+    # Populated only by the DBP relaxation master: the PROVEN dual bound on the leader's objective
+    # F = E + w*tax_index, in kg (the master's ObjBound). Always a valid lower bound on the
+    # bilevel optimum, whether or not the solve reached OPTIMAL -- which is what lets the DBP loop
+    # keep a partially solved master's bound instead of discarding it. None when Gurobi reported
+    # no finite bound.
     leader_lower_bound: float | None = None
     # Populated only by solve_follower_lexicographic. Soares et al. (2021, Sect. 7, Difficulty
     # 2.2): when the follower stops on its time limit, subproblem (P6) searches for a response
@@ -189,9 +174,12 @@ class LeaderMaster:
     # Handles of the value-function cut rows, by iteration, so the cuts can be made elastic in
     # place (enable_elastic_cuts) when the master first fails to return a point.
     cut_constraints: dict[int, gp.Constr] = field(default_factory=dict)
-    # Mitsos (2010) / Soares et al. (2021)'s bound constraint on the leader objective, written in
-    # this minimisation as E >= LB (see set_emissions_floor). Scaled units.
-    emissions_floor_scaled: float | None = None
+    # Weight of the tax in the leader's objective F = E + w * tax_index, in tonnes of emissions per
+    # grid index (the master works in tonnes): the single-objective leader of Soares et al. (2021),
+    # whose objective already prefers the lower tax. 0.0 only before the weight is set.
+    tax_weight_scaled: float = 0.0
+    # F <= UB (Mitsos 2010), a two-variable row: see set_leader_objective_cap.
+    objective_cap_constraint: gp.Constr | None = None
     # One-hot gadget handles, kept so the incumbent emissions cap can retighten the
     # gadget's big-M in place (see _retighten_tax_base_big_m). The build-time bound is
     # a combinatorial worst case -- every facility open, every technology at capacity,
@@ -205,30 +193,6 @@ class LeaderMaster:
     tax_base_big_m_scaled: float = 0.0
     # Scaled bound currently written into the gadget's rows.
     tax_base_bound_applied_scaled: float = 0.0
-
-
-def solve_fixed_tax_follower(
-    instance: InstanceData,
-    tax_index: int,
-    *,
-    output_flag: bool = False,
-    time_limit: float | None = None,
-    capture_solution: bool = False,
-    mip_gap: float | None = None,
-    threads: int | None = None,
-    mip_focus: int | None = None,
-) -> SolveResult:
-    artifacts = build_fixed_tax_model(instance, tax_index=tax_index)
-    return optimize_model(
-        artifacts,
-        tax_index=tax_index,
-        output_flag=output_flag,
-        time_limit=time_limit,
-        capture_solution=capture_solution,
-        mip_gap=mip_gap,
-        threads=threads,
-        mip_focus=mip_focus,
-    )
 
 
 def solve_follower_lexicographic(
@@ -428,91 +392,6 @@ def _improve_follower_value(
         model.update()
 
 
-def solve_fixed_rate_lexicographic(
-    master: FollowerMaster,
-    tax_rate: float,
-    *,
-    output_flag: bool = False,
-    time_limit: float | None = None,
-    capture_solution: bool = False,
-    warm_start_values: dict[str, float] | None = None,
-    mip_gap: float | None = None,
-    threads: int | None = None,
-    mip_focus: int | None = None,
-) -> SolveResult:
-    """Follower two-stage lexicographic solve at a CONTINUOUS tax rate (USD/kg).
-
-    Rate-based analogue of :func:`solve_follower_lexicographic` (which takes an
-    integer index): identical follower MILP, only the emissions coefficient is a
-    continuous rate rather than ``scale_factor * index``.
-
-    Currently unused: its only caller was the parametric breakpoint tracer,
-    removed in favour of a single solution method (DBP). Retained because it is
-    the only way to probe the follower off the leader's tax resolution, which is what
-    a grid-calibration study needs.
-    """
-    artifacts = master.artifacts
-    model = artifacts.model
-    artifacts.follower_objective_expr = artifacts.cost_expr + tax_rate * _tax_base_of(artifacts)
-    model.ModelSense = GRB.MINIMIZE
-    _apply_mip_start(model, warm_start_values)
-
-    model.setObjective(artifacts.follower_objective_expr, GRB.MINIMIZE)
-    stage1 = optimize_model(
-        artifacts,
-        tax_index=None,
-        output_flag=output_flag,
-        time_limit=time_limit,
-        capture_solution=False,
-        mip_gap=mip_gap,
-        threads=threads,
-        mip_focus=mip_focus,
-    )
-    if not stage1.has_solution or stage1.status_name != "OPTIMAL":
-        return replace(stage1, tax_index=None)
-
-    primary_optimum = float(stage1.follower_objective)
-    freeze_tolerance = lex_freeze_tolerance(primary_optimum)
-    freeze = model.addConstr(
-        artifacts.follower_objective_expr <= primary_optimum + freeze_tolerance,
-        name="lex_primary_freeze",
-    )
-    model.update()
-
-    model.setObjective(artifacts.emissions_expr, GRB.MINIMIZE)
-    stage2 = optimize_model(
-        artifacts,
-        tax_index=None,
-        output_flag=output_flag,
-        time_limit=time_limit,
-        capture_solution=capture_solution,
-        mip_gap=mip_gap,
-        threads=threads,
-        mip_focus=mip_focus,
-    )
-    try:
-        model.remove(freeze)
-        model.update()
-    except gp.GurobiError:
-        pass
-
-    primary_gap = stage1.mip_gap
-    secondary_gap = stage2.mip_gap
-    merged_gap = (
-        None
-        if primary_gap is None and secondary_gap is None
-        else max(g for g in (primary_gap, secondary_gap) if g is not None)
-    )
-    return replace(
-        stage2,
-        tax_index=None,
-        mip_gap=merged_gap,
-        runtime=stage1.runtime + stage2.runtime,
-        status_history=stage1.status_history + stage2.status_history,
-    )
-
-
-
 def lex_freeze_tolerance(primary_optimum: float) -> float:
     """eps': the tolerance for freezing an objective value before a tie-break re-optimisation,
     ``f <= f* + eps'`` -- Soares et al. (2021)'s (P4-eps') and (P5-eps').
@@ -536,34 +415,7 @@ def lex_freeze_tolerance(primary_optimum: float) -> float:
     )
 
 
-def solve_leader_master(
-    instance_or_master: InstanceData | LeaderMaster,
-    cuts: list[ValueFunctionCut] | None = None,
-    *,
-    output_flag: bool = False,
-    time_limit: float | None = None,
-    capture_solution: bool = False,
-    compute_iis: bool = False,
-) -> SolveResult:
-    if isinstance(instance_or_master, LeaderMaster):
-        master = instance_or_master
-    else:
-        master = build_leader_master(instance_or_master)
-    if cuts:
-        _synchronize_leader_master(master, cuts)
-    # Infeasible DBP relaxations are handled by the certified elastic fallback.
-    # IIS extraction is expensive here and is only useful for final-model diagnostics.
-    return optimize_model(
-        master.artifacts,
-        tax_index=None,
-        output_flag=output_flag,
-        time_limit=time_limit,
-        capture_solution=capture_solution,
-        compute_iis=compute_iis,
-    )
-
-
-def solve_leader_master_lexicographic(
+def solve_dbp_master(
     instance_or_master: InstanceData | LeaderMaster,
     cuts: list[ValueFunctionCut] | None = None,
     *,
@@ -574,55 +426,25 @@ def solve_leader_master_lexicographic(
     threads: int | None = None,
     mip_focus: int | None = None,
     seed: int | None = None,
-    lex_stage2: bool = True,
-    leader_indifference_relative: float | None = None,
-    tax_stage_time_limit: float | None = None,
 ) -> SolveResult:
-    """Two-stage lexicographic solve of the DBP relaxation master: minimise total
-    emissions (Stage 1, identical to :func:`solve_leader_master`), then minimise
-    ``tax_index`` itself (Stage 2) among master points tied at that emissions value.
+    """Solve the DBP relaxation master: minimise the leader's objective ``F = E + w * tax_index``
+    (plus the elastic penalty once the cuts are elastic) over the follower's feasible region and
+    every cut accumulated so far -- Soares et al. (2021)'s (P5), one stage.
 
-    The two stages are two separate ``optimize()`` calls on the same persistent model,
-    deliberately: Gurobi withholds ``ObjBound``, ``ObjBoundC`` and ``MIPGap`` from a model
-    carrying several objectives, and Stage 1's dual bound is precisely what the DBP loop
-    needs as its certified lower bound (see the comment on ``primary_bound_scaled``).
-    Fusing the stages into one hierarchical multi-objective call does share presolve and
-    tree between them, but it costs access to that bound, which is not a trade worth
-    making. Per-stage wall-clock times are reported in ``lex_primary_seconds`` and
-    ``lex_secondary_seconds``.
+    The returned ``emissions`` and ``leader_lower_bound`` are the master's DUAL bound on F, in
+    kg, not the incumbent's value. Every cut is valid at every tax, so the master is a relaxation
+    and its optimum is a valid lower bound on the bilevel optimum, and a MIP solve hands back two numbers around that
+    optimum: ObjVal, the best solution found, which lies at or ABOVE it, and ObjBound, the proven
+    dual bound, which lies at or BELOW it. Reading the incumbent overstates the bound by up to the
+    stopping gap -- on STD_TOY6 that produced a reported LB 11.1 kg ABOVE the UB, an inversion the
+    loop then swallowed silently because relative_optimality_gap floors the gap at zero. ObjBound
+    is the only one of the two that is a bound in the required direction; it is weaker by exactly
+    the MIP gap, which is the honest price of the claim.
 
-    ``leader_indifference_relative`` is the leader's emissions indifference band, as a
-    fraction of the Stage-1 optimum: Stage 2 minimises the tax over every point within that
-    band of the optimum, not merely over exact ties. Omit it to keep the pure numerical band.
-
-    ``tax_stage_time_limit`` is Stage 2's own limit, replacing ``time_limit`` for that stage
-    (shorter or longer). Stage 1 delivers the lower bound; Stage 2 picks the next tax to propose
-    and, once the gap has closed, is the minimum that tax confirmation needs. Cutting it short
-    costs a possibly higher proposed tax and that confirmation -- never the bound -- and giving
-    it longer is how the least-intervention tax gets certified on cells where it is the slow
-    stage.
-
-    ``lex_stage2=False`` runs Stage 1 only (the DBP-ablation variant A2, no
-    lexicographic Stage-2 in the master): the returned ``tax_index`` is then an
-    arbitrary emissions-minimiser, not the smallest tied index, and there is no
-    Stage-2 proposal left for the surrounding loop's ``use_tax_confirmation`` to
-    confirm, so the reported tax is only an upper bound on the true minimum.
-
-    This replaces a post-hoc tax-tiebreak search (e.g. bisection) over the
-    leader's tax resolution. Every cut added to the master is valid for *every*
-    ``tax_index`` (the follower's feasible region does not depend on the tax,
-    see ``lem:lb_validity``), so the true optimistic-optimal point at any
-    tax index that genuinely ties the global emissions optimum is itself
-    feasible for every accumulated cut -- it can never be excluded from the
-    master. Consequently, the smallest ``tax_index`` the master finds among
-    its own Stage-1 emissions-minimisers is, once the surrounding DBP loop's
-    gap has closed, provably the smallest tax index in the *entire* finite
-    grid achieving the leader's optimal emissions -- not just among the tax
-    indices visited so far -- with no monotonicity assumption required.
-
-    Mirrors the Stage-1/Stage-2 freeze pattern already used by
-    :func:`solve_follower_lexicographic` for the fixed-tax follower, applied here to the
-    relaxation master's own ``emissions_total_var``/``tax_index_var``.
+    A master that stops on its time limit is a PARTIAL master: its dual bound is still valid, and
+    if it found any point, that point's ``tax_index`` is a usable next proposal. This is Soares et
+    al. (2021, Sect. 7)'s treatment of an unsolved relaxation -- use the solver's own bound, do
+    not abandon the run. What a partial master cannot do is certify Lemma 3.
     """
     if isinstance(instance_or_master, LeaderMaster):
         master = instance_or_master
@@ -633,172 +455,35 @@ def solve_leader_master_lexicographic(
 
     artifacts = master.artifacts
     model = artifacts.model
-    emissions_total_var = artifacts.emissions_total_var
-    tax_index_var = artifacts.tax_index_var
-    if emissions_total_var is None or tax_index_var is None:
+    if artifacts.emissions_total_var is None or artifacts.tax_index_var is None:
         raise RuntimeError(
             "DBP relaxation master is missing the emissions/tax_index variables "
-            "required for the lexicographic relaxation solve"
+            "required for the relaxation solve"
         )
-    # Total emissions, plus the elastic penalty M * sum(D_k) when the cuts are elastic (P5-D).
-    stage1_objective = _leader_master_objective(master)
-
-    # Stage 1: minimise total (scaled) emissions -- identical to the master's ordinary
-    # single-stage objective. When lex_stage2 is requested (default), Stage 1 must not capture
-    # the solution yet (Stage 2 does); the A2 ablation (lex_stage2=False) captures here.
-    model.setObjective(stage1_objective, GRB.MINIMIZE)
-    stage1 = optimize_model(
+    objective = _leader_master_objective(master)
+    model.setObjective(objective, GRB.MINIMIZE)
+    result = optimize_model(
         artifacts,
         tax_index=None,
         output_flag=output_flag,
         time_limit=time_limit,
-        capture_solution=capture_solution and not lex_stage2,
-        mip_gap=mip_gap,
-        threads=threads,
-        mip_focus=mip_focus,
-        seed=seed,
-    )
-    if not stage1.has_solution or stage1.status_name != "OPTIMAL":
-        model.setObjective(stage1_objective, GRB.MINIMIZE)
-        if stage1.status_name != "TIME_LIMIT":
-            return stage1
-        # A PARTIAL MASTER. Stage 1 ran out of time at a gap above the target, but the dual bound
-        # it proved is still a valid lower bound (lem:lb_validity holds for any relaxation bound,
-        # not only an optimal one), and if it found a point at all, that point's tax is a usable
-        # next proposal. This is the same device Soares et al. (2021, Sect. 7) use for their
-        # relaxation -- take the solver's own gap into account rather than discard the solve.
-        # What a partial master does NOT give is a Stage-2 minimum, so its tax is a proposal, not
-        # a certified lower bound on the least-intervention tax; callers must treat it that way.
-        # The incumbent's emissions are replaced by the bound so `emissions` keeps meaning "the
-        # lower bound" on every path out of this function.
-        partial_bound = _finite_dual_bound(stage1.objective_bound)
-        partial_bound_physical = None if partial_bound is None else partial_bound * EMISSIONS_SCALE
-        return replace(
-            stage1,
-            emissions=partial_bound_physical if stage1.has_solution else None,
-            leader_lower_bound=partial_bound_physical,
-            lex_primary_mip_gap=stage1.mip_gap,
-            lex_primary_seconds=stage1.runtime,
-        )
-    stage1_tax_index = int(round(float(tax_index_var.X)))
-
-    # THE LOWER BOUND IS THE DUAL BOUND, NOT THE INCUMBENT. lem:lb_validity certifies the
-    # master's OPTIMUM as a valid lower bound on the bilevel optimum, and a MIP solve hands
-    # back two different numbers around that optimum: ObjVal, the best solution found, which
-    # lies at or ABOVE it, and ObjBound, the proven dual bound, which lies at or BELOW it.
-    # Reading the incumbent (emissions_total_var.X) therefore overstates the bound by up to
-    # the stopping gap -- on STD_TOY6 that produced a reported LB 11.1 kg ABOVE the UB, an
-    # inversion the loop then swallowed silently because relative_optimality_gap floors the
-    # gap at zero. ObjBound is the only one of the two that is a bound in the required
-    # direction. It is weaker by exactly the MIP gap, which is the honest price of the claim.
-    primary_bound_scaled = (
-        emissions_total_var.X if stage1.objective_bound is None else stage1.objective_bound
-    )
-
-    if not lex_stage2:
-        # A2 ablation: no lexicographic Stage-2 tax minimisation in the master.
-        return replace(
-            stage1,
-            emissions=float(primary_bound_scaled) * EMISSIONS_SCALE,
-            leader_lower_bound=float(primary_bound_scaled) * EMISSIONS_SCALE,
-            lex_primary_mip_gap=stage1.mip_gap,
-            lex_secondary_mip_gap=None,
-            lex_primary_seconds=stage1.runtime,
-        )
-
-    # Freeze Stage 1's optimum (in scaled, tonne units, so the absolute eps floor of
-    # lex_freeze_tolerance is already a much smaller fraction of a kilogram than it would be
-    # against raw kg-scale values). The freeze is built on the ACHIEVED value, not on the dual
-    # bound above: it has to admit at least one feasible point, and the dual bound need not be
-    # attainable.
-    #
-    # ``leader_indifference_relative`` widens the band from a numerical guard to a POLICY one.
-    # lex_freeze_tolerance sizes the band to floating-point and MIP-gap noise, which is what it
-    # is for; but the leader's secondary criterion (least intervention) is a statement about
-    # which emission differences are worth preferring over, and on these instances the emissions
-    # curve keeps drifting downward by GRAMS per scale factor with no exact tie anywhere. A band
-    # sized to noise therefore leaves Stage 2 minimising the tax over a set of one element -- the
-    # highest tax -- and the criterion never decides anything. Sized to the caller's own
-    # certification tolerance instead, Stage 2 returns the least tax among every point the run
-    # could not distinguish from the optimum in the first place.
-    # The freeze is written on Stage 1's own objective, so with elastic cuts Stage 2 cannot buy a
-    # lower tax with cut violations. Its WIDTH is sized on emissions alone: the penalty term is
-    # not a quantity the leader is indifferent over.
-    primary_optimum_scaled = float(stage1_objective.getValue())
-    emissions_at_optimum_scaled = float(emissions_total_var.X)
-    freeze_tolerance_scaled = lex_freeze_tolerance(emissions_at_optimum_scaled)
-    if leader_indifference_relative is not None:
-        # ONE band, not two. Doubling it was tried (2026-09-10) to let the confirmation rule
-        # accept bounds that were merely one band apart, and it broke the search: on STD_TOY4
-        # the master's Stage-2, minimising the tax over a band that can sit BELOW the true
-        # floor, kept proposing low taxes whose follower response lies on the high-emissions
-        # branch, and the run stagnated at tax_index 0 after 12 iterations instead of certifying
-        # 277 in 2. The wider the band, the further below the floor Stage 2 is allowed to look,
-        # and the more the proposals drift away from the region that matters.
-        freeze_tolerance_scaled = max(
-            freeze_tolerance_scaled,
-            leader_indifference_relative * abs(emissions_at_optimum_scaled),
-        )
-    freeze = model.addConstr(
-        stage1_objective <= primary_optimum_scaled + freeze_tolerance_scaled,
-        name="leader_master_emissions_freeze",
-    )
-    model.update()
-
-    # Stage 2: minimise tax_index subject to the freeze. It ranks INTEGER grid indices of unit
-    # step, so an absolute gap of half a step already settles the question exactly -- an
-    # incumbent i with bound b > i - 0.5 leaves no smaller integer in [b, i]. Handing that to
-    # Gurobi as MIPGapAbs stops it spending the usual proving tail on a gap that carries no
-    # decision; the relative MIPGap stays as the caller set it, and whichever criterion is met
-    # first ends the pass.
-    model.setObjective(tax_index_var, GRB.MINIMIZE)
-    stage2_time_limit = time_limit if tax_stage_time_limit is None else tax_stage_time_limit
-    stage2 = optimize_model(
-        artifacts,
-        tax_index=None,
-        output_flag=output_flag,
-        time_limit=stage2_time_limit,
         capture_solution=capture_solution,
         mip_gap=mip_gap,
         threads=threads,
         mip_focus=mip_focus,
         seed=seed,
-        mip_gap_abs=TAX_INDEX_PASS_ABSOLUTE_GAP,
     )
-    try:
-        model.remove(freeze)
-    finally:
-        # Restore the master's ordinary objective so a caller that re-solves this same model
-        # via solve_leader_master later sees the expected single-stage emissions objective.
-        model.setObjective(stage1_objective, GRB.MINIMIZE)
-        model.update()
-
-    if stage2.status_name == "TIME_LIMIT" and not stage2.has_solution:
-        # Stage 2 timed out before finding any point under the freeze. Stage 1's optimum is
-        # certified and its incumbent satisfies the freeze by construction, so fall back to that
-        # incumbent's tax as the proposal rather than lose the iteration.
-        stage2 = replace(stage2, has_solution=True, tax_index=stage1_tax_index)
-    primary_gap = stage1.mip_gap
-    secondary_gap = stage2.mip_gap
-    merged_mip_gap = (
-        None
-        if primary_gap is None and secondary_gap is None
-        else max(value for value in (primary_gap, secondary_gap) if value is not None)
-    )
+    if result.status_name not in ("OPTIMAL", "TIME_LIMIT"):
+        return result
+    bound_scaled = _finite_dual_bound(result.objective_bound)
+    if bound_scaled is None and result.status_name == "OPTIMAL" and result.objective_value is not None:
+        # An optimal solve with no reported bound: the optimum is its own bound.
+        bound_scaled = float(result.objective_value)
+    bound_kg = None if bound_scaled is None else bound_scaled * EMISSIONS_SCALE
     return replace(
-        stage2,
-        # Stage 2 is only constrained by emissions <= primary_optimum + freeze tolerance, not
-        # equality, so its own recomputed emissions can drift above Stage 1's whenever several
-        # tax indices tie the minimum. Callers must use Stage 1's certified bound as LB^(k).
-        emissions=float(primary_bound_scaled) * EMISSIONS_SCALE,
-        leader_lower_bound=float(primary_bound_scaled) * EMISSIONS_SCALE,
-        mip_gap=merged_mip_gap,
-        runtime=stage1.runtime + stage2.runtime,
-        status_history=stage1.status_history + stage2.status_history,
-        lex_primary_mip_gap=primary_gap,
-        lex_secondary_mip_gap=secondary_gap,
-        lex_primary_seconds=stage1.runtime,
-        lex_secondary_seconds=stage2.runtime,
+        result,
+        emissions=bound_kg if result.has_solution else None,
+        leader_lower_bound=bound_kg,
     )
 
 
@@ -826,82 +511,6 @@ def build_fixed_tax_model(
         emissions_expr=common.emissions_expr,
         tax_base_expr=common.tax_base_expr,
         follower_objective_expr=follower_objective_expr,
-    )
-
-
-def build_epsilon_constraint_model(
-    instance: InstanceData,
-    *,
-    emissions_upper_bound: float,
-) -> ModelArtifacts:
-    """Follower MILP minimising cost subject to a hard emissions cap (no tax term).
-
-    Used by Family B's AUGMECON-style epsilon-constraint sweep (Mavrotas, 2009): the emissions
-    objective is turned into a constraint while cost remains the objective, tracing non-dominated
-    cost-emissions points that a tax-indexed (weighted-sum) sweep cannot reach on a non-convex
-    frontier.
-    """
-    common = _build_supply_chain_model(instance, model_name=f"epsilon_constraint_{emissions_upper_bound:.4f}")
-    common.model.addConstr(common.emissions_expr <= emissions_upper_bound, name="epsilon_constraint")
-    common.model.setObjective(common.cost_expr, GRB.MINIMIZE)
-    return ModelArtifacts(
-        model=common.model,
-        cost_expr=common.cost_expr,
-        emissions_expr=common.emissions_expr,
-        tax_base_expr=common.tax_base_expr,
-        follower_objective_expr=common.cost_expr,
-    )
-
-
-def solve_epsilon_constraint_follower(
-    instance: InstanceData,
-    emissions_upper_bound: float,
-    *,
-    output_flag: bool = False,
-    time_limit: float | None = None,
-    capture_solution: bool = False,
-    mip_gap: float | None = None,
-    threads: int | None = None,
-    mip_focus: int | None = None,
-) -> SolveResult:
-    artifacts = build_epsilon_constraint_model(instance, emissions_upper_bound=emissions_upper_bound)
-    return optimize_model(
-        artifacts,
-        tax_index=0,
-        output_flag=output_flag,
-        time_limit=time_limit,
-        capture_solution=capture_solution,
-        mip_gap=mip_gap,
-        threads=threads,
-        mip_focus=mip_focus,
-    )
-
-
-def solve_fixed_tax_min_emissions(
-    instance: InstanceData,
-    *,
-    output_flag: bool = False,
-    time_limit: float | None = None,
-    capture_solution: bool = False,
-    mip_gap: float | None = None,
-    threads: int | None = None,
-    mip_focus: int | None = None,
-) -> SolveResult:
-    """Unconstrained minimum-emissions anchor for Family B's epsilon-constraint payoff table.
-
-    Equivalent to `build_fixed_tax_model(instance, tax_index=0, tie_break=True)`: no tax term
-    (tax_index=0) and the objective is emissions directly, ignoring cost.
-    """
-    artifacts = build_fixed_tax_model(instance, tax_index=0, tie_break=True)
-    return optimize_model(
-        artifacts,
-        tax_index=0,
-        output_flag=output_flag,
-        time_limit=time_limit,
-        capture_solution=capture_solution,
-        mip_gap=mip_gap,
-        threads=threads,
-        mip_focus=mip_focus,
     )
 
 
@@ -1034,7 +643,7 @@ def build_leader_master(
     # by that level's tax rate, reconstructs tax_rate * tax_base_scaled exactly, entirely in
     # linear constraints: no NonConvex flag, no spatial branch-and-bound, no McCormick gap ever
     # open on this model. The cost is N extra binaries, N extra continuous variables and ~3N extra
-    # linear constraints (201, 201 and ~600 on the campaign's grid) in exchange for the
+    # linear constraints (201, 201 and ~600 on the project's grid) in exchange for the
     # follower/fixed-tax models' own numerical reliability -- see build_follower_master, which
     # never needed any of this because it never faces a leader-side unknown at all.
     tax_levels = range(lower_tax_index, upper_tax_index + 1)
@@ -1050,12 +659,11 @@ def build_leader_master(
     # half, so a 201-level selection resolves in ~log2(201) dichotomies instead of being
     # chipped away one binary at a time. The weights must be the indices for that ordering
     # to be the tax ordering.
-    if not _env_off("CLSC_NO_SOS1"):
-        model.addSOS(
-            GRB.SOS_TYPE1,
-            [tax_level_selected[index] for index in tax_levels],
-            [float(index) for index in tax_levels],
-        )
+    model.addSOS(
+        GRB.SOS_TYPE1,
+        [tax_level_selected[index] for index in tax_levels],
+        [float(index) for index in tax_levels],
+    )
     tax_base_if_level = model.addVars(
         tax_levels, lb=0.0, ub=emissions_upper_bound_scaled, name="tax_base_if_level",
     )
@@ -1198,12 +806,58 @@ def _dbp_cut_epsilon(master: LeaderMaster, cut: ValueFunctionCut) -> float:
 
 
 def _leader_master_objective(master: LeaderMaster) -> gp.LinExpr:
-    """Stage-1 objective of the relaxation master: total emissions (tonnes), plus the (P5-D)
-    elastic penalty when the cuts are elastic."""
+    """Stage-1 objective of the relaxation master: the leader's objective in tonnes -- total
+    emissions plus ``tax_weight_scaled * tax_index`` -- plus the (P5-D) elastic penalty when the
+    cuts are elastic."""
     objective = gp.LinExpr(master.artifacts.emissions_total_var)
+    if master.tax_weight_scaled > 0.0 and master.artifacts.tax_index_var is not None:
+        objective += master.tax_weight_scaled * master.artifacts.tax_index_var
     if master.elastic and master.artifacts.elastic_slack_var is not None:
         objective += master.elastic_penalty * master.artifacts.elastic_slack_var
     return objective
+
+
+def set_leader_tax_weight(master: LeaderMaster, weight_kg_per_index: float) -> None:
+    """Make the leader's objective ``F = E + w * tax_index`` (``w`` in kg CO2e per grid index).
+
+    This is the single-objective leader of Soares et al. (2021): one criterion, so their DBP --
+    one master stage, the UB_F - LB_F gap, Lemma 3 -- applies as written. The tax is the
+    leader's own variable, so the extra term is linear and the master is no harder to formulate;
+    ``w`` states how much emissions the regulator would give up to avoid one more grid index of
+    tax, which is what decides among taxes that abate the same.
+    """
+    if weight_kg_per_index < 0.0:
+        raise ValueError("the leader's tax weight must be non-negative")
+    master.tax_weight_scaled = weight_kg_per_index / EMISSIONS_SCALE
+    master.artifacts.model.setObjective(_leader_master_objective(master), GRB.MINIMIZE)
+    master.artifacts.model.update()
+
+
+def set_leader_objective_cap(master: LeaderMaster, leader_objective_ub: float | None) -> None:
+    """Bound the master's leader objective from above by the best value any evaluated point
+    attained: ``E + w * tax_index <= UB`` -- Soares et al. (2021, Sect. 8)'s ``F <= UB_F``
+    (Mitsos 2010) in its natural form for this leader. It removes nothing the master could still
+    return as optimal (the optimum is at most UB) and stops it exploring points already known to
+    be worse than the incumbent. Only two variables appear, so the row is as cheap as the cap on
+    emissions alone. A no-op while the tax weight is zero, where ``set_emissions_cap`` is it.
+    """
+    if leader_objective_ub is None or master.tax_weight_scaled <= 0.0:
+        return
+    artifacts = master.artifacts
+    model = artifacts.model
+    # Widened by the same relative tolerance as set_emissions_cap: the UB comes from a different
+    # model, and an exact cutoff could exclude the incumbent from its own relaxation.
+    ub_scaled = (leader_objective_ub + lex_freeze_tolerance(leader_objective_ub)) / EMISSIONS_SCALE
+    if master.objective_cap_constraint is None:
+        master.objective_cap_constraint = model.addConstr(
+            artifacts.emissions_total_var + master.tax_weight_scaled * artifacts.tax_index_var <= ub_scaled,
+            name="dbp_leader_objective_cap",
+        )
+    elif math.isclose(master.objective_cap_constraint.RHS, ub_scaled, abs_tol=DEFAULT.eps):
+        return
+    else:
+        master.objective_cap_constraint.RHS = ub_scaled
+    model.update()
 
 
 def enable_elastic_cuts(master: LeaderMaster) -> bool:
@@ -1264,41 +918,6 @@ def set_leader_master_start(
     model.update()
 
 
-def set_emissions_floor(master: LeaderMaster, emissions_leader_lb: float | None) -> None:
-    """Bound the master's emissions from below by the certified lower bound: E >= LB.
-
-    Soares et al. (2021, Sect. 8) add ``F(x, y) <= UB_F`` to their subproblems, following Mitsos
-    (2010); their leader maximises, so the bound from the relaxation side is an upper one. This
-    leader minimises, and the same constraint reads ``E >= LB``. It removes nothing the master
-    can still return: the master only gains constraints, so every point it admits now has
-    E >= the dual bound it proved before. It is written as the variable's lower bound, not as a
-    row, so the matrix is untouched (a dense extra row on this master was measured to be badly
-    counterproductive, see build_leader_master). Widened down by eps' so a bound read off a
-    different solve can never exclude a point by round-off. Only ever raised.
-    """
-    emissions_total_var = master.artifacts.emissions_total_var
-    if emissions_total_var is None or emissions_leader_lb is None or emissions_leader_lb <= 0.0:
-        return
-    floor_scaled = (emissions_leader_lb - lex_freeze_tolerance(emissions_leader_lb)) / EMISSIONS_SCALE
-    if master.emissions_cap is not None:
-        floor_scaled = min(floor_scaled, master.emissions_cap / EMISSIONS_SCALE)
-    if master.emissions_floor_scaled is not None and floor_scaled <= master.emissions_floor_scaled:
-        return
-    emissions_total_var.LB = max(0.0, floor_scaled)
-    master.artifacts.model.update()
-    master.emissions_floor_scaled = floor_scaled
-
-
-def _env_off(name: str) -> bool:
-    """Temporary ablation switch for the run-B experiment (SOS1 / big-M retightening).
-
-    Environment-gated rather than plumbed through the CLI because it exists to attribute a
-    measured slowdown, not to be a campaign factor. Promote to a real flag beside
-    ``use_emissions_cap`` if either mechanism is kept.
-    """
-    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes"}
-
-
 def _retighten_tax_base_big_m(master: LeaderMaster, cap_scaled: float | None) -> None:
     """Rewrite the one-hot gadget's big-M to the tightest bound currently valid for B.
 
@@ -1317,8 +936,6 @@ def _retighten_tax_base_big_m(master: LeaderMaster, cap_scaled: float | None) ->
     down, so that removing or raising the cap restores a valid (looser) big-M instead of
     leaving a stale one that would cut off feasible points.
     """
-    if _env_off("CLSC_NO_BIGM_RETIGHTEN"):
-        return
     if not master.tax_level_cap_constraints:
         return  # master built before the gadget handles existed, or no levels
 
@@ -2018,13 +1635,13 @@ def _add_inventory_and_flow_constraints(
         inv_w,
     )
 
-    # Floor-area requirement YCT_it (eq:YCT): a flow-based handling term at
+    # Floor-area requirement YCT_it: a flow-based handling term at
     # both factories and warehouses, plus a stock-based storage term at
     # warehouses only -- mirrors Mota et al. (2018)'s general facility-area
     # expression (their Eq. 16), adapted to this model's flow-direction
-    # convention (see rem:floor_area_flow_direction). Factories use X^out
+    # convention. Factories use X^out
     # (the only nonzero flow direction for finished products under the
-    # greenfield convention of rem:valid_ineq, equal to q^p+q^r there);
+    # greenfield convention, equal to q^p+q^r there);
     # warehouses use X^in, mirroring Mota's own indexing, alongside their
     # existing stock term. fs/fp_in/fp_out are already in scope here.
     item_area = _item_area_map(params, products, recovered_products=())
@@ -2213,7 +1830,7 @@ def _add_transport_constraints(
         vehicle,
     )
 
-    # eq:min_flow (C8): every open/selected node must carry positive flow of
+    # (C8) minimum flow: every open/selected node must carry positive flow of
     # some item in some period, ruling out degenerate open-but-unused nodes.
     openable_nodes = (*suppliers, *factories, *warehouses, *hubs)
     for entity in openable_nodes:
@@ -2296,18 +1913,16 @@ def _add_valid_inequalities(
     u_prod,
     u_rem,
 ) -> None:
-    """(C10) Valid inequalities -- see Remark rem:valid_ineq in
-    paper/sections/04c_follower.tex.
+    """(C10) Valid inequalities.
 
-    Only eq:vi_tech_demand is implemented: every open factory installs at
+    Only the technology-demand inequality is implemented: every open factory installs at
     least one production OR remanufacturing technology. Production alone is
     not implied by C1-C9 -- a factory engaged purely in remanufacturing can
-    satisfy eq:min_flow via q^r without ever installing lambda^p. (The
-    other candidate inequality from the paper, eq:vi_capacity_demand, is not
+    satisfy the minimum-flow constraint (C8) via q^r without ever installing lambda^p. (The
+    other candidate inequality, installed capacity >= peak demand, is not
     a valid inequality in general -- inventory banking lets a network cover
     a single period's peak demand with less installed capacity than that
-    inequality requires -- so it is deliberately not implemented; see the
-    remark for the counterexample.)
+    inequality requires -- so it is deliberately not implemented.)
     """
     if not production_technologies and not remanufacturing_technologies:
         return

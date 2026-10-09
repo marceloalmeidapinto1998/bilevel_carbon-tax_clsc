@@ -471,7 +471,6 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
     metadata = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "seed": config.seed,
-        "source_model": "paper/bilevel_model.tex",
         "sampling_rules_module": "clsc.generator.tautenhain_data",
         "config": config.to_dict(),
         "node_coordinates": coordinates,

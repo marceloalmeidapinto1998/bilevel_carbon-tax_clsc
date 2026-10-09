@@ -13,10 +13,6 @@ __pycache__/
 
 tmp_pytest_*.log
 
-paper/*.aux
-paper/*.log
-paper/*.out
-
 *.aux
 *.bbl
 *.blg
@@ -25,14 +21,5 @@ paper/*.out
 *.log
 texput.log
 
-results/*
-!results/README.md
-
-# Analysis reports are versioned (markdown only, never solver output): the claim ledger's
-# and the limitation register's history IS the audit trail for every number in the paper.
-# Each level must be re-included explicitly -- git does not descend into an excluded directory.
-!results/analysis/
-results/analysis/*
-!results/analysis/campaign_01/
-results/analysis/campaign_01/*
-!results/analysis/campaign_01/reports/
+# Solver output (python -m clsc.solver_cli.solve_batch --results-root results/runs)
+results/

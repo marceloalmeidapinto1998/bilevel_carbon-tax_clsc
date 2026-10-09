@@ -17,23 +17,23 @@ from clsc.models.subproblems import (
     validate_fixed_tax_solution,
 )
 from clsc.models.instance import InstanceData, InstanceValidationError
-from clsc.solvers.dbp_lex import (
+from clsc.solvers.dbp import (
     BilevelSolveError,
     SubproblemStatusError,
     relative_optimality_gap,
-    solve_bilevel_dbp_lex,
+    solve_bilevel_dbp,
 )
 
 SUPPORTED_SOLVER_METHODS = (
-    "dbp_lex",
+    "dbp",
 )
 
-LEXICOGRAPHIC_SOLVER_METHODS = {
-    "dbp_lex",
+DBP_SOLVER_METHODS = {
+    "dbp",
 }
 
 SOLVER_METHOD_RESULT_DIRS = {
-    "dbp_lex": "f_lex_exact",
+    "dbp": "dbp",
 }
 
 RESULT_SCHEMA_VERSION = 3
@@ -47,7 +47,7 @@ SUMMARY_FIELDNAMES = [
     "termination_reason",
     "iterations",
     "tax_index",
-    "tax_index_lower_bound",
+    "leader_tax_weight",
     "tax_rate",
     "cost",
     "emissions",
@@ -72,13 +72,9 @@ TRACE_FIELDNAMES = [
     "follower_objective",
     "incumbent_emissions",
     "relaxation_seconds",
-    "relaxation_emissions_seconds",
-    "relaxation_tax_seconds",
     "next_relaxation_tax_index",
     "next_relaxation_lower_bound",
     "relaxation_mip_gap",
-    "relaxation_emissions_mip_gap",
-    "relaxation_tax_mip_gap",
     "relaxation_partial",
     "relaxation_elastic_slack",
     "follower_mip_gap",
@@ -102,21 +98,40 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--method",
         choices=SUPPORTED_SOLVER_METHODS,
-        default="dbp_lex",
+        default="dbp",
         help=(
-            "DBP algorithm variant. 'dbp_lex' implements the leader's full "
-            "lexicographic objective (min emissions, then min tax_index) directly inside "
-            "the relaxation master -- no separate tax-tiebreak phase."
+            "DBP algorithm variant. 'dbp' is Soares et al. (2021)'s DBP for the "
+            "single-objective leader F = E + w*tau (see --leader-tax-weight*)."
         ),
     )
-    parser.add_argument("--time-limit", type=float, help="Per-subproblem Gurobi time limit in seconds (follower; also the master unless --master-time-limit is given).")
     parser.add_argument(
-        "--master-tax-time-limit",
+        "--time-limit",
         type=float,
         help=(
-            "Gurobi time limit in seconds for the relaxation master's Stage 2 only (the tax "
-            "minimisation), shorter or longer than --master-time-limit, which keeps governing "
-            "Stage 1 (the lower bound). Default: same as Stage 1. Only supported with --method dbp_lex."
+            "Gurobi time limit in seconds for ONE follower subproblem, and for the master too "
+            "unless --master-time-limit is given (default: clsc.config.gap_tol.DEFAULT.time_limit, "
+            "600 s). Pass inf to remove it."
+        ),
+    )
+    parser.add_argument(
+        "--leader-tax-weight",
+        type=float,
+        help=(
+            "The leader minimises F = E + w*tau, with w this many kg CO2e per USD/t of tax: how "
+            "much emissions the regulator gives up to avoid 1 USD/t. A POLICY assumption, not a "
+            "tolerance. Give at most one tax-weight flag; with neither, "
+            "--leader-tax-weight-relative defaults to clsc.config.gap_tol.DEFAULT.tax_weight_relative. "
+            ""
+        ),
+    )
+    parser.add_argument(
+        "--leader-tax-weight-relative",
+        type=float,
+        help=(
+            "Like --leader-tax-weight, but w = this fraction q of the least emissions the cut-free "
+            "master can reach, per USD/t of tax -- the same meaning on every instance. q = 1e-4 "
+            "reads 'lose 1%% of the minimum emissions to avoid 100 USD/t of tax'. The run resolves "
+            "the tax to about eps / q USD/t (eps = --dbp-relative-gap)."
         ),
     )
     parser.add_argument(
@@ -124,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Gurobi time limit in seconds for ONE relaxation-master solve (default: the same "
-            "as --time-limit). Only supported with --method dbp_lex."
+            "as --time-limit)."
         ),
     )
     parser.add_argument(
@@ -135,28 +150,25 @@ def build_parser() -> argparse.ArgumentParser:
             "solve: each subproblem's limit is clamped to the budget that remains and the loop "
             "stops between iterations once it is exhausted, so an exhausted budget still "
             "reports the incumbent, its variable values and the certified gap "
-            "(termination_reason=incumbent_wall_clock_cap). Only supported with --method dbp_lex."
+            "(termination_reason=incumbent_wall_clock_cap)."
         ),
     )
     parser.add_argument(
         "--mip-gap",
         type=float,
         help=(
-            "Override the Gurobi MIPGap target for every follower sub-solve "
-            "(default: clsc.config.gap_tol.DEFAULT.mip_gap). Also the relaxation "
-            "master's target unless --master-mip-gap is given. Only supported with "
-            "--method dbp_lex."
+            "Gurobi MIPGap target for every follower sub-solve "
+            "(default: clsc.config.gap_tol.DEFAULT.mip_gap, 1e-2)."
         ),
     )
     parser.add_argument(
         "--master-mip-gap",
         type=float,
         help=(
-            "Gurobi MIPGap target for the DBP relaxation master only (default: the same "
-            "value as --mip-gap). The master's gap only loosens the lower bound -- its dual "
+            "Gurobi MIPGap target for the DBP relaxation master only (default: "
+            "clsc.config.gap_tol.DEFAULT.master_mip_gap, 1e-4). The master's gap only loosens the lower bound -- its dual "
             "bound stays valid -- so it can be looser than the follower's. A master that "
-            "stops on its time limit still contributes its dual bound and a tax proposal. "
-            "Only supported with --method dbp_lex."
+            "stops on its time limit still contributes its dual bound and a tax proposal."
         ),
     )
     parser.add_argument(
@@ -165,22 +177,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Override the DBP loop's own relative-gap stopping criterion "
             "(default: clsc.config.gap_tol.DEFAULT.dbp_relative_gap). This is the "
-            "outer algorithm's stopping tolerance, not a Gurobi parameter. Only "
-            "supported with --method dbp_lex."
-        ),
-    )
-    parser.add_argument(
-        "--leader-indifference",
-        type=float,
-        help=(
-            "The leader's emissions indifference band epsilon, as a relative fraction of "
-            "the optimum: the margin the regulator treats as immaterial when picking the "
-            "least tax that still attains E*. A POLICY PARAMETER, not a tolerance -- the "
-            "reported tax_index is a function of it, while E* is not. Must be >= "
-            "--dbp-relative-gap (below that the leader would rank taxes by emissions "
-            "differences the run cannot certify); defaults to exactly that floor, which "
-            "reproduces every result predating this flag. Raise it to state a policy band, "
-            "or sweep it to trace tau*(epsilon). Only supported with --method dbp_lex."
+            "outer algorithm's stopping tolerance, not a Gurobi parameter."
         ),
     )
     parser.add_argument(
@@ -188,8 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help=(
             "Override Gurobi Threads for every sub-solve (default: "
-            "clsc.config.gap_tol.DEFAULT.threads). Only supported with --method "
-            "dbp_lex."
+            "clsc.config.gap_tol.DEFAULT.threads)."
         ),
     )
     parser.add_argument(
@@ -198,8 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(0, 1, 2, 3),
         help=(
             "Override Gurobi MIPFocus for every sub-solve (default: "
-            "clsc.config.gap_tol.DEFAULT.mip_focus). Only supported with --method "
-            "dbp_lex."
+            "clsc.config.gap_tol.DEFAULT.mip_focus)."
         ),
     )
     parser.add_argument(
@@ -214,35 +209,15 @@ def build_parser() -> argparse.ArgumentParser:
             "files are never touched. Omit to use each instance's stored grid, which "
             "is already the project's one grid (theta = TAX_SCALE_FACTOR = 1e-3, "
             "index {0..200}, a whole USD/tonne per step) for every base instance -- this "
-            "flag exists for a deliberate probe at a different resolution, not for "
-            "routine campaign use. Passing the retired 5e-4 here would silently move a "
-            "current instance onto a grid it was not generated at."
+            "flag exists for a deliberate probe at a different resolution."
         ),
     )
-    parser.add_argument(
-        "--no-tax-confirmation",
-        dest="use_tax_confirmation",
-        action="store_false",
-        help=(
-            "Disable in-loop confirmation of the least-intervention tax_index "
-            "(Soares et al. 2021's Lemma-3 stopping rule). By default the solver, "
-            "after certifying minimum emissions E*, keeps iterating until the "
-            "relaxation master's Stage-2 minimal-tax proposal is confirmed by a "
-            "follower solve, recovering the EXACT least-intervention tax_index (the "
-            "leader's lexicographic secondary objective). Disabling it reports the "
-            "incumbent's tax (an upper bound on tau*), which is cheaper but "
-            "over-reports the tax and reintroduces spatial-B&B run-to-run variance "
-            "in the reported tax. Ablation A1."
-        ),
-    )
-    parser.set_defaults(use_tax_confirmation=True)
     parser.add_argument(
         "--seed",
         type=int,
         help=(
             "Gurobi Seed parameter for every sub-solve (MIP performance-variability "
-            "probes; Experiment 1/2). Omit for Gurobi's default seed. Only supported "
-            "with --method dbp_lex."
+            "probes). Omit for Gurobi's default seed."
         ),
     )
     parser.add_argument(
@@ -256,12 +231,6 @@ def build_parser() -> argparse.ArgumentParser:
         dest="use_emissions_cap",
         action="store_false",
         help="Ablation A5: disable the incumbent objective-upper-bound cut in the relaxation master.",
-    )
-    parser.add_argument(
-        "--no-lex-master-stage2",
-        dest="use_lex_master_stage2",
-        action="store_false",
-        help="Ablation A2: disable the relaxation master's lexicographic Stage-2 tax minimisation.",
     )
     parser.add_argument(
         "--no-follower-improvement",
@@ -278,18 +247,9 @@ def build_parser() -> argparse.ArgumentParser:
             "the relaxation master returns no point its cuts are made elastic and it is re-solved."
         ),
     )
-    parser.add_argument(
-        "--emissions-floor",
-        dest="use_emissions_floor",
-        action="store_true",
-        help=(
-            "Enable the E >= LB bound on the relaxation master (Soares et al. 2021 / Mitsos 2010's "
-            "F <= UB_F). Off by default: it was measured to slow the master."
-        ),
-    )
     parser.set_defaults(
-        use_warm_start=True, use_emissions_cap=True, use_lex_master_stage2=True,
-        use_follower_improvement=True, use_elastic_master=True, use_emissions_floor=False,
+        use_warm_start=True, use_emissions_cap=True,
+        use_follower_improvement=True, use_elastic_master=True,
     )
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
     parser.add_argument(
@@ -340,16 +300,6 @@ def main() -> int:
         args.method, args.dbp_mode = canonicalize_solver_method(args.method)
     except ValueError as error:
         parser.error(str(error))
-    tolerance_override_flags = (
-        args.mip_gap, args.master_mip_gap, args.master_time_limit, args.master_tax_time_limit,
-        args.dbp_relative_gap, args.leader_indifference, args.threads, args.mip_focus,
-    )
-    if any(value is not None for value in tolerance_override_flags) and args.method != "dbp_lex":
-        parser.error(
-            "--mip-gap/--master-mip-gap/--master-time-limit/--master-tax-time-limit/--dbp-relative-gap/--leader-indifference/--threads/--mip-focus are "
-            "currently only supported with --method dbp_lex"
-        )
-
     target = Path(args.path)
     instance_paths = collect_instance_paths(target, pattern=args.pattern, recursive=args.recursive)
     single_instance_run = len(instance_paths) == 1
@@ -405,28 +355,25 @@ def main() -> int:
             if args.scale_factor is not None:
                 instance = instance.with_tax_grid_step(args.scale_factor)
             solve_started_at = time.perf_counter()
-            if args.method == "dbp_lex":
-                result = solve_bilevel_dbp_lex(
+            if args.method == "dbp":
+                result = solve_bilevel_dbp(
                     instance,
                     output_flag=args.solver_output,
                     time_limit=args.time_limit,
                     master_time_limit=args.master_time_limit,
-                    master_tax_time_limit=args.master_tax_time_limit,
+                    leader_tax_weight=args.leader_tax_weight,
+                    leader_tax_weight_relative=args.leader_tax_weight_relative,
                     wall_clock_cap=args.wall_clock_cap,
                     mip_gap=args.mip_gap,
                     master_mip_gap=args.master_mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
-                    leader_indifference_relative=args.leader_indifference,
                     threads=args.threads,
                     mip_focus=args.mip_focus,
-                    use_tax_confirmation=args.use_tax_confirmation,
                     seed=args.seed,
                     use_warm_start=args.use_warm_start,
                     use_emissions_cap=args.use_emissions_cap,
                     use_follower_improvement=args.use_follower_improvement,
                     use_elastic_master=args.use_elastic_master,
-                    use_emissions_floor=args.use_emissions_floor,
-                    use_lex_master_stage2=args.use_lex_master_stage2,
                 )
             else:
                 raise ValueError(f"Unsupported solver method {args.method!r}")
@@ -577,8 +524,8 @@ def build_method_results_dir(method: str, mode: str = "") -> str:
 
 
 def canonicalize_solver_method(method: str) -> tuple[str, str]:
-    if method == "dbp_lex":
-        return "dbp_lex", "exact"
+    if method == "dbp":
+        return "dbp", "exact"
     raise ValueError(f"Unknown solver method {method!r}. Choose from {SUPPORTED_SOLVER_METHODS}.")
 
 
@@ -594,11 +541,7 @@ def build_manifest(
     tolerance_config: dict[str, object] = {
         "eps": DEFAULT.eps,
         "mip_gap": DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap,
-        "master_mip_gap": (
-            (DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap)
-            if args.master_mip_gap is None
-            else args.master_mip_gap
-        ),
+        "master_mip_gap": DEFAULT.master_mip_gap if args.master_mip_gap is None else args.master_mip_gap,
         "dbp_relative_gap": DEFAULT.dbp_relative_gap if args.dbp_relative_gap is None else args.dbp_relative_gap,
         "lex_epsilon_prime": DEFAULT.lex_epsilon_prime,
         "dbp_cut_epsilon": DEFAULT.dbp_cut_epsilon,
@@ -612,29 +555,34 @@ def build_manifest(
     solver_manifest: dict[str, object] = {
         "method": args.method,
         "mode": args.dbp_mode,
-        "time_limit": args.time_limit,
-        "master_time_limit": args.time_limit if args.master_time_limit is None else args.master_time_limit,
-        "master_tax_time_limit": args.master_tax_time_limit,
+        "time_limit": DEFAULT.time_limit if args.time_limit is None else args.time_limit,
+        "master_time_limit": (
+            (DEFAULT.time_limit if args.time_limit is None else args.time_limit)
+            if args.master_time_limit is None
+            else args.master_time_limit
+        ),
+        "leader_tax_weight": args.leader_tax_weight,
+        "leader_tax_weight_relative": args.leader_tax_weight_relative,
         "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
         "tax_scale_factor": args.scale_factor,
-        "use_tax_confirmation": bool(args.use_tax_confirmation),
         "gurobi_seed": args.seed,
         "use_warm_start": bool(args.use_warm_start),
         "use_emissions_cap": bool(args.use_emissions_cap),
         "use_follower_improvement": bool(args.use_follower_improvement),
         "use_elastic_master": bool(args.use_elastic_master),
-        "use_emissions_floor": bool(args.use_emissions_floor),
-        "use_lex_master_stage2": bool(args.use_lex_master_stage2),
         "fail_fast": bool(args.fail_fast),
     }
-    if args.method == "dbp_lex":
-        solver_manifest["leader_objective"] = "lex_emissions_then_min_tax_index"
-        # The leader's POLICY parameter, deliberately recorded here and not under
-        # "tolerances": tax_index is a function of it, so a run is not reproducible or
-        # interpretable without it. None means it defaulted to dbp_relative_gap, the floor
-        # below which the leader would be ranking taxes by uncertifiable emissions margins.
-        solver_manifest["leader_indifference_relative"] = args.leader_indifference
+    if args.method == "dbp":
+        # The leader's POLICY assumption, deliberately recorded here and not under "tolerances":
+        # the reported tax_index is a function of it, so a run is not reproducible or
+        # interpretable without it. The effective w (kg per USD/t) is in each summary.
+        solver_manifest["leader_objective"] = "emissions_plus_weighted_tax"
+        solver_manifest["leader_tax_weight_relative_effective"] = (
+            args.leader_tax_weight_relative
+            if args.leader_tax_weight_relative is not None or args.leader_tax_weight is not None
+            else DEFAULT.tax_weight_relative
+        )
 
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
@@ -689,9 +637,9 @@ def build_summary_record(
         "termination_reason": result.termination_reason,
         "iterations": result.iterations,
         "tax_index": result.incumbent.tax_index,
-        # Certified lower bound on the least-intervention tax: with tax_index above it, the two
-        # bracket the true answer. None where the run stopped before that bound became valid.
-        "tax_index_lower_bound": getattr(result, "tax_index_lower_bound", None),
+        # kg CO2e per USD/t in the leader's objective F = E + w*tau. The bounds below
+        # (emissions_leader_lb / emissions_follower_ub) are bounds on F, not on emissions alone.
+        "leader_tax_weight": getattr(result, "leader_tax_weight", 0.0),
         "tax_rate": result.incumbent.tax_rate,
         "cost": result.incumbent.cost,
         "emissions": result.incumbent.emissions,
@@ -817,9 +765,8 @@ def build_instance_result_payload(
 
 
 def build_phase_summary(result) -> dict[str, object]:
-    # The leader's full lexicographic objective (min emissions, then min
-    # tax_index) is resolved inside the DBP loop itself -- see
-    # solve_leader_master_lexicographic -- so there is only one phase.
+    # The leader's single objective F = E + w*tax_index is resolved inside the DBP loop itself,
+    # so there is only one phase.
     return {
         "dbp_iterations": len(result.iteration_records),
         "final_tax_index": result.incumbent.tax_index,
@@ -839,13 +786,9 @@ def build_dbp_trace_row(record) -> dict[str, object]:
         "follower_objective": record.follower_objective,
         "incumbent_emissions": record.incumbent_emissions,
         "relaxation_seconds": record.relaxation_seconds,
-        "relaxation_emissions_seconds": getattr(record, "relaxation_emissions_seconds", None),
-        "relaxation_tax_seconds": getattr(record, "relaxation_tax_seconds", None),
         "next_relaxation_tax_index": record.next_relaxation_tax_index,
         "next_relaxation_lower_bound": record.next_relaxation_lower_bound,
         "relaxation_mip_gap": getattr(record, "relaxation_mip_gap", None),
-        "relaxation_emissions_mip_gap": getattr(record, "relaxation_emissions_mip_gap", None),
-        "relaxation_tax_mip_gap": getattr(record, "relaxation_tax_mip_gap", None),
         "relaxation_partial": getattr(record, "relaxation_partial", False),
         "relaxation_elastic_slack": getattr(record, "relaxation_elastic_slack", None),
         "follower_mip_gap": getattr(record, "follower_mip_gap", None),
@@ -905,9 +848,9 @@ def canonicalize_result_solution(*, instance: InstanceData, result):
     )
     if (
         (not recomputed.has_solution or recomputed.status_name != "OPTIMAL")
-        and result.method in LEXICOGRAPHIC_SOLVER_METHODS
+        and result.method in DBP_SOLVER_METHODS
     ):
-        repaired = rebuild_lexicographic_solution_with_fixed_discrete_values(
+        repaired = rebuild_solution_with_fixed_discrete_values(
             instance=instance,
             result=result,
         )
@@ -950,7 +893,7 @@ def canonicalize_result_solution(*, instance: InstanceData, result):
     )
 
 
-def rebuild_lexicographic_solution_with_fixed_discrete_values(*, instance: InstanceData, result):
+def rebuild_solution_with_fixed_discrete_values(*, instance: InstanceData, result):
     optimistic = result.incumbent_solution
     if optimistic is None or not optimistic.has_solution or optimistic.variable_values is None:
         return None
