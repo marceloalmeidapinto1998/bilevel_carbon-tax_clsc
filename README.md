@@ -1,143 +1,201 @@
 # Bilevel CLSC under a Carbon Tax
 
-Bilevel optimization model of a **Closed-Loop Supply Chain (CLSC)** under a carbon-tax
-policy. A **leader** (regulator) chooses a carbon tax rate `τ` to minimize `F = E + w·τ` — total
-supply-chain emissions `E` plus a small weight `w` on the tax, so that among taxes that abate the
-same it prefers the lower one — and a **follower** (industry) responds by choosing its network
-configuration to minimize cost given the tax. Solved by the Deterministic Bounding Procedure (DBP)
-of Soares et al. (2021).
+A bilevel model of a closed-loop supply chain under a carbon tax, solved to global ε-optimality with the Deterministic Bounding Procedure of Soares et al. (2021).
 
-## Repository layout
+![Python](https://img.shields.io/badge/python-%E2%89%A53.12-blue)
+![Solver](https://img.shields.io/badge/solver-Gurobi%2013-red)
 
+## Overview
+
+A regulator (the **leader**) sets a carbon tax rate `τ` on a finite grid. A closed-loop supply chain operator (the **follower**) responds by choosing its network (facilities, technologies, capacities, transport modes, and forward and reverse flows) to minimise operating cost plus tax. The leader minimises `F = E + w·τ`: the total emissions `E` of the follower's response plus a small weight `w` on the tax, so that among taxes that abate equally it prefers the lower one. The follower's problem is a mixed-integer linear program; ties are broken optimistically (lowest emissions among its cost-optimal responses).
+
+The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares et al. (2021). A relaxation master over the follower's feasible region gives a lower bound on `F`, exact follower evaluations give an upper bound, and value-function cuts tighten the master until the gap closes. Subproblems that cannot be solved to optimality within their time limit are handled as in the reference: dual bounds from timed-out masters, elastic cuts, and the follower-improvement subproblem P6.
+
+The repository also contains an instance generator, based on the sampling rules of Tautenhain et al. (2021) for the supply-chain model of Mota et al. (2018), and the 15 benchmark instances it produces.
+
+## Key features
+
+- Bilevel carbon-tax model with a mixed-integer, multi-period closed-loop supply-chain follower (Gurobi).
+- DBP solver with an exact linearisation of `τ · E` and certified lower and upper bounds on the leader's objective.
+- Handling of subproblems that hit their time limit: partial-master dual bounds, elastic cuts as a remedy, follower improvement (P6), and an auxiliary stagnation stop.
+- Each result is classified as `certified`, `epsilon_optimal` or `bounded`, and each saved solution is revalidated.
+- Deterministic instance generator (`clsc-generate`) that reproduces the committed benchmark.
+- Batch solver CLI (`clsc-solve`) that writes a summary, the full result, the solution, a per-iteration trace and a manifest of the configuration.
+
+## Project structure
+
+```text
+.
+├── data/instances/base/     # the 15 benchmark instances (JSON)
+├── src/clsc/                # the Python package
+│   ├── config/              #   method defaults, shared constants, tax-grid step
+│   ├── generator/           #   instance generator (CLI: clsc-generate)
+│   ├── models/              #   instance loading and the Gurobi models
+│   │   ├── instance_data.py #     load and validate an instance
+│   │   ├── supply_chain.py  #     supply-chain MILP shared by follower and master
+│   │   ├── follower.py      #     follower model and its two-stage optimistic solve
+│   │   ├── master.py        #     DBP relaxation master
+│   │   └── gurobi_utils.py  #     solve wrapper and result types
+│   ├── solvers/dbp.py       #   the Deterministic Bounding Procedure
+│   └── solver_cli/          #   batch solver CLI (clsc-solve): parsing, output files, revalidation
+├── tests/test_baseline.py   # regression tests
+├── pyproject.toml           # metadata, dependencies, console scripts, pytest settings
+└── requirements.txt         # mirrors the dependencies in pyproject.toml
 ```
-src/clsc/                    # the installable package
-  config/
-    defaults.py              #   the method's defaults (tolerances, budgets, tax weight)
-    constants.py             #   constants shared across the package
-    tax_scale.py             #   the one tax-grid step, TAX_SCALE_FACTOR
-  generator/                 #   instance generator (Tautenhain-based sampler; `clsc-generate`)
-    instance_builder.py      #     generate_instance / write_instance
-    benchmark.py             #     the 12-instance benchmark and the escalation instances
-    ...                      #     config, sampling, geometry, feasibility, tautenhain_data
-  models/
-    instance_data.py         #   loading and validating an instance (InstanceData)
-    supply_chain.py          #   the supply-chain MILP shared by follower and master
-    follower.py              #   the follower's model and its two-stage optimistic solve
-    master.py                #   the DBP relaxation master: objective, cuts, caps, elastic cuts
-    gurobi_utils.py          #   solve wrapper and result types
-  solvers/
-    dbp.py                   #   the Deterministic Bounding Procedure
-  solver_cli/                #   batch CLI (`clsc-solve`)
-    cli.py                   #     argument parsing and the main loop
-    results.py               #     the output files
-    validation.py            #     revalidation of the saved solution
-data/instances/base/         # base instances (the 12-instance testbed + 3 escalation instances)
-tests/                       # regression tests (test_baseline.py)
-```
 
-## Environment
+## Requirements
 
-- Developed on Python 3.14 with Gurobi 13 (academic licence). The package declares
-  `requires-python = ">=3.12"`.
-- Install (editable, from the repo root): `pip install -e ".[dev]"` (the `dev` extra adds
-  pytest). This installs the `clsc` package and two commands, `clsc-generate` and `clsc-solve`.
-  `requirements.txt` mirrors the dependencies declared in `pyproject.toml`.
-- A Gurobi licence is required to solve, and to generate instances (each instance's feasibility
-  is checked with Gurobi).
+- Python ≥ 3.12 (developed on 3.14).
+- [Gurobi](https://www.gurobi.com/) 13 with a valid licence (`gurobipy>=13,<14`). The licence is needed to solve and also to generate instances, because the generator checks each instance's feasibility with Gurobi.
+- PyYAML (only for YAML instance files).
+- pytest for the tests (`dev` extra).
 
-## Commands
+## Installation
 
 ```bash
-# Generate the base instance set (deterministic)
-clsc-generate benchmark --output-dir data/instances/base
+git clone https://github.com/marceloalmeidapinto1998/bilevel-clsc-carbon-pricing.git
+cd bilevel-clsc-carbon-pricing
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
 
-# Solve one instance with the default method (see "Solver configuration")
-clsc-solve data/instances/base/STD_I25_M8_T6.json --results-root results/runs
+This installs the `clsc` package and two commands, `clsc-solve` and `clsc-generate`. `python -m clsc.solver_cli` and `python -m clsc.generator` are equivalent.
 
-# Solve every instance in a folder
+## Usage
+
+### Solve instances
+
+```bash
+# one instance, default configuration
+clsc-solve data/instances/base/STD_I17_M4_T3.json --results-root results/runs
+
+# every instance in a folder
 clsc-solve data/instances/base --results-root results/runs
+
+# a different tax weight (see Configuration)
+clsc-solve data/instances/base/STD_I17_M4_T3.json --leader-tax-weight-relative 1e-5
 ```
 
-The three escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`), which
-extend the testbed past its standard range, are not written by `benchmark`:
+Each instance writes to `results/runs/<dataset>/<instance>/dbp/`:
 
-```bash
-clsc-generate escalation --output-dir data/instances/base
-```
+| File | Content |
+|---|---|
+| `summary.json`, `summary.csv` | result class, termination reason, tax, cost, emissions, bounds, gap, validation status |
+| `result.json` | full result: bounds with certificates, follower stage gaps, timings |
+| `solution.json` | the incumbent's variable values |
+| `dbp_trace.csv` | one row per DBP iteration: proposed tax, bounds, subproblem times |
+| `manifest.json` | configuration used: tolerances, time limits, tax weight, flags |
 
-`python -m clsc.generator` and `python -m clsc.solver_cli` are equivalent to the two commands;
 `clsc-solve --help` lists every option.
 
-Each run writes `summary.json`/`summary.csv`, `result.json`, `solution.json`, `dbp_trace.csv`
-and a `manifest.json` recording the tolerances, budgets, tax weight and code version.
-
-## Solver configuration
-
-The tax is chosen on a single grid (`TAX_SCALE_FACTOR = 1e-3` USD/kg per index, i.e. 1 USD/t per
-step, index 0..200). The defaults in `clsc.config.defaults.DEFAULT` are the method; every CLI flag
-only overrides one of them.
-
-| Parameter | Default | Source |
-|---|---|---|
-| DBP stopping tolerance `dbp_relative_gap` (eps) | 1e-4 | Soares et al. (2021) |
-| Subproblem slack eps' | 1e-5 absolute floor (`dbp_cut_epsilon`); ~1e-6 relative (`lex_epsilon_prime`) | Soares et al. (2021) |
-| MIP gap, follower (`--mip-gap`) | 1e-2 | Tautenhain et al. (2021), this follower model |
-| MIP gap, relaxation master (`--master-mip-gap`) | 1e-4 | solver default, as Soares et al. ran it (a percentage target freezes the lower bound) |
-| Time limit per MILP subproblem (`--time-limit`) | 600 s | Soares et al. (2021) |
-| Time limit per run (`--wall-clock-cap`) | none | Soares et al. (2021) |
-| Auxiliary stop | 10 iterations without a bound update | Soares et al. (2021) |
-| Leader's tax weight `q` (`--leader-tax-weight-relative`) | 1e-4 | policy assumption (below) |
-| Gurobi threads / MIPFocus | 4 / 2 | |
-
-### The leader's objective
-
-The leader minimizes `F = E + w·τ`. One criterion means Soares et al. (2021)'s DBP applies as
-written: a single master stage, the `UB_F − LB_F` gap against `dbp_relative_gap`, and their
-Step 6 — once the gap has closed, the result is **optimal** if the master re-proposes the tax just
-evaluated (Lemma 3) and **epsilon-optimal** otherwise. The bounds in the summary
-(`leader_objective_lb`, `leader_objective_ub`) are bounds on `F`;
-`leader_tax_weight` records `w` (kg CO2e per USD/t) and `emissions` the incumbent's own emissions.
-
-`w` is a **policy assumption**, not a tolerance: how much emissions the regulator gives up to avoid
-1 USD/t of tax. `--leader-tax-weight-relative q` sets `w = q · E_ref`, with `E_ref` the least
-emissions the cut-free master can reach, so that `q` means the same on every instance; the default
-`q = 1e-4` states *the regulator accepts losing 1 % of the minimum achievable emissions to avoid
-100 USD/t of tax*. `--leader-tax-weight` gives `w` directly in kg per USD/t instead. It is a value
-judgement, recorded per run and meant to be varied (0.1 % / 1 % / 10 % per 100 USD/t is
-`q = 1e-5 / 1e-4 / 1e-3`). The tax resolution follows from it: the gap cannot tell two taxes apart
-if their `F` differ by less than `dbp_relative_gap`, so the tax is resolved to about
-`dbp_relative_gap / q` USD/t — 1 USD/t at the defaults — and that resolution should be reported
-with the results.
-
-### Subproblems that cannot be solved to optimality
-
-Soares et al.'s Section 7 treatment is implemented in full. The lower bound is the master's dual
-bound even when it times out (the exact form of their `UB_F = F(1+gap)`), and a timed-out master's
-incumbent tax is proposed next instead of ending the run. The first time the master returns no
-point at all, its cuts are made elastic in place — one penalised slack per cut (P5-D) — and it is
-re-solved from the best evaluated point (`--no-elastic-master` disables this). A follower that
-times out is improved by their subproblem P6 (`--no-follower-improvement`), its best response is
-used, and a tie-break that finds nothing keeps the Step-2 response (P4-D). The master carries
-`F <= UB` (their `F <= UB_F`, after Mitsos 2010; `--no-emissions-cap` removes it).
-
-Where a subproblem stops on its time limit the eps criterion cannot be certified, and the run ends
-on the auxiliary stop and reports the interval `[leader_objective_lb, leader_objective_ub]` with
-the incumbent attaining the upper bound. `result_class` in the summary says which case applies:
-`certified`, `epsilon_optimal` or `bounded`.
-
-## Tests
+### Generate instances
 
 ```bash
-python -m pytest                 # both regression tests (about 2 minutes)
-python -m pytest -m "not slow"   # the generator tests only
+# the 12-instance benchmark (I ∈ {17, 25} × M ∈ {4, 8} × T ∈ {3, 6, 12})
+clsc-generate benchmark --output-dir data/instances/base
+
+# the three escalation instances (STD_I25_M12_T6, STD_I25_M16_T6, STD_I33_M8_T6)
+clsc-generate escalation --output-dir data/instances/base
+
+# a custom instance
+clsc-generate instance --name my_case --seed 1 --periods 6 --output data/instances/my_case.json
 ```
 
-`tests/test_baseline.py` checks that the generator reproduces the 12 committed base instances
-and the 3 escalation instances, and that a default solve of `STD_I17_M4_T3` reproduces its
-reference summary (certified, tax index 26).
-All need a Gurobi licence and are skipped without one.
+Generation is deterministic: each benchmark instance's seed is derived from `--seed-base` (default 0) and its name.
 
-## Licence
+## Configuration
 
-No licence has been chosen yet (see the TODO in `pyproject.toml`); until one is added, the code is
-not licensed for reuse.
+The method's defaults are in [`src/clsc/config/defaults.py`](src/clsc/config/defaults.py) (`DEFAULT`). A solve with no options uses them; each CLI flag overrides one.
+
+| Parameter | CLI flag | Default | Meaning |
+|---|---|---|---|
+| `dbp_relative_gap` | `--dbp-relative-gap` | `1e-4` | DBP stopping tolerance ε on the relative gap of `F` (Soares et al., 2021) |
+| `mip_gap` | `--mip-gap` | `1e-2` | Gurobi MIP gap for the follower (Tautenhain et al., 2021) |
+| `master_mip_gap` | `--master-mip-gap` | `1e-4` | Gurobi MIP gap for the relaxation master |
+| `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--master-time-limit` sets the master's separately) |
+| — | `--wall-clock-cap` | none | optional limit on a whole run |
+| `stagnation_limit` | — | `10` | stop after this many iterations without a bound update |
+| `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | `q` in `w = q · E_ref` (see below) |
+| `threads`, `mip_focus` | `--threads`, `--mip-focus` | `4`, `2` | Gurobi settings |
+
+**The tax weight is a policy assumption, not a tolerance.** `w = q · E_ref`, where `E_ref` is the lowest emissions the cut-free master can reach. `q = 1e-4` means *the regulator accepts losing 1 % of the minimum emissions to avoid 100 USD/t of tax*. `--leader-tax-weight` sets `w` directly, in kg CO2e per USD/t. The tax is resolved to about `dbp_relative_gap / q` USD/t (1 USD/t at the defaults).
+
+The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO2e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The instances use a range of 0–200 USD/t.
+
+In the output, `leader_objective_lb` and `leader_objective_ub` bound `F`, not emissions alone. `emissions` is the incumbent's own emissions and `leader_tax_weight` records `w`.
+
+## Data
+
+The 15 benchmark instances are in [`data/instances/base/`](data/instances/base/), named `STD_I<nodes>_M<materials>_T<periods>`. Each is a JSON file with four keys:
+
+- `name`: the instance name;
+- `metadata`: seed, generator configuration, node coordinates, units;
+- `sets`: index sets (suppliers, factories, warehouses, retailers, hubs, products, technologies, modes, periods, arcs);
+- `parameters`: costs, capacities, demands, return rates, emission factors, distances and the tax range.
+
+The data are synthetic, sampled by the generator; no external data set is needed. To solve your own case, create a file with the same structure (for example with `clsc-generate instance`) and pass its path to `clsc-solve`.
+
+## Results / Examples
+
+Solving `STD_I17_M4_T3` with the defaults (`clsc-solve data/instances/base/STD_I17_M4_T3.json`) writes, in `summary.json`:
+
+```json
+{
+  "instance": "STD_I17_M4_T3",
+  "result_class": "certified",
+  "termination_reason": "optimal",
+  "iterations": 5,
+  "tax_index": 26,
+  "tax_rate": 0.026,
+  "cost": 2525919.350079193,
+  "emissions": 25406136.47956628,
+  "leader_objective_lb": 25471977.012896396,
+  "leader_objective_ub": 25471977.05849877,
+  "relative_gap": 1.79e-09,
+  "validation_status": "validated"
+}
+```
+
+`tax_rate` is in USD/kg CO2e (26 USD/t), cost in USD and emissions in kg CO2e. This run takes about 1–2 minutes with 4 threads. Larger instances can take hours and may end as `epsilon_optimal` or `bounded`.
+
+## Testing
+
+```bash
+python -m pytest                  # all regression tests (about 2 minutes)
+python -m pytest -m "not slow"    # skip the solver test
+```
+
+[`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a default solve of `STD_I17_M4_T3` reproduces the summary above. The tests need a Gurobi licence and are skipped without one.
+
+## Contributing
+
+Issues and pull requests are welcome. Please open an issue to discuss a change first, then work on a feature branch, run `python -m pytest`, and open a pull request.
+
+## Citation
+
+If you use this code, please cite:
+
+```bibtex
+@misc{clsc_carbon_tax,
+  author = {<!-- TODO: authors -->},
+  title  = {<!-- TODO: title -->},
+  year   = {<!-- TODO: year -->},
+  note   = {<!-- TODO: journal, DOI or repository URL -->}
+}
+```
+
+The method builds on:
+
+- Soares, Alves and Henggeler Antunes (2021). A deterministic bounding procedure for the global optimization of a bi-level mixed-integer problem. *European Journal of Operational Research*. <!-- TODO: check volume, pages and DOI -->
+- Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021). An efficient Lagrangian-based heuristic to solve a multi-objective sustainable supply chain problem. *European Journal of Operational Research*. <!-- TODO: check volume, pages and DOI -->
+- Mota et al. (2018). <!-- TODO: full reference -->
+
+## License
+
+<!-- TODO: choose a licence, add a LICENSE file and set `license` in pyproject.toml. -->
+No licence has been chosen yet. Until one is added, the code is not licensed for reuse.
+
+## Contact / Author
+
+Marcelo Pinto. <!-- TODO: affiliation, e-mail and profile links -->
