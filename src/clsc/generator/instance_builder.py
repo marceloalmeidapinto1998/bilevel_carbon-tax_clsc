@@ -11,6 +11,8 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - only needed for optional YAML output
     yaml = None
 
+from clsc.config.tax_scale import TAX_SCALE_FACTOR
+
 from .config import GeneratorConfig, _tax_rate_to_tax_index
 from .generated_instance import GeneratedInstance
 from .geometry import _build_item_flow_tuples, _build_product_technology_pairs, _complete_cross_arcs, _connect_layers, _labels, _nested_arc_parameter, _products_by_technology, _sample_coordinates, _unique_arcs
@@ -487,8 +489,9 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         },
         "carbon_tax_units": {
             "underline_tax_rate_overline_tax_rate": "USD/kg CO2e",
-            "tax_index_step": "0.01 USD/kg CO2e",
-            "tau_formula_usd_per_kg_co2e": "0.01 * tax_index",
+            # Written from the project's one tax-grid step, so it cannot drift from it.
+            "tax_index_step": f"{TAX_SCALE_FACTOR:g} USD/kg CO2e",
+            "tau_formula_usd_per_kg_co2e": f"{TAX_SCALE_FACTOR:g} * tax_index",
         },
     }
 
