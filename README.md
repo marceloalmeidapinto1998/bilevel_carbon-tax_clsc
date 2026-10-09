@@ -90,7 +90,7 @@ The leader minimizes `F = E + w·τ`. One criterion means Soares et al. (2021)'s
 written: a single master stage, the `UB_F − LB_F` gap against `dbp_relative_gap`, and their
 Step 6 — once the gap has closed, the result is **optimal** if the master re-proposes the tax just
 evaluated (Lemma 3) and **epsilon-optimal** otherwise. The bounds in the summary
-(`emissions_leader_lb`, `emissions_follower_ub`; the names are historical) are bounds on `F`;
+(`leader_objective_lb`, `leader_objective_ub`) are bounds on `F`;
 `leader_tax_weight` records `w` (kg CO2e per USD/t) and `emissions` the incumbent's own emissions.
 
 `w` is a **policy assumption**, not a tolerance: how much emissions the regulator gives up to avoid
@@ -116,7 +116,7 @@ used, and a tie-break that finds nothing keeps the Step-2 response (P4-D). The m
 `F <= UB` (their `F <= UB_F`, after Mitsos 2010; `--no-emissions-cap` removes it).
 
 Where a subproblem stops on its time limit the eps criterion cannot be certified, and the run ends
-on the auxiliary stop and reports the interval `[emissions_leader_lb, emissions_follower_ub]` with
+on the auxiliary stop and reports the interval `[leader_objective_lb, leader_objective_ub]` with
 the incumbent attaining the upper bound. `result_class` in the summary says which case applies:
 `certified`, `epsilon_optimal` or `bounded`.
 

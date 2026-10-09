@@ -310,20 +310,20 @@ def validate_fixed_tax_solution(
     model.update()
     for variable in model.getVars():
         target_value = float(variable_values.get(variable.VarName, 0.0))
-        emissions_leader_lb = float(variable.LB)
-        emissions_follower_ub = float(variable.UB)
+        variable_lb = float(variable.LB)
+        variable_ub = float(variable.UB)
         target_value = normalize_solution_value(
             variable,
             target_value,
-            emissions_leader_lb=emissions_leader_lb,
-            emissions_follower_ub=emissions_follower_ub,
+            lower_bound=variable_lb,
+            upper_bound=variable_ub,
         )
         if (
-            target_value < emissions_leader_lb - DEFAULT.eps
-            or target_value > emissions_follower_ub + DEFAULT.eps
+            target_value < variable_lb - DEFAULT.eps
+            or target_value > variable_ub + DEFAULT.eps
         ):
             raise ValueError(
-                f"Saved solution value {target_value} for {variable.VarName} violates [{emissions_leader_lb}, {emissions_follower_ub}]",
+                f"Saved solution value {target_value} for {variable.VarName} violates [{variable_lb}, {variable_ub}]",
             )
         if variable.VType == GRB.CONTINUOUS:
             # Warm-start continuous variables rather than pinning LB=UB.

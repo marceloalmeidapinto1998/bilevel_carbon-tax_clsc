@@ -14,7 +14,7 @@ from clsc.solvers.dbp import BilevelSolveError, SubproblemStatusError, relative_
 from .validation import OutputValidationError
 
 
-RESULT_SCHEMA_VERSION = 3
+RESULT_SCHEMA_VERSION = 4
 
 
 SUMMARY_FIELDNAMES = [
@@ -31,8 +31,8 @@ SUMMARY_FIELDNAMES = [
     "cost",
     "emissions",
     "follower_objective",
-    "emissions_leader_lb",
-    "emissions_follower_ub",
+    "leader_objective_lb",
+    "leader_objective_ub",
     "relative_gap",
     "validation_status",
     "failure_stage",
@@ -51,7 +51,7 @@ TRACE_FIELDNAMES = [
     "relaxation_lower_bound",
     "follower_seconds",
     "follower_objective",
-    "incumbent_emissions",
+    "leader_objective_ub",
     "relaxation_seconds",
     "next_relaxation_tax_index",
     "next_relaxation_lower_bound",
@@ -99,17 +99,17 @@ def build_summary_record(
         "iterations": result.iterations,
         "tax_index": result.incumbent.tax_index,
         # kg CO2e per USD/t in the leader's objective F = E + w*tau. The bounds below
-        # (emissions_leader_lb / emissions_follower_ub) are bounds on F, not on emissions alone.
+        # (leader_objective_lb / leader_objective_ub) are bounds on F, not on emissions alone.
         "leader_tax_weight": getattr(result, "leader_tax_weight", 0.0),
         "tax_rate": result.incumbent.tax_rate,
         "cost": result.incumbent.cost,
         "emissions": result.incumbent.emissions,
         "follower_objective": result.incumbent.follower_objective,
-        "emissions_leader_lb": result.emissions_leader_lb,
-        "emissions_follower_ub": result.emissions_follower_ub,
+        "leader_objective_lb": result.leader_objective_lb,
+        "leader_objective_ub": result.leader_objective_ub,
         "relative_gap": relative_optimality_gap(
-            emissions_follower_ub=result.emissions_follower_ub,
-            emissions_leader_lb=result.emissions_leader_lb,
+            leader_objective_ub=result.leader_objective_ub,
+            leader_objective_lb=result.leader_objective_lb,
         ),
         "validation_status": solution_validation["status"],
         "failure_stage": None,
@@ -170,15 +170,15 @@ def build_instance_result_payload(
             "lex_secondary_mip_gap": getattr(result.incumbent_solution, "lex_secondary_mip_gap", None),
         },
         "bounds": {
-            "emissions_leader_lb": result.emissions_leader_lb,
-            "emissions_follower_ub": result.emissions_follower_ub,
+            "leader_objective_lb": result.leader_objective_lb,
+            "leader_objective_ub": result.leader_objective_ub,
             "relative_gap": relative_optimality_gap(
-                emissions_follower_ub=result.emissions_follower_ub,
-                emissions_leader_lb=result.emissions_leader_lb,
+                leader_objective_ub=result.leader_objective_ub,
+                leader_objective_lb=result.leader_objective_lb,
             ),
             "certificates": {
-                "lower": asdict(result.emissions_leader_lb_certificate),
-                "upper": asdict(result.emissions_follower_ub_certificate),
+                "lower": asdict(result.leader_objective_lb_certificate),
+                "upper": asdict(result.leader_objective_ub_certificate),
             },
         },
         "runtime": {
@@ -245,7 +245,7 @@ def build_dbp_trace_row(record) -> dict[str, object]:
         "relaxation_lower_bound": record.relaxation_lower_bound,
         "follower_seconds": record.follower_seconds,
         "follower_objective": record.follower_objective,
-        "incumbent_emissions": record.incumbent_emissions,
+        "leader_objective_ub": record.leader_objective_ub,
         "relaxation_seconds": record.relaxation_seconds,
         "next_relaxation_tax_index": record.next_relaxation_tax_index,
         "next_relaxation_lower_bound": record.next_relaxation_lower_bound,
@@ -318,8 +318,8 @@ def build_failure_summary_record(
         "cost": None,
         "emissions": None,
         "follower_objective": None,
-        "emissions_leader_lb": None,
-        "emissions_follower_ub": None,
+        "leader_objective_lb": None,
+        "leader_objective_ub": None,
         "relative_gap": None,
         "validation_status": "failed",
         "failure_stage": diagnostics["failure_stage"],

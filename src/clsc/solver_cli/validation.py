@@ -94,18 +94,18 @@ def rebuild_solution_with_fixed_discrete_values(*, instance: InstanceData, resul
         if variable.VType == "C":
             continue
         target_value = float(optimistic.variable_values.get(variable.VarName, 0.0))
-        emissions_leader_lb = float(variable.LB)
-        emissions_follower_ub = float(variable.UB)
+        variable_lb = float(variable.LB)
+        variable_ub = float(variable.UB)
         if abs(target_value - round(target_value)) <= INTEGER_SNAP_TOL:
             target_value = float(round(target_value))
-        if target_value < emissions_leader_lb - DEFAULT.eps or target_value > emissions_follower_ub + DEFAULT.eps:
+        if target_value < variable_lb - DEFAULT.eps or target_value > variable_ub + DEFAULT.eps:
             raise ValueError(
-                f"Saved solution value {target_value} for {variable.VarName} violates [{emissions_leader_lb}, {emissions_follower_ub}]",
+                f"Saved solution value {target_value} for {variable.VarName} violates [{variable_lb}, {variable_ub}]",
             )
-        if target_value < emissions_leader_lb:
-            target_value = emissions_leader_lb
-        if target_value > emissions_follower_ub:
-            target_value = emissions_follower_ub
+        if target_value < variable_lb:
+            target_value = variable_lb
+        if target_value > variable_ub:
+            target_value = variable_ub
         variable.LB = target_value
         variable.UB = target_value
 

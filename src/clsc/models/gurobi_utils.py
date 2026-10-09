@@ -198,15 +198,15 @@ def normalize_solution_value(
     variable: gp.Var,
     value: float,
     *,
-    emissions_leader_lb: float | None = None,
-    emissions_follower_ub: float | None = None,
+    lower_bound: float | None = None,
+    upper_bound: float | None = None,
 ) -> float:
     if variable.VType != GRB.CONTINUOUS and abs(value - round(value)) <= INTEGER_SNAP_TOL:
         value = float(round(value))
-    if emissions_leader_lb is not None and value < emissions_leader_lb and value >= emissions_leader_lb - BOUND_SNAP_TOL:
-        return emissions_leader_lb
-    if emissions_follower_ub is not None and value > emissions_follower_ub and value <= emissions_follower_ub + BOUND_SNAP_TOL:
-        return emissions_follower_ub
+    if lower_bound is not None and value < lower_bound and value >= lower_bound - BOUND_SNAP_TOL:
+        return lower_bound
+    if upper_bound is not None and value > upper_bound and value <= upper_bound + BOUND_SNAP_TOL:
+        return upper_bound
     return value
 
 

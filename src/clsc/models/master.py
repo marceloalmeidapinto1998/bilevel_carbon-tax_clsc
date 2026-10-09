@@ -596,13 +596,13 @@ def _retighten_tax_base_big_m(master: LeaderMaster, cap_scaled: float | None) ->
 
 def set_emissions_cap(
     master: LeaderMaster,
-    emissions_follower_ub: float | None,
+    upper_bound: float | None,
 ) -> None:
     emissions_total_var = master.artifacts.emissions_total_var
     if emissions_total_var is None:
         raise RuntimeError("DBP relaxation master is missing the scaled emissions objective variable")
 
-    if emissions_follower_ub is None:
+    if upper_bound is None:
         if master.emissions_cap_constraint is not None:
             master.artifacts.model.remove(master.emissions_cap_constraint)
             master.emissions_cap_constraint = None
@@ -613,18 +613,18 @@ def set_emissions_cap(
             _retighten_tax_base_big_m(master, None)
         return
 
-    if emissions_follower_ub < 0:
-        raise ValueError("emissions_follower_ub must be nonnegative")
+    if upper_bound < 0:
+        raise ValueError("upper_bound must be nonnegative")
 
-    # Widen the cutoff by a tiny relative tolerance: `emissions_follower_ub` is the
-    # emissions value reported by a *different*, independently built Gurobi
+    # Widen the cutoff by a tiny relative tolerance: `upper_bound` is the
+    # value reported by a *different*, independently built Gurobi
     # model (the optimistic follower solve), so floating-point reconstruction
     # of the same physical point inside this relaxation master's own
     # LinExpr can land a hair above it. An exact (non-widened) cutoff can
     # then spuriously exclude the true incumbent point from its own
     # relaxation, making the master falsely INFEASIBLE. Mirrors the same
     # relative-tolerance pattern as `lex_freeze_tolerance`.
-    tolerant_upper_bound = emissions_follower_ub + lex_freeze_tolerance(emissions_follower_ub)
+    tolerant_upper_bound = upper_bound + lex_freeze_tolerance(upper_bound)
 
     if master.emissions_cap is not None and math.isclose(
         tolerant_upper_bound,
