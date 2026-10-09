@@ -608,7 +608,7 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         # ecmax_i (Mota's node throughput capacity) is intentionally not emitted:
         # entity capacity is carried by the installed-area mechanism (YCT <= YC),
         # as in Tautenhain et al. (2021). See _add_flow_constraints in
-        # src/clsc/models/subproblems.py.
+        # src/clsc/models/supply_chain.py.
         "a_in_u_p_g": technology_input_requirement,
         "bom_rem_r_p": remanufacturing_bom_matrix,
         "ret_yield_rp_p": return_yield_matrix,

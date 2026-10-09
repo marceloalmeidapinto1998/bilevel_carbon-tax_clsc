@@ -113,7 +113,7 @@ TRUCK_SPEED_KM_H = 60.0
 # to their 17.33-week periods, where it would compound to 33.1% a year.
 #
 # This module keeps the published value and treats it as annual;
-# clsc.models.subproblems.discount_factors compounds it to the period length.
+# clsc.models.supply_chain.discount_factors compounds it to the period length.
 # Capital is charged as a per-period rental over its asset life, not bought
 # outright at t=0 (see ASSET_LIFE_YEARS below); emissions are
 # NOT discounted -- Mota's environmental objective (eq. 46) is a plain sum
@@ -149,7 +149,7 @@ YEARS_PER_PERIOD = WEEKS_PER_PERIOD / WEEKS_PER_YEAR
 #
 # Our periods are a third of a year, which gives 1.5 turns per period. This is
 # the same annual-to-period conversion applied to the interest rate in
-# clsc.models.subproblems.discount_factors, and consistency demands the same
+# clsc.models.supply_chain.discount_factors, and consistency demands the same
 # answer here. Until 2026-08-11 the 4.5 was read as a per-period count, which
 # assumed three times the real turnover and so understated, by that same
 # factor, the floor area each unit of throughput demands.
@@ -169,7 +169,7 @@ PRODUCT_ROTATION_PER_PERIOD = round(PRODUCT_ROTATION_PER_YEAR * YEARS_PER_PERIOD
 # free parameter: it is the book value still unconsumed at the horizon. The
 # invariant underneath is the life 1/rate -- 20, 8 and 5 years -- and that is
 # what transfers to a horizon of a different length. See
-# clsc.models.subproblems.capital_multipliers for how it is charged.
+# clsc.models.supply_chain.capital_multipliers for how it is charged.
 ASSET_LIFE_YEARS = {"facility": 20.0, "technology": 8.0, "vehicle": 5.0}
 
 # ---------------------------------------------------------------------------

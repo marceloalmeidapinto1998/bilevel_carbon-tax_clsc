@@ -12,7 +12,7 @@ import time
 
 from clsc.config.constants import INTEGER_SNAP_TOL
 from clsc.config.defaults import DEFAULT
-from clsc.models.subproblems import (
+from clsc.models.follower import (
     build_follower_master,
     solve_follower_lexicographic,
     validate_fixed_tax_solution,

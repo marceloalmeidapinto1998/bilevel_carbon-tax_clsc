@@ -7,10 +7,10 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   ---------------------------------------------------------------------------
   x^u                     tax_index (integer)               the leader's choice
   y                       the whole supply chain            the model's own variables,
-                                                            built in _build_supply_chain_model *
+                                                            built in build_supply_chain_model *
   F(x, y)                 E + w * tax_index                 the leader's single objective **
   f(x, y)                 cost + tax_rate * tax_base        follower's objective
-  g(y) <= 0               the chain's physical constraints  _build_supply_chain_model
+  g(y) <= 0               the chain's physical constraints  build_supply_chain_model
                           -- independent of the tax
   (P2)   HPR              leader master, no cuts yet        build_leader_master
   (P5)   HPR + cuts       the SAME master, k cuts later     add_value_function_cut
@@ -78,19 +78,18 @@ import time
 from clsc.config.defaults import DEFAULT
 from clsc.config.tax_scale import TAX_SCALE_FACTOR
 from clsc.models.instance_data import InstanceData
-from clsc.models.subproblems import (
+from clsc.models.follower import build_follower_master, solve_follower_lexicographic
+from clsc.models.gurobi_utils import SolveResult
+from clsc.models.master import (
     ValueFunctionCut,
-    SolveResult,
     add_value_function_cut,
     build_leader_master,
-    build_follower_master,
     enable_elastic_cuts,
+    set_emissions_cap,
     set_leader_master_start,
     set_leader_objective_cap,
     set_leader_tax_weight,
-    set_emissions_cap,
     solve_dbp_master,
-    solve_follower_lexicographic,
 )
 
 

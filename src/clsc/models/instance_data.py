@@ -391,7 +391,7 @@ def _apply_parameter_defaults(parameters: dict[str, Any], sets: dict[str, Any]) 
     parameters.setdefault("apu_p", {product: 0.0 for product in sets.get("P", ())})
     # apur_p is a DERIVED quantity -- apur_p[p] == apu_p[p] / product_rotation_per_period by
     # definition (it is the per-period rotation footprint the model reads as flow area, see
-    # subproblems._item_flow_area_map). Recompute it authoritatively from apu_p on every load
+    # supply_chain._item_flow_area_map). Recompute it authoritatively from apu_p on every load
     # rather than trusting whatever the file carries: the generator serialises apur_p rounded to
     # 6 DECIMAL places, which at its ~1e-4 magnitude keeps only ~3 significant figures and breaks
     # the defining ratio by ~1e-3 relative. Deriving on load keeps the in-memory model exactly

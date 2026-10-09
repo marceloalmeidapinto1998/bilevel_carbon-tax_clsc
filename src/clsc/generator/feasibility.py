@@ -33,7 +33,7 @@ def _is_relaxation_feasible(instance: GeneratedInstance) -> bool:
     from gurobipy import GRB
 
     from clsc.models.instance_data import InstanceData
-    from clsc.models.subproblems import build_leader_master
+    from clsc.models.master import build_leader_master
 
     instance_data = InstanceData.from_dict(instance.to_dict())
     master = build_leader_master(instance_data)
