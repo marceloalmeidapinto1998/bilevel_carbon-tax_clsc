@@ -569,12 +569,12 @@ def build_canonical_instance_dir(instance_path: Path, target: Path) -> Path:
 
 
 def infer_dataset_instance_dir(instance_path: Path) -> Path | None:
-    # data/instances/<X> mirrors results/runs/<X>, so reuse the subpath after instances/ verbatim
+    # data/<X> mirrors results/runs/<X>, so reuse the subpath after data/ verbatim
     # (e.g. base/<inst>, experiments/scenarios/<type>/<inst>, experiments/sensitivity/oat/<base>/<SA>).
     # Anything not under a known top scope defaults to base/.
     parts = instance_path.with_suffix("").parts
     for index, part in enumerate(parts):
-        if part != "instances" or index + 1 >= len(parts):
+        if part != "data" or index + 1 >= len(parts):
             continue
         remaining_parts = parts[index + 1 :]
         if remaining_parts[0] in {"base", "experiments"}:

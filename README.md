@@ -26,7 +26,7 @@ The repository also contains an instance generator, based on the sampling rules 
 
 ```text
 .
-├── data/instances/base/     # the 15 benchmark instances (JSON)
+├── data/     # the 15 benchmark instances (JSON)
 ├── src/clsc/                # the Python package
 │   ├── config/              #   method defaults, shared constants, tax-grid step
 │   ├── generator/           #   instance generator (CLI: clsc-generate)
@@ -68,13 +68,13 @@ This installs the `clsc` package and two commands, `clsc-solve` and `clsc-genera
 
 ```bash
 # one instance, default configuration
-clsc-solve data/instances/base/STD_I17_M4_T3.json --results-root results/runs
+clsc-solve data/STD_I17_M4_T3.json --results-root results/runs
 
 # every instance in a folder
-clsc-solve data/instances/base --results-root results/runs
+clsc-solve data --results-root results/runs
 
 # a different tax weight (see Configuration)
-clsc-solve data/instances/base/STD_I17_M4_T3.json --leader-tax-weight-relative 1e-5
+clsc-solve data/STD_I17_M4_T3.json --leader-tax-weight-relative 1e-5
 ```
 
 Each instance writes to `results/runs/<dataset>/<instance>/dbp/`:
@@ -93,13 +93,13 @@ Each instance writes to `results/runs/<dataset>/<instance>/dbp/`:
 
 ```bash
 # the 12-instance benchmark (I ∈ {17, 25} × M ∈ {4, 8} × T ∈ {3, 6, 12})
-clsc-generate benchmark --output-dir data/instances/base
+clsc-generate benchmark --output-dir data
 
 # the three escalation instances (STD_I25_M12_T6, STD_I25_M16_T6, STD_I33_M8_T6)
-clsc-generate escalation --output-dir data/instances/base
+clsc-generate escalation --output-dir data
 
 # a custom instance
-clsc-generate instance --name my_case --seed 1 --periods 6 --output data/instances/my_case.json
+clsc-generate instance --name my_case --seed 1 --periods 6 --output data/my_case.json
 ```
 
 Generation is deterministic: each benchmark instance's seed is derived from `--seed-base` (default 0) and its name.
@@ -127,7 +127,7 @@ In the output, `leader_objective_lb` and `leader_objective_ub` bound `F`, not em
 
 ## Data
 
-The 15 benchmark instances are in [`data/instances/base/`](data/instances/base/), named `STD_I<nodes>_M<materials>_T<periods>`. Each is a JSON file with four keys:
+The 15 benchmark instances are in [`data/`](data/), named `STD_I<nodes>_M<materials>_T<periods>`. Each is a JSON file with four keys:
 
 - `name`: the instance name;
 - `metadata`: seed, generator configuration, node coordinates, units;
@@ -138,7 +138,7 @@ The data are synthetic, sampled by the generator; no external data set is needed
 
 ## Results / Examples
 
-Solving `STD_I17_M4_T3` with the defaults (`clsc-solve data/instances/base/STD_I17_M4_T3.json`) writes, in `summary.json`:
+Solving `STD_I17_M4_T3` with the defaults (`clsc-solve data/STD_I17_M4_T3.json`) writes, in `summary.json`:
 
 ```json
 {

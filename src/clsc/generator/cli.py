@@ -14,8 +14,8 @@ def build_instance_parser() -> argparse.ArgumentParser:
         description="Generate Tautenhain-based closed-loop supply chain instances for the carbon-tax model.",
     )
     parser.add_argument("--name", default="base_case", help="Instance name used in metadata and default output naming.")
-    parser.add_argument("--output", help="Output path. Defaults to data/instances/base/<name>.json")
-    parser.add_argument("--output-dir", default="data/instances/base", help="Directory used when generating multiple instances.")
+    parser.add_argument("--output", help="Output path. Defaults to data/<name>.json")
+    parser.add_argument("--output-dir", default="data", help="Directory used when generating multiple instances.")
     parser.add_argument("--count", type=int, default=1, help="Number of instances to generate. Each instance increments the seed by 1.")
     parser.add_argument("--seed", type=int, default=0, help="Random seed.")
     parser.add_argument("--suppliers", type=int, default=3)
@@ -98,7 +98,7 @@ def build_benchmark_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--output-dir",
-        default="data/instances/base",
+        default="data",
         help="Output directory where STD base instance files are written directly.",
     )
     parser.add_argument(

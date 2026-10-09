@@ -14,7 +14,7 @@ import sys
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-BASE_INSTANCES = REPO_ROOT / "data" / "instances" / "base"
+BASE_INSTANCES = REPO_ROOT / "data"
 
 
 def _gurobi_available() -> bool:
