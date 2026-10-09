@@ -1,6 +1,6 @@
-# Runtime dependencies (mirrors pyproject.toml)
+# Mirrors pyproject.toml. Prefer: pip install -e ".[dev]"
 gurobipy>=13,<14
 pyyaml>=6,<7
 
-# Testing
+# dev extra
 pytest>=8,<10

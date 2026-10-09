@@ -10,33 +10,58 @@ of Soares et al. (2021).
 ## Repository layout
 
 ```
-src/clsc/            # the installable package (pip install -e .)
-  generator/         #   instance generator (Tautenhain-based sampler; pure data code)
-  config/            #   solver defaults (defaults.ToleranceConfig) + the one tax-grid step
-                     #   (tax_scale.TAX_SCALE_FACTOR)
-  models/            #   instance data model + Gurobi models (follower, relaxation master)
-  solvers/           #   the DBP (dbp.py)
-  solver_cli/        #   batch CLI (python -m clsc.solver_cli.solve_batch)
-data/instances/base/ # base instances (the 12-cell testbed + 3 escalation cells)
-pyproject.toml       # packaging (LICENSE / CITATION.cff: still TODO)
+src/clsc/                    # the installable package
+  config/
+    defaults.py              #   the method's defaults (tolerances, budgets, tax weight)
+    constants.py             #   constants shared across the package
+    tax_scale.py             #   the one tax-grid step, TAX_SCALE_FACTOR
+  generator/                 #   instance generator (Tautenhain-based sampler; `clsc-generate`)
+    instance_builder.py      #     generate_instance / write_instance
+    benchmark.py             #     the 12-instance benchmark and the escalation instances
+    ...                      #     config, sampling, geometry, feasibility, tautenhain_data
+  models/
+    instance_data.py         #   loading and validating an instance (InstanceData)
+    supply_chain.py          #   the supply-chain MILP shared by follower and master
+    follower.py              #   the follower's model and its two-stage optimistic solve
+    master.py                #   the DBP relaxation master: objective, cuts, caps, elastic cuts
+    gurobi_utils.py          #   solve wrapper and result types
+  solvers/
+    dbp.py                   #   the Deterministic Bounding Procedure
+  solver_cli/                #   batch CLI (`clsc-solve`)
+    cli.py                   #     argument parsing and the main loop
+    results.py               #     the output files
+    validation.py            #     revalidation of the saved solution
+data/instances/base/         # base instances (the 12-instance testbed + 3 escalation instances)
+tests/                       # regression tests (test_baseline.py)
 ```
 
 ## Environment
 
 - Developed on Python 3.14 with Gurobi 13 (academic licence). The package declares
   `requires-python = ">=3.12"`.
-- Install (editable, from the repo root): `pip install -e .`. `requirements.txt` mirrors the
-  runtime dependencies declared in `pyproject.toml`.
+- Install (editable, from the repo root): `pip install -e ".[dev]"` (the `dev` extra adds
+  pytest). This installs the `clsc` package and two commands, `clsc-generate` and `clsc-solve`.
+  `requirements.txt` mirrors the dependencies declared in `pyproject.toml`.
+- A Gurobi licence is required to solve, and to generate instances (each instance's feasibility
+  is checked with Gurobi).
 
 ## Commands
 
 ```bash
 # Generate the base instance set (deterministic)
-python -m clsc.generator benchmark --output-dir data/instances/base
+clsc-generate benchmark --output-dir data/instances/base
 
 # Solve one instance with the default method (see "Solver configuration")
-python -m clsc.solver_cli.solve_batch data/instances/base/STD_I25_M8_T6.json --results-root results/runs
+clsc-solve data/instances/base/STD_I25_M8_T6.json --results-root results/runs
+
+# Solve every instance in a folder
+clsc-solve data/instances/base --results-root results/runs
 ```
+
+`python -m clsc.generator` and `python -m clsc.solver_cli` are equivalent to the two commands;
+`clsc-solve --help` lists every option. The three escalation instances (`STD_I25_M12_T6`,
+`STD_I25_M16_T6`, `STD_I33_M8_T6`) are not written by `benchmark`; they are generated with
+`clsc.generator.generate_escalation_bases()`.
 
 Each run writes `summary.json`/`summary.csv`, `result.json`, `solution.json`, `dbp_trace.csv`
 and a `manifest.json` recording the tolerances, budgets, tax weight and code version.
@@ -97,6 +122,16 @@ the incumbent attaining the upper bound. `result_class` in the summary says whic
 
 ## Tests
 
-There is no test suite. It was removed in `a612b27` (2026-09-09) against a formulation that was
-still moving, and is recoverable from history. `pyproject.toml` keeps the `dev` extra and the
-pytest configuration so that a rebuilt suite drops straight back in.
+```bash
+python -m pytest                 # both regression tests (about 2 minutes)
+python -m pytest -m "not slow"   # the generator test only
+```
+
+`tests/test_baseline.py` checks that the generator reproduces the 12 committed base instances and
+that a default solve of `STD_I17_M4_T3` reproduces its reference summary (certified, tax index 26).
+Both need a Gurobi licence and are skipped without one.
+
+## Licence
+
+No licence has been chosen yet (see the TODO in `pyproject.toml`); until one is added, the code is
+not licensed for reuse.

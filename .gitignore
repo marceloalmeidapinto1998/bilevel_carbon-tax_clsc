@@ -1,25 +1,12 @@
 __pycache__/
 *.py[cod]
-.pytest_cache/
 *.egg-info/
+.pytest_cache/
 
+# Local environments and editor settings
 .venv*/
 .vscode/
-
-# .claude/ is NOT versioned. The multi-agent analysis framework it held (agents, workflows,
-# standards, templates) was retired with the campaign_01 remap; what remains there is per-user
-# local configuration, which does not belong in the repository.
 .claude/
 
-tmp_pytest_*.log
-
-*.aux
-*.bbl
-*.blg
-*.fdb_latexmk
-*.fls
-*.log
-texput.log
-
-# Solver output (python -m clsc.solver_cli.solve_batch --results-root results/runs)
+# Solver output (clsc-solve --results-root results/runs)
 results/
