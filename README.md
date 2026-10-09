@@ -4,9 +4,38 @@ A bilevel model of a closed-loop supply chain under a carbon tax, solved to glob
 
 ## Overview
 
-A regulator (the leader) sets a carbon tax rate `τ` on a finite grid. A closed-loop supply chain operator (the follower) responds by choosing its network — facilities, technologies, capacities, transport modes, and forward and reverse flows — to minimise operating cost plus tax, as a mixed-integer linear program. The leader minimises `F = E + w·τ`: the follower's emissions `E` plus a small weight `w` on the tax rate, so that among taxes that abate emissions equally it prefers the lower one. Ties in the follower's problem are broken optimistically, in favour of the lowest emissions among its cost-optimal responses.
+### Problem setting
 
-The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021): a relaxation master over the follower's feasible region gives a lower bound on `F`, exact follower evaluations give an upper bound, and value-function cuts tighten the master until the two bounds close within a chosen tolerance. The repository also includes an instance generator, based on the sampling rules of Tautenhain et al. (2021) for the supply-chain model of Mota et al. (2018), and the 15 benchmark instances it produces.
+A regulator (the leader) fixes a carbon-tax rate; a closed-loop supply chain (CLSC) operator (the follower) responds by redesigning and operating its network to minimise its own cost plus the tax it pays. The leader anticipates this response and chooses the tax that minimises its own objective over it, which makes the problem a single-leader, single-follower bilevel mixed-integer program.
+
+### Leader problem
+
+The leader's decision variable is the integer tax index `tax_index` ($x^u$), on a finite grid fixed per instance (0–200 on the benchmark instances); the tax rate is $\tau = \theta \cdot x^u$, with grid step $\theta =$ `TAX_SCALE_FACTOR` $= 10^{-3}$ USD/kg CO2e (one USD/t per index). The leader minimises
+
+$$F = E + w \cdot x^u$$
+
+where $E$ is the follower's total physical emissions (kg CO2e) and $w$ (kg CO2e per index) is a declared policy weight, not a solver tolerance: it states how much emissions the regulator forgoes to avoid one further index of tax. By default $w = q \cdot E_{ref}$, with $q =$ `tax_weight_relative` ($10^{-4}$ by default) and $E_{ref}$ the least emissions the cut-free relaxation master can reach; it can also be fixed directly, in kg CO2e per USD/t. Because the tax term is strictly positive, $F$ also prefers the lower tax among taxes that abate emissions equally, so no secondary criterion is needed.
+
+### Follower problem
+
+For a fixed tax index, the follower solves a mixed-integer linear program over a multi-period, multi-product CLSC network of suppliers, factories, warehouses, retailers and airport/seaport hubs, connected by truck, air and sea transport. Its decisions are:
+
+- strategic: which factories and warehouses to open, their installed floor-area capacities, and which production and remanufacturing technologies to install at each factory;
+- tactical/operational, period by period: raw-material purchases from suppliers, production and remanufacturing volumes, warehouse inventory levels, and forward flows of final products and reverse flows of recovered products across the network's transport arcs and modes.
+
+The follower minimises $f = c(y) + \tau \cdot \beta(y)$: its own discounted operating cost $c(y)$ (procurement, production, remanufacturing, transport, handling and inventory) plus the carbon tax levied on $\beta(y)$, the discounted emissions aggregate it is taxed on. $\beta(y)$ equals the leader's (undiscounted) $E$ only when the instance carries no interest rate; the benchmark instances are generated with one, so in general $\beta(y) \neq E$.
+
+### Tie-breaking
+
+Among the responses that minimise $f$, the follower is assumed to pick the one with least physical emissions $E$ — the optimistic rule — enforced by a two-stage lexicographic solve. Stage 1 minimises $f$, giving $f^*$. Stage 2 re-minimises $E$ subject to $f \le f^* + \varepsilon'$, where $\varepsilon'$ (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) freezes Stage 1's value within a numerical tolerance before re-optimising. If Stage 1 stops at its time limit, subproblem (P6) first searches for a response that improves on it before the freeze is set; if Stage 2 finds nothing feasible, the Stage-1 (or P6) response is kept.
+
+### Solution method
+
+The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021). A relaxation master — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — is solved first with no cuts, then iteratively re-solved with one value-function cut added per iteration: each cut, built from an evaluated response $(x^u_k, y_k)$, enforces $f(x,y) \le f(x,y_k) + \varepsilon'$ and is valid at every tax index, since the follower's constraints do not depend on it. The master's optimum is a lower bound on $F$; the least $F$ attained by any evaluated follower response is an upper bound. The loop proposes the master's tax index, evaluates the follower there, adds the resulting cut, and re-solves the master, until the relative gap $(\mathrm{UB}-\mathrm{LB})/\max(1,|\mathrm{UB}|)$ falls at or below `dbp_relative_gap` ($10^{-4}$ by default). The result is reported optimal if the master then re-proposes the tax index just evaluated (Lemma 3 of the reference); otherwise it is epsilon-optimal. A master that times out still yields a valid dual bound and a usable tax proposal; a follower that times out is passed through subproblem (P6); and the master's cuts are made elastic (P5-D) the first time it returns no feasible point.
+
+### Benchmark instances
+
+The repository includes a deterministic instance generator, based on the sampling rules of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021) for the CLSC model of Mota, Gomes, Carvalho and Barbosa-Póvoa (2018), and the 15 instances it produces, named `STD_I<entities>_M<materials>_T<periods>`. Twelve form the standard testbed, spanning every combination of a total entity count `I` ∈ {17, 25} (suppliers, factories, warehouses, retailers, airports and seaports), a materials/products code `M` ∈ {4, 8} (`M4`: 2 raw materials, 1 product; `M8`: 4 raw materials, 2 products), and a planning horizon `T` ∈ {3, 6, 12} periods. Three escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`) push the materials/products or entity-count axis one point past the standard range, for scalability probes, and are not written by the routine `benchmark` command. Every instance uses 3 production and 3 remanufacturing technologies.
 
 ## Project structure
 
