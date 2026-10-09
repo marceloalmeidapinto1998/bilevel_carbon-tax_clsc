@@ -10,6 +10,7 @@ import shutil
 import sys
 import time
 
+from clsc.config.constants import INTEGER_SNAP_TOL
 from clsc.config.defaults import DEFAULT
 from clsc.models.subproblems import (
     build_follower_master,
@@ -37,7 +38,6 @@ SOLVER_METHOD_RESULT_DIRS = {
 }
 
 RESULT_SCHEMA_VERSION = 3
-INTEGER_SNAP_TOL = max(DEFAULT.eps, 1e-5)
 SUMMARY_FIELDNAMES = [
     "instance",
     "input_path",

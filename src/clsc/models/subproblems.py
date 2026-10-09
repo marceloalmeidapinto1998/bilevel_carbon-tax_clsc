@@ -9,6 +9,7 @@ from typing import Iterable
 import gurobipy as gp
 from gurobipy import GRB
 
+from clsc.config.constants import BOUND_SNAP_TOL, INTEGER_SNAP_TOL, WEEKS_PER_YEAR
 from clsc.config.defaults import DEFAULT
 from .instance_data import InstanceData
 
@@ -33,8 +34,6 @@ from .instance_data import InstanceData
 # tax_rate, and the tau*emissions product is carried in USD -- both keeping large constants out
 # of the cut rows. This constant is the one that actually decides correctness.
 EMISSIONS_SCALE = 1_000.0  # kg to tonnes
-BOUND_SNAP_TOL = max(DEFAULT.eps, 1e-6)
-INTEGER_SNAP_TOL = max(DEFAULT.eps, 1e-5)
 # Gurobi NumericFocus for the DBP relaxation master, and ONLY for it -- the follower and
 # fixed-tax models are well behaved and pay nothing for the default.
 #
@@ -2207,8 +2206,6 @@ def _tax_base_of(artifacts: ModelArtifacts) -> gp.LinExpr:
     """
     return artifacts.emissions_expr if artifacts.tax_base_expr is None else artifacts.tax_base_expr
 
-
-WEEKS_PER_YEAR = 52.0
 
 
 def discount_factors(params, periods) -> dict[str, float]:

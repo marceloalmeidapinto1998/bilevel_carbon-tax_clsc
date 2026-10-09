@@ -4,6 +4,8 @@ import math
 import random
 from typing import Any
 
+from clsc.config.constants import WEEKS_PER_YEAR
+
 # Tautenhain-based: generator constants.
 DEMAND_RANGE = (8336.8, 34481.28)
 RETURN_RATE_UPPER_BOUND = 0.15
@@ -137,7 +139,6 @@ WEEKS_PER_PERIOD = 17.33
 # 693.2 paid hours per worker per period -- exactly a full-time year over the
 # three periods that make up 12 months.
 WEEKLY_WORKING_HOURS = 40.0
-WEEKS_PER_YEAR = 52.0
 YEARS_PER_PERIOD = WEEKS_PER_PERIOD / WEEKS_PER_YEAR
 
 # Mota et al. (2018) size the flow component of floor area as

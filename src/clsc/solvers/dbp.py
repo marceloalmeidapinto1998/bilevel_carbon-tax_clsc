@@ -76,7 +76,8 @@ from pathlib import Path
 import time
 
 from clsc.config.defaults import DEFAULT
-from clsc.models.instance_data import TAX_SCALE_FACTOR, InstanceData
+from clsc.config.tax_scale import TAX_SCALE_FACTOR
+from clsc.models.instance_data import InstanceData
 from clsc.models.subproblems import (
     ValueFunctionCut,
     SolveResult,
