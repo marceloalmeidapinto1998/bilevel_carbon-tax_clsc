@@ -9,8 +9,8 @@ from typing import Iterable
 import gurobipy as gp
 from gurobipy import GRB
 
-from clsc.config.gap_tol import DEFAULT
-from .instance import InstanceData
+from clsc.config.defaults import DEFAULT
+from .instance_data import InstanceData
 
 
 # Working unit for emissions inside the models: kg -> TONNES.

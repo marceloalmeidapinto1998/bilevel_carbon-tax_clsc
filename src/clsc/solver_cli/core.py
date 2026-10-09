@@ -10,13 +10,13 @@ import shutil
 import sys
 import time
 
-from clsc.config.gap_tol import DEFAULT
+from clsc.config.defaults import DEFAULT
 from clsc.models.subproblems import (
     build_follower_master,
     solve_follower_lexicographic,
     validate_fixed_tax_solution,
 )
-from clsc.models.instance import InstanceData, InstanceValidationError
+from clsc.models.instance_data import InstanceData, InstanceValidationError
 from clsc.solvers.dbp import (
     BilevelSolveError,
     SubproblemStatusError,
@@ -109,7 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Gurobi time limit in seconds for ONE follower subproblem, and for the master too "
-            "unless --master-time-limit is given (default: clsc.config.gap_tol.DEFAULT.time_limit, "
+            "unless --master-time-limit is given (default: clsc.config.defaults.DEFAULT.time_limit, "
             "600 s). Pass inf to remove it."
         ),
     )
@@ -120,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
             "The leader minimises F = E + w*tau, with w this many kg CO2e per USD/t of tax: how "
             "much emissions the regulator gives up to avoid 1 USD/t. A POLICY assumption, not a "
             "tolerance. Give at most one tax-weight flag; with neither, "
-            "--leader-tax-weight-relative defaults to clsc.config.gap_tol.DEFAULT.tax_weight_relative. "
+            "--leader-tax-weight-relative defaults to clsc.config.defaults.DEFAULT.tax_weight_relative. "
             ""
         ),
     )
@@ -158,7 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Gurobi MIPGap target for every follower sub-solve "
-            "(default: clsc.config.gap_tol.DEFAULT.mip_gap, 1e-2)."
+            "(default: clsc.config.defaults.DEFAULT.mip_gap, 1e-2)."
         ),
     )
     parser.add_argument(
@@ -166,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Gurobi MIPGap target for the DBP relaxation master only (default: "
-            "clsc.config.gap_tol.DEFAULT.master_mip_gap, 1e-4). The master's gap only loosens the lower bound -- its dual "
+            "clsc.config.defaults.DEFAULT.master_mip_gap, 1e-4). The master's gap only loosens the lower bound -- its dual "
             "bound stays valid -- so it can be looser than the follower's. A master that "
             "stops on its time limit still contributes its dual bound and a tax proposal."
         ),
@@ -176,7 +176,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Override the DBP loop's own relative-gap stopping criterion "
-            "(default: clsc.config.gap_tol.DEFAULT.dbp_relative_gap). This is the "
+            "(default: clsc.config.defaults.DEFAULT.dbp_relative_gap). This is the "
             "outer algorithm's stopping tolerance, not a Gurobi parameter."
         ),
     )
@@ -185,7 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help=(
             "Override Gurobi Threads for every sub-solve (default: "
-            "clsc.config.gap_tol.DEFAULT.threads)."
+            "clsc.config.defaults.DEFAULT.threads)."
         ),
     )
     parser.add_argument(
@@ -194,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(0, 1, 2, 3),
         help=(
             "Override Gurobi MIPFocus for every sub-solve (default: "
-            "clsc.config.gap_tol.DEFAULT.mip_focus)."
+            "clsc.config.defaults.DEFAULT.mip_focus)."
         ),
     )
     parser.add_argument(

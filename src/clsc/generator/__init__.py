@@ -2,10 +2,10 @@
 
 Role modules:
   config     — GeneratorConfig, ArcConnectivityConfig, constants, tax helper
-  models     — GeneratedInstance
+  generated_instance — GeneratedInstance
   geometry   — coordinate + arc/network builders
   sampling   — demand / BOM / profile / capacity sampling (uses tautenhain_data)
-  instance   — generate_instance() + write_instance()
+  instance_builder — generate_instance() + write_instance()
   benchmark  — STD benchmark set building
   cli        — argparse parsers + main
   tautenhain_data — sampling rules/constants
@@ -43,8 +43,8 @@ from .config import (
     ArcConnectivityConfig,
     GeneratorConfig,
 )
-from .instance import generate_instance, write_instance
-from .models import GeneratedInstance
+from .instance_builder import generate_instance, write_instance
+from .generated_instance import GeneratedInstance
 
 __all__ = [
     "ArcConnectivityConfig",

@@ -12,7 +12,7 @@ except ModuleNotFoundError:  # pragma: no cover - only needed for optional YAML 
     yaml = None
 
 from .config import GeneratorConfig, _tax_rate_to_tax_index
-from .models import GeneratedInstance
+from .generated_instance import GeneratedInstance
 from .geometry import _build_item_flow_tuples, _build_product_technology_pairs, _complete_cross_arcs, _connect_layers, _labels, _nested_arc_parameter, _products_by_technology, _sample_coordinates, _unique_arcs
 from .sampling import _sample_bom_and_product_profiles, _sample_demand, _sum_product_demand_by_period
 from . import tautenhain_data as taut

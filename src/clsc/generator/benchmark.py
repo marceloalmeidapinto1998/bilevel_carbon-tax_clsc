@@ -8,8 +8,8 @@ import re
 from typing import Any
 
 from .config import GeneratorConfig
-from .models import GeneratedInstance
-from .instance import generate_instance, write_instance
+from .generated_instance import GeneratedInstance
+from .instance_builder import generate_instance, write_instance
 
 PREFIXES = ("STD",)
 

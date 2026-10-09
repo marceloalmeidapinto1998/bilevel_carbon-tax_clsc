@@ -5,13 +5,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from clsc.config.gap_tol import DEFAULT
+from clsc.config.defaults import DEFAULT
 from clsc.config.tax_scale import TAX_SCALE_FACTOR
 
 # TAX_SCALE_FACTOR: USD/kg CO2e per integer tax_index step: tax_rate = TAX_SCALE_FACTOR * tax_index.
 # The one carbon-tax resolution in the project (clsc.config.tax_scale.TAX_SCALE_FACTOR),
 # re-exported under this name since it is part of this module's public API (imported elsewhere
-# as clsc.models.instance.TAX_SCALE_FACTOR).
+# as clsc.models.instance_data.TAX_SCALE_FACTOR).
 # Fallback for instances generated before 2026-08-11, which carry no
 # product_rotation_per_period. Those were built reading Mota's 4.5 turns/year
 # as a per-period count, and must keep it so archived runs stay reproducible.
@@ -101,7 +101,7 @@ REQUIRED_PARAMETER_KEYS = (
 # _normalize_tax_index_parameter_keys before REQUIRED_PARAMETER_KEYS is
 # checked), so instance files generated before the hat_tau -> tax_index
 # rename keep loading unchanged. New instances are written with the current
-# names only -- see data/generator/instance.py.
+# names only -- see clsc.generator.instance_builder.
 _LEGACY_PARAMETER_KEY_ALIASES = {
     "underline_tax_index": "underline_hat_tau",
     "overline_tax_index": "overline_hat_tau",

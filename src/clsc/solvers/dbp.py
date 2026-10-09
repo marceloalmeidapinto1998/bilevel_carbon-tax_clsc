@@ -75,8 +75,8 @@ import math
 from pathlib import Path
 import time
 
-from clsc.config.gap_tol import DEFAULT
-from clsc.models.instance import TAX_SCALE_FACTOR, InstanceData
+from clsc.config.defaults import DEFAULT
+from clsc.models.instance_data import TAX_SCALE_FACTOR, InstanceData
 from clsc.models.subproblems import (
     ValueFunctionCut,
     SolveResult,
@@ -739,7 +739,7 @@ def _solve_bilevel_dbp(
     and the ``emissions_*`` result fields refer to F; the incumbent's own emissions are in
     ``incumbent.emissions``.
 
-    BUDGETS AND GAPS. Every ``None`` takes its value from :data:`clsc.config.gap_tol.DEFAULT`,
+    BUDGETS AND GAPS. Every ``None`` takes its value from :data:`clsc.config.defaults.DEFAULT`,
     which holds the literature-based method (see its docstring). ``time_limit`` bounds ONE follower
     subproblem, and the master too unless ``master_time_limit`` gives it its own (``math.inf``
     removes the limit); ``wall_clock_cap`` optionally bounds the whole run (Soares et al. have

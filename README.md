@@ -12,7 +12,7 @@ of Soares et al. (2021).
 ```
 src/clsc/            # the installable package (pip install -e .)
   generator/         #   instance generator (Tautenhain-based sampler; pure data code)
-  config/            #   solver defaults (gap_tol.ToleranceConfig) + the one tax-grid step
+  config/            #   solver defaults (defaults.ToleranceConfig) + the one tax-grid step
                      #   (tax_scale.TAX_SCALE_FACTOR)
   models/            #   instance data model + Gurobi models (follower, relaxation master)
   solvers/           #   the DBP (dbp.py)
@@ -44,7 +44,7 @@ and a `manifest.json` recording the tolerances, budgets, tax weight and code ver
 ## Solver configuration
 
 The tax is chosen on a single grid (`TAX_SCALE_FACTOR = 1e-3` USD/kg per index, i.e. 1 USD/t per
-step, index 0..200). The defaults in `clsc.config.gap_tol.DEFAULT` are the method; every CLI flag
+step, index 0..200). The defaults in `clsc.config.defaults.DEFAULT` are the method; every CLI flag
 only overrides one of them.
 
 | Parameter | Default | Source |

@@ -23,8 +23,8 @@ from __future__ import annotations
 import dataclasses
 
 from .config import GeneratorConfig
-from .instance import generate_instance
-from .models import GeneratedInstance
+from .instance_builder import generate_instance
+from .generated_instance import GeneratedInstance
 
 FEASIBILITY_CHECK_TIME_LIMIT_SECONDS = 60.0
 
@@ -32,7 +32,7 @@ FEASIBILITY_CHECK_TIME_LIMIT_SECONDS = 60.0
 def _is_relaxation_feasible(instance: GeneratedInstance) -> bool:
     from gurobipy import GRB
 
-    from clsc.models.instance import InstanceData
+    from clsc.models.instance_data import InstanceData
     from clsc.models.subproblems import build_leader_master
 
     instance_data = InstanceData.from_dict(instance.to_dict())

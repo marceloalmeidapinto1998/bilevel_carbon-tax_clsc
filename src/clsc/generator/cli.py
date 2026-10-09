@@ -6,7 +6,7 @@ import sys
 from typing import Sequence
 
 from .config import ArcConnectivityConfig, DEFAULT_AIRPLANES, DEFAULT_BOATS, DEFAULT_TRUCKS, GeneratorConfig
-from .instance import generate_instance, write_instance
+from .instance_builder import generate_instance, write_instance
 from .benchmark import generate_benchmark
 
 def build_instance_parser() -> argparse.ArgumentParser:
