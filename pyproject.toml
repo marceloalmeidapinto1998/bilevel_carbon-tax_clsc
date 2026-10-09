@@ -27,6 +27,10 @@ dependencies = [
     "pyyaml>=6,<7",
 ]
 
+[project.scripts]
+clsc-generate = "clsc.generator.cli:main"
+clsc-solve = "clsc.solver_cli.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
 

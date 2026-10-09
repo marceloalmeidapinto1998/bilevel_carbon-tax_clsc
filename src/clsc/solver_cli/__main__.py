@@ -1,5 +1,5 @@
 """Entry point for ``python -m clsc.solver_cli``."""
 
-from .core import main
+from .cli import main
 
 raise SystemExit(main())
