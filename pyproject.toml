@@ -43,6 +43,7 @@ include = ["clsc*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
 markers = [
     "gurobi: requires a Gurobi licence (skipped without one)",
     "slow: long-running test (>30 s); implies gurobi in practice",
