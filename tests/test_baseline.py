@@ -1,4 +1,4 @@
-"""Regression baselines: the generator reproduces the committed base instances, and the DBP
+"""Regression baselines: the generator reproduces the committed base and escalation instances, and the DBP
 reproduces, through the CLI, the reference solve of STD_I17_M4_T3 with the default configuration.
 
 Both need a Gurobi licence (the generator checks each instance's feasibility with Gurobi) and are
@@ -38,6 +38,24 @@ def test_generator_reproduces_base_instances(tmp_path: Path) -> None:
     generate_benchmark(tmp_path)
     generated = sorted(tmp_path.glob("*.json"))
     assert len(generated) == 12
+    for path in generated:
+        new = json.loads(path.read_text(encoding="utf-8"))
+        committed = json.loads((BASE_INSTANCES / path.name).read_text(encoding="utf-8"))
+        new["metadata"].pop("generated_at_utc")
+        committed["metadata"].pop("generated_at_utc")
+        assert new == committed, path.name
+
+
+@requires_gurobi
+@pytest.mark.gurobi
+def test_generator_reproduces_escalation_instances(tmp_path: Path) -> None:
+    from clsc.generator import generate_escalation_bases
+
+    generate_escalation_bases(tmp_path)
+    generated = sorted(tmp_path.glob("*.json"))
+    assert [path.name for path in generated] == [
+        "STD_I25_M12_T6.json", "STD_I25_M16_T6.json", "STD_I33_M8_T6.json",
+    ]
     for path in generated:
         new = json.loads(path.read_text(encoding="utf-8"))
         committed = json.loads((BASE_INSTANCES / path.name).read_text(encoding="utf-8"))

@@ -7,7 +7,7 @@ from typing import Sequence
 
 from .config import ArcConnectivityConfig, DEFAULT_AIRPLANES, DEFAULT_BOATS, DEFAULT_TRUCKS, GeneratorConfig
 from .instance_builder import generate_instance, write_instance
-from .benchmark import generate_benchmark
+from .benchmark import generate_benchmark, generate_escalation_bases
 
 def build_instance_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -133,9 +133,32 @@ def main_benchmark(argv: Sequence[str] | None = None) -> None:
     print(f"Output location: {summary.output_dir.resolve()}")
 
 
+def build_escalation_parser() -> argparse.ArgumentParser:
+    parser = build_benchmark_parser()
+    parser.description = (
+        "Generate the three escalation instances (STD_I25_M12_T6, STD_I25_M16_T6, STD_I33_M8_T6), "
+        "which extend the benchmark past its standard range and are not written by `benchmark`."
+    )
+    return parser
+
+
+def main_escalation(argv: Sequence[str] | None = None) -> None:
+    parser = build_escalation_parser()
+    args = parser.parse_args(argv)
+
+    summary = generate_escalation_bases(
+        args.output_dir,
+        seed_base=args.seed_base,
+        file_format=args.format,
+    )
+
+    print(f"Escalation instances generated: {summary.base_instances}")
+    print(f"Output location: {summary.output_dir.resolve()}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate single-instance data or the STD benchmark base dataset.",
+        description="Generate single-instance data, the STD benchmark base dataset, or the escalation instances.",
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -148,6 +171,13 @@ def build_parser() -> argparse.ArgumentParser:
     for action in build_benchmark_parser()._actions:
         if action.dest != "help":
             benchmark_parser._add_action(action)
+
+    escalation_parser = subparsers.add_parser(
+        "escalation", help="Generate the three escalation instances (not part of `benchmark`).",
+    )
+    for action in build_escalation_parser()._actions:
+        if action.dest != "help":
+            escalation_parser._add_action(action)
 
     return parser
 
@@ -162,6 +192,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         return
     if args.command == "benchmark":
         main_benchmark(raw_argv[1:])
+        return
+    if args.command == "escalation":
+        main_escalation(raw_argv[1:])
         return
 
     parser.print_help()

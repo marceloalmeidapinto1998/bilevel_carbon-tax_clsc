@@ -58,10 +58,15 @@ clsc-solve data/instances/base/STD_I25_M8_T6.json --results-root results/runs
 clsc-solve data/instances/base --results-root results/runs
 ```
 
+The three escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`), which
+extend the testbed past its standard range, are not written by `benchmark`:
+
+```bash
+clsc-generate escalation --output-dir data/instances/base
+```
+
 `python -m clsc.generator` and `python -m clsc.solver_cli` are equivalent to the two commands;
-`clsc-solve --help` lists every option. The three escalation instances (`STD_I25_M12_T6`,
-`STD_I25_M16_T6`, `STD_I33_M8_T6`) are not written by `benchmark`; they are generated with
-`clsc.generator.generate_escalation_bases()`.
+`clsc-solve --help` lists every option.
 
 Each run writes `summary.json`/`summary.csv`, `result.json`, `solution.json`, `dbp_trace.csv`
 and a `manifest.json` recording the tolerances, budgets, tax weight and code version.
@@ -124,12 +129,13 @@ the incumbent attaining the upper bound. `result_class` in the summary says whic
 
 ```bash
 python -m pytest                 # both regression tests (about 2 minutes)
-python -m pytest -m "not slow"   # the generator test only
+python -m pytest -m "not slow"   # the generator tests only
 ```
 
-`tests/test_baseline.py` checks that the generator reproduces the 12 committed base instances and
-that a default solve of `STD_I17_M4_T3` reproduces its reference summary (certified, tax index 26).
-Both need a Gurobi licence and are skipped without one.
+`tests/test_baseline.py` checks that the generator reproduces the 12 committed base instances
+and the 3 escalation instances, and that a default solve of `STD_I17_M4_T3` reproduces its
+reference summary (certified, tax index 26).
+All need a Gurobi licence and are skipped without one.
 
 ## Licence
 
