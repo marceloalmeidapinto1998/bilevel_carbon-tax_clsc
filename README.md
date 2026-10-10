@@ -1,20 +1,18 @@
-# Closed-Loop Supply Chain Network Design under Carbon Pricing
-
-A bilevel model of a closed-loop supply chain under a carbon tax, solved to global ε-optimality with the Deterministic Bounding Procedure of Soares et al. (2021).
+# CLSC Network Design under Carbon Pricing - Bilevel Mixed-Integer Program 
 
 ## Overview
 
-### Problem setting
+### Problem
 
-A regulator (the leader) fixes a carbon-tax rate; a closed-loop supply chain (CLSC) operator (the follower) responds by redesigning and operating its network to minimise its own cost plus the tax it pays. The leader anticipates this response and chooses the tax that minimises its own objective over it, which makes the problem a single-leader, single-follower bilevel mixed-integer program.
+A regulator (the leader) fixes a carbon-tax rate; a closed-loop supply chain (CLSC) operator (the follower) responds by redesigning and operating its network to minimise its own cost plus the tax it pays. The leader anticipates this response and chooses the tax that minimises its own objective over it.
 
 ### Leader problem
 
-The leader's decision variable is the integer tax index `tax_index` ($x^u$), on a finite grid fixed per instance (0–200 on the benchmark instances); the tax rate is $\tau = \theta \cdot x^u$, with grid step $\theta =$ `TAX_SCALE_FACTOR` $= 10^{-3}$ USD/kg CO2e (one USD/t per index). The leader minimises
+The leader's decision is modelled through an integer tax index $x_u \in X_u = \{0, 1, \dots, \bar{x}_u\}$ (`tax_index` in the code), where the upper bound $\bar{x}_u$ is instance-specific ($\bar{x}_u = 200$ in the benchmark set). The carbon tax rate is given by $\tau = \theta \, x_u$, where $\theta = 10^{-3}$ USD/kg CO₂e denotes the grid step (`TAX_SCALE_FACTOR`), such that each unit increment in $x_u$ corresponds to an increase of 1 USD/t CO₂e. The leader seeks to minimise
 
-$$F = E + w \cdot x^u$$
+$$F(x_u, y) = E(y) + w \, x_u,$$
 
-where $E$ is the follower's total physical emissions (kg CO2e) and $w$ (kg CO2e per index) is a declared policy weight, not a solver tolerance: it states how much emissions the regulator forgoes to avoid one further index of tax. By default $w = q \cdot E_{ref}$, with $q =$ `tax_weight_relative` ($10^{-4}$ by default) and $E_{ref}$ the least emissions the cut-free relaxation master can reach; it can also be fixed directly, in kg CO2e per USD/t. Because the tax term is strictly positive, $F$ also prefers the lower tax among taxes that abate emissions equally, so no secondary criterion is needed.
+where $y$ denotes the follower's response, $E(y)$ the corresponding total physical emissions (kg CO₂e), and $w > 0$ a policy weight expressed in kg CO₂e per tax increment. The weight $w$ represents the emissions the regulator would accept in exchange for a tax rate one step lower. Unless stated otherwise, we set $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ (`tax_weight_relative`) and $E_{\text{ref}}$ the minimum emissions level attainable in the relaxation master problem prior to the addition of any cuts. Since $w > 0$, the lowest tax is selected among those yielding equal emissions.
 
 ### Follower problem
 
@@ -31,7 +29,7 @@ Among the responses that minimise $f$, the follower is assumed to pick the one w
 
 ### Solution method
 
-The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021). A relaxation master — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — is solved first with no cuts, then iteratively re-solved with one value-function cut added per iteration: each cut, built from an evaluated response $(x^u_k, y_k)$, enforces $f(x,y) \le f(x,y_k) + \varepsilon'$ and is valid at every tax index, since the follower's constraints do not depend on it. The master's optimum is a lower bound on $F$; the least $F$ attained by any evaluated follower response is an upper bound. The loop proposes the master's tax index, evaluates the follower there, adds the resulting cut, and re-solves the master, until the relative gap $(\mathrm{UB}-\mathrm{LB})/\max(1,|\mathrm{UB}|)$ falls at or below `dbp_relative_gap` ($10^{-4}$ by default). The result is reported optimal if the master then re-proposes the tax index just evaluated (Lemma 3 of the reference); otherwise it is epsilon-optimal. A master that times out still yields a valid dual bound and a usable tax proposal; a follower that times out is passed through subproblem (P6); and the master's cuts are made elastic (P5-D) the first time it returns no feasible point.
+The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021). A relaxation master — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — is solved first with no cuts, then iteratively re-solved with one value-function cut added per iteration: each cut, built from an evaluated response $(x_{u,k}, y_k)$, enforces $f(x,y) \le f(x,y_k) + \varepsilon'$ and is valid at every tax index, since the follower's constraints do not depend on it. The master's optimum is a lower bound on $F$; the least $F$ attained by any evaluated follower response is an upper bound. The loop proposes the master's tax index, evaluates the follower there, adds the resulting cut, and re-solves the master, until the relative gap $(\mathrm{UB}-\mathrm{LB})/\max(1,|\mathrm{UB}|)$ falls at or below `dbp_relative_gap` ($10^{-4}$ by default). The result is reported optimal if the master then re-proposes the tax index just evaluated (Lemma 3 of the reference); otherwise it is epsilon-optimal. A master that times out still yields a valid dual bound and a usable tax proposal; a follower that times out is passed through subproblem (P6); and the master's cuts are made elastic (P5-D) the first time it returns no feasible point.
 
 ### Benchmark instances
 
