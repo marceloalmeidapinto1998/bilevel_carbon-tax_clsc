@@ -1,30 +1,17 @@
 # CLSC Network Design under Carbon Pricing — Bilevel Mixed-Integer Program
 
-Exact (or ε-optimal, with a certified gap) solutions to a bilevel closed-loop supply chain design problem under a carbon tax, via the Deterministic Bounding Procedure of Soares et al. (2021).
+Exact and ε-optimal solutions to a bilevel closed-loop supply chain design problem under a carbon tax, computed with the Deterministic Bounding Procedure of Soares et al. (2021).
 
 ![Python](https://img.shields.io/badge/python-%E2%89%A53.12-blue)
 ![Solver](https://img.shields.io/badge/solver-Gurobi%2013-red)
-![Tests](https://img.shields.io/badge/tests-not_configured-lightgrey)
-<!-- TODO: add a CI workflow (.github/workflows/) and swap the tests badge for a real one; no workflow exists in the repo today. -->
 ![License](https://img.shields.io/badge/license-TBD-lightgrey)
 <!-- TODO: choose a licence (e.g. MIT / Apache-2.0 / BSD-3-Clause), add a LICENSE file, and set `license` in pyproject.toml. No licence has been chosen yet; until one is added, the code is not licensed for reuse. -->
 
-## What this is
+## Overview
 
-This repository solves a two-level decision problem: a regulator sets a carbon tax, and a closed-loop supply chain (CLSC) operator redesigns and runs its network — which facilities to open, which technologies to install, how to route forward and reverse flows — in response. The regulator anticipates that response and picks the tax accordingly, so the whole thing is a bilevel mixed-integer program, not two independent problems.
+This repository implements a bilevel mixed-integer formulation of closed-loop supply chain (CLSC) network design under a carbon tax, an exact solution method for it, and a reproducible benchmark set. A leader (the regulator) sets the tax rate; a follower (the CLSC operator) selects facility locations, installed capacities, technologies, and forward and reverse flows to minimise its own cost, inclusive of the tax. The leader anticipates the follower's response when choosing the tax, which makes the problem a single-leader, single-follower bilevel mixed-integer program. The problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021), which terminates with either a certified optimal solution or an ε-optimal one with a bounded relative gap. The repository also provides a deterministic instance generator and fifteen instances derived from published closed-loop supply chain sampling rules and case data.
 
-The repository provides an exact(-or-certified) solver for this bilevel problem, a deterministic generator that produces reproducible benchmark instances, and the 15 instances it has already generated. It targets researchers who need a reference implementation to build on, extend, or benchmark against.
-
-## Key features
-
-- Bilevel carbon-tax model of a multi-period, multi-product closed-loop supply chain (facility location, technology selection, capacities, transport modes, forward and reverse flows), formulated as a mixed-integer linear program on the follower side.
-- Deterministic Bounding Procedure (DBP) solver (Soares, Alves and Henggeler Antunes, 2021): a relaxation master with value-function cuts closes a certified gap between a lower and an upper bound on the leader's objective.
-- Optimistic two-stage tie-break on the follower's side (minimise cost-plus-tax, then minimise physical emissions among the cost-optimal responses).
-- Fallback handling for subproblems that hit their time limit (follower-improvement subproblem P6, elastic value-function cuts P5-D), so the run still returns a certified — if looser — bound instead of failing.
-- Deterministic instance generator, based on published sampling rules, reproducing a committed 15-instance benchmark set from seeds.
-- Structured, revalidated output per run: a machine-readable summary, the full result with bound certificates, the incumbent solution, a per-iteration trace, and a manifest of the configuration used.
-
-## Quickstart
+## Installation and quick start
 
 ```bash
 git clone https://github.com/marceloalmeidapinto1998/bilevel-clsc-carbon-pricing.git
@@ -34,102 +21,72 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-This installs the `clsc` package and two commands, `clsc-solve` and `clsc-generate` (`python -m clsc.solver_cli` and `python -m clsc.generator` are equivalent to them). Solving requires a valid Gurobi licence — see [Reproducibility and requirements](#reproducibility-and-requirements).
+This command installs the `clsc` package together with two console scripts, `clsc-solve` and `clsc-generate` (equivalently, `python -m clsc.solver_cli` and `python -m clsc.generator`). Solving an instance requires a valid Gurobi licence; see "Requirements and reproducibility".
 
 ```bash
 clsc-solve data/STD_I17_M4_T3.json --results-root results/runs
 ```
 
-Output lands in `results/runs/<dataset>/<instance>/dbp/`, as `summary.json`, `summary.csv`, `result.json`, `solution.json`, `dbp_trace.csv` and `manifest.json` — see [Usage](#usage) for what each file contains.
+Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of each output file, and further command-line options, are described in "Usage".
 
-## Problem in brief
+## Problem formulation
 
-| | Leader (regulator) | Follower (CLSC operator) |
-|---|---|---|
-| Decision | tax index $x_u$ | network design and period-by-period operation $y$ |
-| Objective | minimise $F(x_u, y)$ | minimise $f(x_u, y)$, for the leader's fixed $x_u$ |
-| Problem class | outer, integer | inner, mixed-integer linear program |
+**Leader problem.** The leader selects an integer tax index $x_u \in \{0, 1, \dots, \bar{x}_u\}$ (`tax_index` in the implementation), where the upper bound $\bar{x}_u$ is instance-specific ($\bar{x}_u = 200$ for the benchmark instances). The corresponding carbon tax rate is
 
-**Notation**, defined once and reused below:
+$$\tau = \theta \, x_u,$$
 
-- $x_u \in \{0, 1, \dots, \bar{x}_u\}$ — the leader's decision, the integer tax index (`tax_index` in the code); $\bar{x}_u$ is instance-specific ($\bar{x}_u = 200$ on the benchmark instances).
-- $\tau = \theta \, x_u$ — the carbon tax rate; $\theta = 10^{-3}$ USD/kg CO₂e (`TAX_SCALE_FACTOR`) is the grid step, so each unit of $x_u$ is 1 USD/t CO₂e.
-- $y$ — the follower's response (the whole network design and operating plan).
-- $E(y)$ — the follower's total physical emissions (kg CO₂e).
-- $\beta(y)$ — the emissions aggregate the follower is actually taxed on. $\beta(y) = E(y)$ only when the instance carries no interest rate; the benchmark instances are generated with one, so in general $\beta(y) \neq E(y)$ (see <a href="#details-problem">details</a> below).
-- $c(y)$ — the follower's discounted operating cost.
-- $w > 0$ — the leader's policy weight on the tax term, in kg CO₂e per tax increment; by default $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ (`tax_weight_relative`) and $E_{\text{ref}}$ the minimum emissions level attainable in the cut-free relaxation master.
+with grid step $\theta = 10^{-3}$ USD/kg CO$_2$e (`TAX_SCALE_FACTOR`), so that each unit increase in $x_u$ raises the tax rate by 1 USD/t CO$_2$e. Let $y$ denote the follower's response — its network design and period-by-period operating plan — and let $E(y)$ denote the total physical emissions (kg CO$_2$e) it induces. The leader minimises
 
-The leader minimises
+$$F(x_u, y) = E(y) + w \, x_u, \qquad w > 0,$$
 
-$$F(x_u, y) = E(y) + w \, x_u$$
+where $w$ is a policy weight, expressed in kg CO$_2$e per unit of $x_u$, representing the emissions the regulator accepts in exchange for a tax rate one grid step lower. Unless specified otherwise, $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ (`tax_weight_relative`) and $E_{\text{ref}}$ the minimum emissions level attainable by the cut-free relaxation master problem (Solution method). The weight $w$ can alternatively be supplied directly, in kg CO$_2$e per USD/t. Because $w > 0$, the lowest tax index is selected among those attaining equal emissions, so the formulation requires no secondary tie-breaking rule on the leader's side.
 
-and the follower, for a fixed $x_u$, minimises
+**Follower problem.** For a fixed tax index $x_u$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network comprising suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport modes. Its decisions comprise:
 
-$$f(x_u, y) = c(y) + \tau \cdot \beta(y)$$
+- strategic decisions: which factories and warehouses to open, their installed floor-area capacities, and which production and remanufacturing technologies to install at each factory;
+- tactical and operational decisions, per period: raw-material procurement from suppliers, production and remanufacturing volumes, warehouse inventory levels, and forward flows of final products and reverse flows of recovered products across the network's transport arcs and modes.
 
-<details id="details-problem">
-<summary>Full problem statement (leader and follower, in detail)</summary>
+Let $c(y)$ denote the follower's operating cost (procurement, production, remanufacturing, transport, handling and inventory), discounted over the planning horizon, and let $\beta(y)$ denote the emissions aggregate on which the follower is taxed, discounted with the same present-value weights as $c(y)$. The follower minimises
 
-**Leader problem.** The weight $w$ represents the emissions the regulator would accept in exchange for a tax rate one step lower; it can also be fixed directly, in kg CO₂e per USD/t, instead of being derived from $q$ and $E_{\text{ref}}$. Since $w > 0$, the lowest tax is selected among those yielding equal emissions, so no secondary tie-break criterion is needed on the leader's side.
+$$f(x_u, y) = c(y) + \tau \cdot \beta(y).$$
 
-**Follower problem.** For a fixed tax index, the follower solves a mixed-integer linear program over a multi-period, multi-product CLSC network of suppliers, factories, warehouses, retailers and airport/seaport hubs, connected by truck, air and sea transport. Its decisions are:
+The quantity $\beta(y)$ coincides with $E(y)$ only when the instance carries no interest rate; the benchmark instances are generated with a strictly positive interest rate, so in general $\beta(y) \neq E(y)$.
 
-- strategic: which factories and warehouses to open, their installed floor-area capacities, and which production and remanufacturing technologies to install at each factory;
-- tactical/operational, period by period: raw-material purchases from suppliers, production and remanufacturing volumes, warehouse inventory levels, and forward flows of final products and reverse flows of recovered products across the network's transport arcs and modes.
+**Tie-breaking rule.** Multiple responses $y$ may attain the minimum of $f(x_u, \cdot)$ for a given $x_u$. The follower is assumed to select, among these, the response of least physical emissions $E(y)$ — the optimistic rule. This selection is enforced by a two-stage lexicographic procedure: Stage 1 minimises $f$, yielding $f^*$; Stage 2 minimises $E$ subject to $f(x_u, y) \le f^* + \varepsilon'$, where $\varepsilon'$ (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) freezes the Stage-1 value within a numerical tolerance before re-optimisation. If Stage 1 terminates at its time limit, subproblem (P6) is solved first to search for an improving response before the freeze is applied; if Stage 2 returns no feasible point, the Stage-1 (or P6) response is retained.
 
-$c(y)$ covers procurement, production, remanufacturing, transport, handling and inventory, discounted over the planning horizon. $\beta(y)$ is the same emissions quantity as $c(y)$'s cost terms, discounted with the same present-value weights, which is why it generally differs from the leader's undiscounted $E(y)$.
+## Solution method
 
-</details>
+The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021). The procedure maintains a lower bound and an upper bound on $F$ and terminates when their relative gap is within a specified tolerance.
 
-## Method
+1. Solve the relaxation master problem — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — to obtain a lower bound on $F$ and a proposed tax index $x_u$.
+2. Solve the follower's problem at $x_u$ (see "Problem formulation") to obtain an evaluated response $y_k$, hence an upper bound on $F$.
+3. Append a value-function cut, derived from $(x_u, y_k)$, to the master problem: $f(x,y) \le f(x,y_k) + \varepsilon'$. The cut is valid at every tax index, since the follower's constraints are independent of $x_u$.
+4. Re-solve the master problem with the additional cut.
+5. If the relative gap $(\mathrm{UB}-\mathrm{LB}) / \max(1, |\mathrm{UB}|)$ is at most `dbp_relative_gap` (default $10^{-4}$), terminate; otherwise return to step 2 with the master's updated proposal.
 
-The bilevel problem is solved with the **Deterministic Bounding Procedure (DBP)** of Soares, Alves and Henggeler Antunes (2021):
+Upon termination, the result is classified as optimal if the master re-proposes the tax index just evaluated (Lemma 3 of Soares et al., 2021), and as epsilon-optimal otherwise.
 
-1. Solve the relaxation master — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — to get a lower bound on $F$ and a proposed $x_u$.
-2. Solve the follower's MILP at that $x_u$ (two-stage optimistic solve — see <a href="#details-method">details</a>) to get an evaluated response $y_k$, hence an upper bound on $F$.
-3. Add a value-function cut built from $(x_u, y_k)$ to the master: $f(x,y) \le f(x,y_k) + \varepsilon'$, valid at every tax index since the follower's constraints do not depend on it.
-4. Re-solve the master with the new cut.
-5. Stop once the relative gap $(\mathrm{UB}-\mathrm{LB})/\max(1,|\mathrm{UB}|) \le$ `dbp_relative_gap` (default $10^{-4}$); otherwise return to step 2 with the master's new proposal.
+<details>
+<summary>Time-limit handling and additional tolerances</summary>
 
-```mermaid
-flowchart TD
-    A["Solve relaxation master"] --> B["Propose tax index x_u"]
-    B --> C["Solve follower at x_u<br/>(two-stage optimistic solve)"]
-    C --> D["Add value-function cut<br/>from the evaluated point"]
-    D --> E["Re-solve relaxation master"]
-    E --> F{"Gap &le; dbp_relative_gap?"}
-    F -- No --> B
-    F -- Yes --> G{"Master re-proposes<br/>the same x_u?"}
-    G -- Yes --> H["optimal (Lemma 3)"]
-    G -- No --> I["epsilon-optimal"]
-```
-
-<details id="details-method">
-<summary>Tie-breaking, time-limit fallbacks and tolerances</summary>
-
-**Tie-breaking.** Among the responses that minimise $f$, the follower is assumed to pick the one with least physical emissions $E$ — the optimistic rule — enforced by a two-stage lexicographic solve. Stage 1 minimises $f$, giving $f^*$. Stage 2 re-minimises $E$ subject to $f \le f^* + \varepsilon'$, where $\varepsilon'$ (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) freezes Stage 1's value within a numerical tolerance before re-optimising. If Stage 1 stops at its time limit, subproblem (P6) first searches for a response that improves on it before the freeze is set; if Stage 2 finds nothing feasible, the Stage-1 (or P6) response is kept.
-
-**Subproblems that time out.** A master that times out still yields a valid dual bound and a usable tax proposal; a follower that times out is passed through subproblem (P6); and the master's cuts are made elastic (P5-D) the first time it returns no feasible point. The result is reported **optimal** if the gap has closed and the master re-proposes the tax index just evaluated (Lemma 3 of the reference); otherwise it is **epsilon-optimal**.
+A master problem that reaches its time limit yields a valid dual bound and, if an incumbent is held, a usable tax-index proposal, from which the procedure continues. A follower problem that reaches its time limit is passed through subproblem (P6), which searches for an improving response before the tie-breaking freeze described in "Problem formulation" is applied. The master's value-function cuts are made elastic (formulation P5-D) the first time the master problem returns no feasible point.
 
 </details>
 
 ## Benchmark instances
 
-The repository includes a deterministic instance generator, based on the sampling rules of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021), for the CLSC model of Mota, Gomes, Carvalho and Barbosa-Póvoa (2018), and the 15 instances it has already generated. Instances are named `STD_I<entities>_M<materials>_T<periods>`.
+Instances are named `STD_I<entities>_M<materials>_T<periods>`, where `I` denotes the total number of entities (suppliers, factories, warehouses, retailers, airports and seaports), `M` the total item count, and `T` the number of periods in the planning horizon.
 
-| Set | `I` (total entities) | `M` (materials code) | `T` (periods) | Count | Purpose |
+| Set | `I` | `M` | `T` | Instances | Purpose |
 |---|---|---|---|---|---|
-| Standard testbed | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Main benchmark set |
-| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3 | Scalability probes, one axis pushed past the standard range |
+| Standard | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Primary benchmark set |
+| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3 | One axis (materials/products or entity count) extended beyond the standard range |
 
-`I` counts suppliers, factories, warehouses, retailers, airports and seaports together. `M` is the total item count, `M = |raw materials| + |final products| + |recovered products|`, following the convention of Tautenhain et al. (2021, Table 11): each final product has exactly one recovered counterpart, so `|recovered products| = |final products|`. `M4` corresponds to 2 raw materials, 1 final product and 1 recovered product (2+1+1=4); `M8` to 4 raw materials, 2 final products and 2 recovered products (4+2+2=8).
-
-The escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`) are not written by the routine `benchmark` command — generate them explicitly with `escalation` (see [Usage](#usage)). Every instance, standard or escalation, uses 3 production and 3 remanufacturing technologies.
+The code `M` equals $|M_{rm}| + |M_{fp}| + |M_{rp}|$, the number of raw materials plus final products plus recovered products, following the convention of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021, Table 11); each final product has exactly one recovered counterpart, so $|M_{rp}| = |M_{fp}|$. For `M4`, the generator sets 2 raw materials, 1 final product and 1 recovered product ($2+1+1=4$); for `M8`, 4 raw materials, 2 final products and 2 recovered products ($4+2+2=8$). The escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`) are not produced by the `benchmark` command and are generated explicitly with `escalation` (see "Usage"). Every instance, standard or escalation, specifies 3 production and 3 remanufacturing technologies.
 
 ## Usage
 
-### Solve instances
+### Solving instances
 
 ```bash
 # one instance, default configuration
@@ -156,7 +113,7 @@ Each instance writes to `results/runs/<dataset>/<instance>/dbp/`:
 
 <!-- TODO: add an example `summary.json` (or excerpt) once a representative, citable run is agreed on. No example output was provided in the source material for this rewrite. -->
 
-### Generate instances
+### Generating instances
 
 ```bash
 # the 12-instance benchmark (I in {17, 25} x M in {4, 8} x T in {3, 6, 12})
@@ -171,44 +128,42 @@ clsc-generate instance --name my_case --seed 1 --periods 6 --output data/my_case
 
 Generation is deterministic: each benchmark instance's seed is derived from `--seed-base` (default 0) and its name.
 
-### Run the tests
+### Running the test suite
 
 ```bash
 python -m pytest                  # all regression tests
 python -m pytest -m "not slow"    # skip the solver test
 ```
 
-[`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a default solve of `STD_I17_M4_T3` reproduces its reference summary. The tests need a Gurobi licence and are skipped without one.
+[`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a default solve of `STD_I17_M4_T3` reproduces its reference summary. The tests require a Gurobi licence and are skipped without one.
 
 ## Configuration
 
-The method's defaults are in [`src/clsc/config/defaults.py`](src/clsc/config/defaults.py) (`DEFAULT`). A solve with no options uses them; each CLI flag below overrides one.
+The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/config/defaults.py) (`DEFAULT`). A solve invoked without options uses these defaults; each CLI flag below overrides the corresponding one.
 
 | Parameter | CLI flag | Default | Meaning |
 |---|---|---|---|
-| `dbp_relative_gap` | `--dbp-relative-gap` | `1e-4` | DBP stopping tolerance ε on the relative gap of `F` (Soares et al., 2021) |
+| `dbp_relative_gap` | `--dbp-relative-gap` | `1e-4` | DBP stopping tolerance on the relative gap of $F$ (Soares et al., 2021) |
 | `mip_gap` | `--mip-gap` | `1e-2` | Gurobi MIP gap for the follower (Tautenhain et al., 2021) |
 | `master_mip_gap` | `--master-mip-gap` | `1e-4` | Gurobi MIP gap for the relaxation master |
 | `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--master-time-limit` sets the master's separately) |
 | — | `--wall-clock-cap` | none | optional limit on a whole run |
-| `stagnation_limit` | — | `10` | stop after this many iterations without a bound update |
-| `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | `q` in `w = q · E_ref` (see [Problem in brief](#problem-in-brief)) |
+| `stagnation_limit` | — | `10` | number of iterations without a bound update before the run stops |
+| `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem formulation") |
 | `threads`, `mip_focus` | `--threads`, `--mip-focus` | `4`, `2` | Gurobi settings |
 
-The tax weight is a policy assumption, not a tolerance: `w = q · E_ref`, where `E_ref` is the lowest emissions the cut-free master can reach. `q = 1e-4` reads as "the regulator accepts losing 1% of the minimum emissions to avoid 100 USD/t of tax". `--leader-tax-weight` sets `w` directly, in kg CO2e per USD/t.
+`--leader-tax-weight` sets $w$ directly, in kg CO$_2$e per USD/t, as an alternative to `tax_weight_relative`. The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO$_2$e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The benchmark instances use a tax range of 0–200 USD/t.
 
-The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO2e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The benchmark instances use a tax range of 0–200 USD/t.
-
-## Reproducibility and requirements
+## Requirements and reproducibility
 
 - Python ≥ 3.12.
-- [Gurobi](https://www.gurobi.com/) 13 with a valid licence (`gurobipy>=13,<14`). The licence is needed both to solve instances and to generate them, because the generator checks each instance's feasibility with Gurobi.
-- PyYAML (only used when reading or writing YAML instance files).
+- [Gurobi](https://www.gurobi.com/) 13 with a valid licence (`gurobipy>=13,<14`). The licence is required both to solve instances and to generate them, as the generator checks each instance's feasibility with Gurobi.
+- PyYAML, required only when reading or writing YAML instance files.
 - pytest, for the test suite (`dev` extra).
 
-Instance generation is deterministic given a seed (see [Usage](#usage)); the DBP solve itself is deterministic given a fixed Gurobi `Seed` and thread count, modulo Gurobi's own run-to-run variability under multithreading.
+Instance generation is deterministic given a seed (see "Usage"). The DBP solve is deterministic given a fixed Gurobi `Seed` and thread count, subject to Gurobi's own run-to-run variability under multithreading.
 
-<!-- TODO: add expected runtime and hardware specification for the benchmark set (e.g. "STD_I17_M4_T3 solves in N minutes on M threads on <CPU>"). Not available in the source material for this rewrite. -->
+<!-- TODO: report expected runtime and hardware specification for the benchmark set (e.g. "STD_I17_M4_T3 solves in N minutes on M threads on <CPU>"). Not available in the source material for this rewrite. -->
 
 ## Project structure
 
@@ -242,7 +197,7 @@ Instance generation is deterministic given a seed (see [Usage](#usage)); the DBP
 }
 ```
 
-<!-- TODO: add a CITATION.cff file so GitHub's "Cite this repository" button picks it up automatically; none exists yet. -->
+<!-- TODO: add a CITATION.cff file so GitHub's "Cite this repository" feature resolves automatically; none exists yet. -->
 
 ## References
 
@@ -255,10 +210,10 @@ The method builds on:
 ## Licence
 
 <!-- TODO: choose a licence, add a LICENSE file and set `license` in pyproject.toml. -->
-No licence has been chosen yet. Until one is added, the code is not licensed for reuse.
+No licence has been chosen. Until one is added, the code is not licensed for reuse.
 
-## Contact / Status
+## Contact
 
 Marcelo Pinto. <!-- TODO: affiliation, e-mail and profile links -->
 
-<!-- TODO: state project status (e.g. active development / accompanying a submitted paper / archival). Not specified in the source material for this rewrite. -->
+<!-- TODO: state project status (e.g. active development, accompanying a submitted paper, archival). Not specified in the source material for this rewrite. -->
