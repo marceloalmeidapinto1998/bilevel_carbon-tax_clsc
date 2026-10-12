@@ -81,8 +81,8 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 - **Convergence.** Soares et al. note that with positive MIP gaps and elastic variables convergence cannot be ensured. This is why "optimal" requires the extra conditions in the table.
 - **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds a feasible point, the next tax proposal. Otherwise the cuts are made elastic. If the elastic HPR also returns no point, the run ends with the incumbent.
-- **Elastic cuts.** The cuts are made elastic (P5-D) the first time the HPR returns no feasible point.
-- **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^{\ast} + \varepsilon'$ of stage 2 is set. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
+- **Elastic cuts (P5-D).** The first time the HPR returns no feasible point, each cut $k$ is relaxed to $f(\tau, y) \le f(\tau, y_{k}) + \varepsilon' + D_{k}$ with $D_{k} \ge 0$, and the sum of the $D_{k}$ is penalised in the HPR objective. The relaxed HPR is always feasible. If some $D_{k} > 0$, the result cannot be classified as optimal.
+- **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^{\ast} + \varepsilon'$ of stage 2 is set. P6 minimises $D \ge 0$ subject to the follower's constraints and $f(\tau_{k}, y) \le \bar{f}\,(1 - g) + D$, where $\bar{f}$ is the best value of $f$ found by stage 1 and $g$ its relative MIP gap; $\bar{f}\,(1 - g)$ is the solver's bound on the follower's optimum, so a response with $D$ close to zero is nearly optimal. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
 - **Auxiliary stop.** The procedure also stops after 10 consecutive iterations in which neither bound changes.
 
 </details>
