@@ -59,20 +59,20 @@ The HPR minimises $F$ over the follower's physical constraints alone and does no
 - $\varepsilon'$: a very small tolerance on the follower's objective, used only to keep the subproblems numerically feasible, as in Soares et al. (2021).
 - Subproblems are solved to a relative MIP gap of $10^{-4}$ (`mip_gap` for the follower, `hpr_mip_gap` for the HPR).
 
-**Initialisation.** Fix $w$ (see Problem) and solve the HPR without cuts. Set $\mathrm{LB}$ to the bound proven by the solver and $\tau_0$ to the tax rate of the HPR solution. Set $\mathrm{UB} = +\infty$ and $k = 0$.
+**Initialisation.** Fix $w$ (see Problem) and solve the HPR without cuts. Set $\mathrm{LB}$ to the bound proven by the solver and $\tau_{0}$ to the tax rate of the HPR solution. Set $\mathrm{UB} = +\infty$ and $k = 0$.
 
 **Iteration** ($k = 0, 1, \dots$)
 
-1. **Evaluate the follower.** Solve the follower's problem at $\tau_k$ with the optimistic rule. Stage 1 minimises $f$ and gives $f^*$. Stage 2 minimises $E$ subject to $f \le f^* + \varepsilon'$ and gives $y_k$. If $F(\tau_k, y_k) < \mathrm{UB}$, set $\mathrm{UB} = F(\tau_k, y_k)$. The incumbent is the evaluated pair of least $F$; ties go to the lower tax.
-2. **Add a cut.** Add $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$ to the HPR. The point $y_k$ is feasible for every $\tau$. If $(\tau, y^*)$ is bilevel-feasible, $y^*$ minimises $f(\tau, \cdot)$, so $f(\tau, y^*) \le f(\tau, y_k)$. The cut therefore removes no bilevel-feasible point (Lemma 2 of Soares et al., 2021). Optimality of $y_k$ is not needed.
+1. **Evaluate the follower.** Solve the follower's problem at $\tau_{k}$ with the optimistic rule. Stage 1 minimises $f$ and gives $f^{\ast}$. Stage 2 minimises $E$ subject to $f \le f^{\ast} + \varepsilon'$ and gives $y_{k}$. If $F(\tau_{k}, y_{k}) < \mathrm{UB}$, set $\mathrm{UB} = F(\tau_{k}, y_{k})$. The incumbent is the evaluated pair of least $F$; ties go to the lower tax.
+2. **Add a cut.** Add $f(\tau, y) \le f(\tau, y_{k}) + \varepsilon'$ to the HPR. The point $y_{k}$ is feasible for every $\tau$. If $(\tau, y^{\ast})$ is bilevel-feasible, $y^{\ast}$ minimises $f(\tau, \cdot)$, so $f(\tau, y^{\ast}) \le f(\tau, y_{k})$. The cut therefore removes no bilevel-feasible point (Lemma 2 of Soares et al., 2021). Optimality of $y_{k}$ is not needed.
 3. **Re-solve the HPR.** Set $\mathrm{LB}$ to the larger of its previous value and the bound proven by this solve. Set $\tau_{k+1}$ to the tax rate of the HPR solution.
 4. **Test termination.** If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop and classify the result. Otherwise set $k \leftarrow k + 1$ and return to step 1.
 
-The procedure returns the incumbent with $\mathrm{LB}$ and $\mathrm{UB}$. The gap is tested before the tax rates are compared. The comparison $\tau_{k+1} = \tau_k$ is between the new HPR proposal and the tax rate just evaluated. All outcomes hold up to the solvers' tolerances and $\varepsilon'$.
+The procedure returns the incumbent with $\mathrm{LB}$ and $\mathrm{UB}$. The gap is tested before the tax rates are compared. The comparison $\tau_{k+1} = \tau_{k}$ is between the new HPR proposal and the tax rate just evaluated. All outcomes hold up to the solvers' tolerances and $\varepsilon'$.
 
 | Outcome | Condition |
 |---|---|
-| Optimal | The gap is at most $\varepsilon$ and $\tau_{k+1} = \tau_k$ (Lemma 3 of Soares et al., 2021). The HPR was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality. |
+| Optimal | The gap is at most $\varepsilon$ and $\tau_{k+1} = \tau_{k}$ (Lemma 3 of Soares et al., 2021). The HPR was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality. |
 | $\varepsilon$-optimal | The gap is at most $\varepsilon$, but at least one other condition above fails. |
 | Gap not closed | The run ended by the auxiliary stop, by a run limit, or by an HPR time limit without a usable point. |
 
@@ -84,7 +84,7 @@ The procedure returns the incumbent with $\mathrm{LB}$ and $\mathrm{UB}$. The ga
 - **Convergence.** Soares et al. note that with positive MIP gaps and elastic variables convergence cannot be ensured. This is why "optimal" requires the extra conditions in the table.
 - **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds a feasible point, the next tax proposal. Otherwise the cuts are made elastic. If the elastic HPR also returns no point, the run ends with the incumbent. Soares et al. do not specify this case; it is a safeguard of this implementation.
 - **Elastic cuts.** The cuts are made elastic (formulation P5-D) the first time the HPR returns no feasible point.
-- **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^* + \varepsilon'$ of stage 2 is set. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
+- **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^{\ast} + \varepsilon'$ of stage 2 is set. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
 - **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) consecutive iterations in which neither bound changes, as in Soares et al. A change of incumbent at an unchanged $\mathrm{UB}$ does not count. The gap test of step 4 comes first, so this stop occurs only while the gap exceeds $\varepsilon$.
 - **Run limit.** `--wall-clock-cap` optionally bounds the whole run. When it is exhausted, the incumbent is returned with the last $\mathrm{LB}$.
 
