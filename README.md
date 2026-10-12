@@ -35,7 +35,7 @@ Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of eac
 
 $$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
-where $w$ is a policy weight representing the emissions the regulator accepts in exchange for a tax rate 1 USD/t lower. Unless specified otherwise, $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ (`tax_weight_relative`) and $E_{\text{ref}}$ the minimum emissions level attainable by the cut-free relaxation master problem (Solution method); $w$ can also be supplied directly. Because $w > 0$, the lowest tax is selected among those attaining equal emissions, so the formulation requires no secondary tie-breaking rule on the leader's side.
+The weight $w > 0$ makes the leader choose the lowest tax among those achieving equal emissions, and sets the trade-off the regulator accepts: up to $w$ additional units of emissions for each 1 USD/t reduction in $\tau$. Throughout, $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ the minimum emissions level attainable.
 
 **Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network comprising suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport modes. Its decisions comprise:
 
