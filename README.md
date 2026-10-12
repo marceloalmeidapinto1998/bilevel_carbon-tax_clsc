@@ -37,14 +37,14 @@ $$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
 where $w$ (kg CO2e per USD/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 USD/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ (kg CO2e) the minimum of $E(y)$ over all feasible network designs.
 
-**Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network comprising suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport modes. Its decisions comprise:
+**Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network of suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport. Its decisions are of two kinds:
 
-- strategic decisions: which factories and warehouses to open, their installed floor-area capacities, and which production and remanufacturing technologies to install at each factory;
-- tactical and operational decisions, per period: raw-material procurement from suppliers, production and remanufacturing volumes, warehouse inventory levels, and forward flows of final products and reverse flows of recovered products across the network's transport arcs and modes.
+- **Strategic:** which factories and warehouses to open, their installed floor-area capacities, and which production and remanufacturing technologies to install at each factory.
+- **Tactical and operational (per period):** raw-material procurement from suppliers, production and remanufacturing volumes, warehouse inventory levels, and forward flows of final products and reverse flows of recovered products across the transport arcs and modes of the network.
 
-Let $c(y)$ denote the follower's operating cost (procurement, production, remanufacturing, transport, handling and inventory), discounted over the planning horizon, and let $\beta(y)$ denote the emissions aggregate on which the follower is taxed, discounted with the same present-value weights as $c(y)$. The follower minimises
+Let $c(y)$ denote the follower's operating cost (procurement, production, remanufacturing, transport, handling and inventory), discounted over the planning horizon, and $\beta(y)$ the emissions aggregate on which the follower is taxed, discounted with the same present-value weights. The follower minimises
 
-$$f(\tau, y) = c(y) + \tau \cdot \beta(y).$$
+$$f(\tau, y) = c(y) + \tau \, \beta(y).$$
 
 The quantity $\beta(y)$ coincides with $E(y)$ only when the instance carries no interest rate; the benchmark instances are generated with a strictly positive interest rate, so in general $\beta(y) \neq E(y)$.
 
