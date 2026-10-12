@@ -74,7 +74,7 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 |---|---|
 | Optimal | The gap is at most $\varepsilon$ and $\tau_{k+1} = \tau_{k}$. |
 | $\varepsilon$-optimal | The gap is at most $\varepsilon$, but $\tau_{k+1} \neq \tau_{k}$. |
-| Gap not closed | The run ended by the auxiliary stop, by a run limit, or by an HPR time limit without a usable point. |
+| Gap not closed | The auxiliary stop was triggered: neither bound changed during 10 consecutive iterations. |
 
 <details>
 <summary>Tolerance values, time limits and stopping rules</summary>
