@@ -86,18 +86,24 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 </details>
 
-## Benchmark instances
+## Data
 
-The instances follow the test bed of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021, Section 6.3 and Table 11). Each instance is named `STD_I<entities>_M<items>_T<periods>`: `I` is the total number of entities, `M` the total number of items (raw materials, final products and recovered products), and `T` the number of periods in the planning horizon. The prefix `STD` is that of the standard instances of Tautenhain et al., which follow the patterns of the model of Mota et al. (2018). The variants `TECHC`, `RAWC`, `SUP` and `CAP` of that paper are not generated here.
+The data are the instances of the test bed of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021, Section 6.3 and Table 11), together with three larger instances added by this repository. They are organised in two sets and stored as JSON files in `data/`, one file per instance.
 
 | Set | `I` | `M` | `T` | Instances | Purpose |
 |---|---|---|---|---|---|
 | Standard | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Sizes of Tautenhain et al. (2021, Table 11) |
 | Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3 | Extension of this repository: one axis (items or entities) beyond the standard range |
 
-The standard instances are generated with the `benchmark` command. The three escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`) are generated explicitly with `escalation` (see "Usage").
+The standard instances are generated with the `benchmark` command. The three escalation instances are generated explicitly with `escalation` (see "Usage").
 
-**Entities.** Tautenhain et al. define the entities of the two standard sizes. The escalation size `I33` extends the same pattern by adding warehouses.
+**What is published and what is not.** The standard set, the entity sizes `I17` and `I25`, and the item codes `M4` and `M8` come from Tautenhain et al. The escalation set, the entity size `I33` and the item codes `M12` and `M16` are extensions of this repository.
+
+**Naming.** Each instance is named `STD_I<entities>_M<items>_T<periods>`. Here `I` is the total number of entities, `M` is the total number of items (raw materials, final products and recovered products), and `T` is the number of periods in the planning horizon.
+
+The prefix `STD` is that of the standard instances of Tautenhain et al., which follow the patterns of the model of Mota et al. (2018). The variants `TECHC`, `RAWC`, `SUP` and `CAP` of that paper are not generated here. The escalation instances are `STD_I25_M12_T6`, `STD_I25_M16_T6` and `STD_I33_M8_T6`.
+
+**Entities.** Tautenhain et al. define the entities of the two standard sizes; retailers are the customers of that paper. The size `I33` extends the same pattern by adding warehouses.
 
 | `I` | Suppliers | Factories | Warehouses | Retailers | Airports | Seaports |
 |---|---|---|---|---|---|---|
@@ -116,7 +122,11 @@ The standard instances are generated with the `benchmark` command. The three esc
 
 Tautenhain et al. give the rows `M4` and `M8`. The rows `M12` and `M16` apply the same rule, $|M_{rm}| = M/2$ and $|M_{fp}| = |M_{rp}| = M/4$.
 
-Every instance, standard or escalation, specifies 3 production and 3 remanufacturing technologies. The parameter values follow the generator of Tautenhain et al. (2021) and its supplementary data. Departures from it are documented in [`src/clsc/generator/tautenhain_data.py`](src/clsc/generator/tautenhain_data.py). In particular, the minimum installation areas are those of Tautenhain et al. (10 to 100 m² for factories and 2.5 to 25 m² for warehouses), far smaller than the 2000 and 500 m² of the case study of Mota et al. (2018).
+**Technologies and parameters.** Every instance, standard or escalation, specifies 3 production and 3 remanufacturing technologies.
+
+The parameter values follow the generator of Tautenhain et al. (2021) and its supplementary data. Departures from it are documented in [`src/clsc/generator/tautenhain_data.py`](src/clsc/generator/tautenhain_data.py).
+
+In particular, the minimum installation areas are those of Tautenhain et al. (10 to 100 m² for factories and 2.5 to 25 m² for warehouses). They are below 1% of the maximum areas, so the constraint is nearly inactive, and far smaller than the 2000 and 500 m² of the case study of Mota et al. (2018).
 
 ## Usage
 
@@ -193,7 +203,7 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
 | `threads`, `mip_focus` | `--threads`, `--mip-focus` | `4`, `2` | Gurobi settings |
 
-`--leader-tax-weight` sets $w$ directly, in kg CO2e per USD/t, as an alternative to `tax_weight_relative`. The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO2e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The benchmark instances use a tax range of 0–200 USD/t.
+`--leader-tax-weight` sets $w$ directly, in kg CO2e per USD/t, as an alternative to `tax_weight_relative`. The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO2e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The instances use a tax range of 0–200 USD/t.
 
 ## Requirements and reproducibility
 
@@ -204,13 +214,13 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 
 Instance generation is deterministic given a seed (see "Usage"). The DBP solve is deterministic given a fixed Gurobi `Seed` and thread count, subject to Gurobi's own run-to-run variability under multithreading.
 
-<!-- TODO: report expected runtime and hardware specification for the benchmark set (e.g. "STD_I17_M4_T3 solves in N minutes on M threads on <CPU>"). Not available in the source material for this rewrite. -->
+<!-- TODO: report expected runtime and hardware specification for the instances (e.g. "STD_I17_M4_T3 solves in N minutes on M threads on <CPU>"). Not available in the source material for this rewrite. -->
 
 ## Project structure
 
 ```text
 .
-├── data/                      # the 15 benchmark instances (JSON)
+├── data/                      # the 15 instances (JSON)
 ├── src/clsc/                  # the Python package
 │   ├── config/                #   method defaults, shared constants, tax-grid step
 │   ├── generator/              #   instance generator (CLI: clsc-generate)
