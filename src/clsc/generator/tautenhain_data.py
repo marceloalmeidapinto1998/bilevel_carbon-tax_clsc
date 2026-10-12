@@ -31,8 +31,14 @@ TECH_CAPACITY_MULTIPLIER_RANGE = (2.0, 4.0)
 TECH_MIN_CAPACITY_FRAC = 0.0005
 FACTORY_AREA_MAX_RANGE = (10000.0, 12500.0)
 WAREHOUSE_AREA_MAX_RANGE = (4000.0, 4750.0)
-FACTORY_AREA_MIN_RANGE = (2000.0, 2500.0)
-WAREHOUSE_AREA_MIN_RANGE = (500.0, 750.0)
+# Minimum installation areas: Tautenhain et al.'s generator data (lbeafmin = 10, ubeafmin = 100,
+# lbeawmin = 2.5, ubeawmin = 25), consistent with the minimum areas of their illustrative example
+# (factory 57, warehouses 7 and 16). Mota et al.'s case study uses minima of 2000 and 500 m^2. The
+# Tautenhain minima are under 1% of the maxima, so the constraint is nearly inactive and opening a
+# facility is much cheaper than with Mota's minima. Kept as published; a sensitivity check against
+# Mota's minima is left for when the results are final.
+FACTORY_AREA_MIN_RANGE = (10.0, 100.0)
+WAREHOUSE_AREA_MIN_RANGE = (2.5, 25.0)
 SUPPLIER_MIN_FRACTION_RANGE = (0.00001, 0.0001)
 # Selecting a supplier is FREE, and deliberately so: neither source prices it.
 # Mota's FCI_1 (eq. 45) covers only factories and warehouses; his fixed- and

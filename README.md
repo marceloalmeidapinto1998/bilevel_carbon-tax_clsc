@@ -88,14 +88,35 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 ## Benchmark instances
 
-Instances are named `STD_I<entities>_M<materials>_T<periods>`, where `I` denotes the total number of entities (suppliers, factories, warehouses, retailers, airports and seaports), `M` the total item count, and `T` the number of periods in the planning horizon.
+The instances follow the test bed of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021, Section 6.3 and Table 11). Each instance is named `STD_I<entities>_M<items>_T<periods>`: `I` is the total number of entities, `M` the total number of items (raw materials, final products and recovered products), and `T` the number of periods in the planning horizon. The prefix `STD` is that of the standard instances of Tautenhain et al., which follow the patterns of the model of Mota et al. (2018). The variants `TECHC`, `RAWC`, `SUP` and `CAP` of that paper are not generated here.
 
 | Set | `I` | `M` | `T` | Instances | Purpose |
 |---|---|---|---|---|---|
-| Standard | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Primary benchmark set |
-| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3 | One axis (materials/products or entity count) extended beyond the standard range |
+| Standard | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Sizes of Tautenhain et al. (2021, Table 11) |
+| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3 | Extension of this repository: one axis (items or entities) beyond the standard range |
 
-The code `M` equals $|M_{rm}| + |M_{fp}| + |M_{rp}|$, the number of raw materials plus final products plus recovered products, following the convention of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021, Table 11); each final product has exactly one recovered counterpart, so $|M_{rp}| = |M_{fp}|$. For `M4`, the generator sets 2 raw materials, 1 final product and 1 recovered product ($2+1+1=4$); for `M8`, 4 raw materials, 2 final products and 2 recovered products ($4+2+2=8$). The escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`) are not produced by the `benchmark` command and are generated explicitly with `escalation` (see "Usage"). Every instance, standard or escalation, specifies 3 production and 3 remanufacturing technologies.
+The standard instances are generated with the `benchmark` command. The three escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`) are generated explicitly with `escalation` (see "Usage").
+
+**Entities.** Tautenhain et al. define the entities of the two standard sizes. The escalation size `I33` extends the same pattern by adding warehouses.
+
+| `I` | Suppliers | Factories | Warehouses | Retailers | Airports | Seaports |
+|---|---|---|---|---|---|---|
+| 17 | 3 | 3 | 3 | 4 | 2 | 2 |
+| 25 | 3 | 3 | 9 | 4 | 4 | 2 |
+| 33 | 3 | 3 | 17 | 4 | 4 | 2 |
+
+**Items.** The code `M` equals $|M_{rm}| + |M_{fp}| + |M_{rp}|$, the number of raw materials plus final products plus recovered products (Tautenhain et al., 2021, Table 11). Each final product has exactly one recovered counterpart, so $|M_{rp}| = |M_{fp}|$.
+
+| `M` | Raw materials | Final products | Recovered products |
+|---|---|---|---|
+| 4 | 2 | 1 | 1 |
+| 8 | 4 | 2 | 2 |
+| 12 | 6 | 3 | 3 |
+| 16 | 8 | 4 | 4 |
+
+Tautenhain et al. give the rows `M4` and `M8`. The rows `M12` and `M16` apply the same rule, $|M_{rm}| = M/2$ and $|M_{fp}| = |M_{rp}| = M/4$.
+
+Every instance, standard or escalation, specifies 3 production and 3 remanufacturing technologies. The parameter values follow the generator of Tautenhain et al. (2021) and its supplementary data. Departures from it are documented in [`src/clsc/generator/tautenhain_data.py`](src/clsc/generator/tautenhain_data.py). In particular, the minimum installation areas are those of Tautenhain et al. (10 to 100 m² for factories and 2.5 to 25 m² for warehouses), far smaller than the 2000 and 500 m² of the case study of Mota et al. (2018).
 
 ## Usage
 

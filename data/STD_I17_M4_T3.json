@@ -1,7 +1,7 @@
 {
   "name": "STD_I17_M4_T3",
   "metadata": {
-    "generated_at_utc": "2026-09-09T10:59:23.042686+00:00",
+    "generated_at_utc": "2026-10-12T15:17:03.735766+00:00",
     "seed": 1456480296,
     "sampling_rules_module": "clsc.generator.tautenhain_data",
     "config": {
@@ -124,9 +124,9 @@
       }
     },
     "carbon_tax_units": {
+      "underline_tax_rate_overline_tax_rate": "USD/kg CO2e",
       "tax_index_step": "0.001 USD/kg CO2e",
-      "tau_formula_usd_per_kg_co2e": "0.001 * tax_index",
-      "underline_tax_rate_overline_tax_rate": "USD/kg CO2e"
+      "tau_formula_usd_per_kg_co2e": "0.001 * tax_index"
     },
     "benchmark": {
       "kind": "base",
@@ -2692,14 +2692,14 @@
       "w3": 4460.62
     },
     "Amin_f": {
-      "f1": 2249.03,
-      "f2": 2025.41,
-      "f3": 2112.12
+      "f1": 54.82,
+      "f2": 14.57,
+      "f3": 30.18
     },
     "Amin_w": {
-      "w1": 656.11,
-      "w2": 696.51,
-      "w3": 584.84
+      "w1": 16.55,
+      "w2": 20.19,
+      "w3": 10.14
     },
     "apu_u": {
       "u1": 0.003635,

@@ -82,10 +82,10 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
 
     assert summary["result_class"] == "optimal"
     assert summary["termination_reason"] == "optimal"
-    assert summary["iterations"] == 4
+    assert summary["iterations"] == 3
     assert summary["tax_index"] == 26
     assert summary["validation_status"] == "validated"
-    assert summary["cost"] == pytest.approx(2525919.350079193, rel=1e-9)
-    assert summary["emissions"] == pytest.approx(25406136.47956628, rel=1e-9)
-    assert summary["leader_objective_lb"] == pytest.approx(25471976.602475137, rel=1e-9)
-    assert summary["leader_objective_ub"] == pytest.approx(25471977.05849877, rel=1e-9)
+    assert summary["cost"] == pytest.approx(1551005.3165628714, rel=1e-9)
+    assert summary["emissions"] == pytest.approx(24678468.57674377, rel=1e-9)
+    assert summary["leader_objective_lb"] == pytest.approx(24742324.08129882, rel=1e-9)
+    assert summary["leader_objective_ub"] == pytest.approx(24742324.361313768, rel=1e-9)
