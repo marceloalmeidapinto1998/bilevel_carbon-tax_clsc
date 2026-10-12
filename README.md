@@ -1,4 +1,4 @@
-# CLSC Network Design under Carbon Pricing — Bilevel Mixed-Integer Program
+# Bilevel mixed-integer model for carbon tax setting and closed-loop supply chain network design
 
 Exact and ε-optimal solutions to a bilevel closed-loop supply chain design problem under a carbon tax, computed with the Deterministic Bounding Procedure of Soares et al. (2021).
 
@@ -9,7 +9,7 @@ Exact and ε-optimal solutions to a bilevel closed-loop supply chain design prob
 
 ## Overview
 
-This repository implements a bilevel mixed-integer formulation of closed-loop supply chain (CLSC) network design under a carbon tax, an exact solution method for it, and a reproducible benchmark set. A leader (the regulator) sets the tax rate; a follower (the CLSC operator) selects facility locations, installed capacities, technologies, and forward and reverse flows to minimise its own cost, inclusive of the tax. The leader anticipates the follower's response when choosing the tax, which makes the problem a single-leader, single-follower bilevel mixed-integer program. The problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021), which terminates with either a certified optimal solution or an ε-optimal one with a bounded relative gap. The repository also provides a deterministic instance generator and fifteen instances derived from published closed-loop supply chain sampling rules and case data.
+This repository implements a bilevel mixed-integer model of closed-loop supply chain (CLSC) network design under a carbon tax, an exact solution method for it, and a reproducible benchmark set. A leader (the regulator) sets the tax rate; a follower (the CLSC operator) selects facility locations, installed capacities, technologies, and forward and reverse flows to minimise its own cost, inclusive of the tax. The leader anticipates the follower's response when choosing the tax, which makes the problem a bilevel mixed-integer program. The problem is solved with the Deterministic Bounding Procedure (DBP) of Soares et al. (2021), whose overall strategy is to generate a series of convergent upper and lower bounds on the leader's objective until their difference falls below a given threshold. The repository also provides a deterministic instance generator and fifteen instances, built from the sampling rules of Tautenhain et al. (2021).
 
 ## Installation and quick start
 
