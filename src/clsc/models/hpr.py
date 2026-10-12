@@ -14,7 +14,7 @@ from clsc.config.defaults import DEFAULT
 from .instance_data import InstanceData
 from .gurobi_utils import ModelArtifacts, SolveResult, finite_dual_bound, optimize_model
 from .supply_chain import build_supply_chain_model, total_emissions_upper_bound
-from .follower import lex_freeze_tolerance
+from .follower import epsilon_prime_tolerance
 
 
 # Working unit for emissions inside the models: kg -> TONNES.
@@ -80,7 +80,6 @@ class ValueFunctionCut:
 @dataclass(slots=True)
 class HighPointRelaxation:
     artifacts: ModelArtifacts
-    epsilon_prime: float = 0.0
     lower_tax_index: int = 0
     upper_tax_index: int = 0
     emissions_big_m: float = 0.0
@@ -197,7 +196,6 @@ def build_hpr(
     *,
     elastic: bool = False,
 ) -> HighPointRelaxation:
-    epsilon_prime = DEFAULT.dbp_cut_epsilon
     elastic_slack_penalty_multiplier = DEFAULT.elastic_penalty_mult
 
     common = build_supply_chain_model(instance, model_name="hpr")
@@ -366,7 +364,6 @@ def build_hpr(
             elastic_slack_var=elastic_slack_var,
             tax_rate_var=tax_rate,
         ),
-        epsilon_prime=epsilon_prime,
         lower_tax_index=lower_tax_index,
         upper_tax_index=upper_tax_index,
         emissions_big_m=emissions_big_m,
@@ -415,7 +412,7 @@ def add_value_function_cut(hpr: HighPointRelaxation, cut: ValueFunctionCut) -> N
     right_hand_side = (
         cut.cost
         + (cut_tax_base * hpr.scale_factor) * tax_index
-        + _dbp_cut_epsilon(hpr, cut)
+        + epsilon_prime_tolerance(cut.cost)
     )
     if hpr.elastic and hpr.elastic_total_constraint is not None:
         # (P5-D): this cut's own slack D_k, summed into the penalised total.
@@ -429,15 +426,6 @@ def add_value_function_cut(hpr: HighPointRelaxation, cut: ValueFunctionCut) -> N
         name=f"dbp_cut_{cut.iteration}",
     )
     hpr.applied_cut_iterations.add(cut.iteration)
-
-
-def _dbp_cut_epsilon(hpr: HighPointRelaxation, cut: ValueFunctionCut) -> float:
-    # HPR.epsilon_prime is a fixed absolute floor (DEFAULT.dbp_cut_epsilon
-    # at HPR-build time); scale it by the cut's own cost magnitude so the
-    # guard stays round-off-scale regardless of an instance's cost scale,
-    # rather than becoming a large fraction of cost differences on a small
-    # instance. See DEFAULT.dbp_cut_epsilon_relative's docstring.
-    return max(hpr.epsilon_prime, DEFAULT.dbp_cut_epsilon_relative * abs(cut.cost))
 
 
 def _hpr_objective(hpr: HighPointRelaxation) -> gp.LinExpr:
@@ -482,7 +470,7 @@ def set_leader_objective_cap(hpr: HighPointRelaxation, leader_objective_ub: floa
     model = artifacts.model
     # Widened by the same relative tolerance as set_emissions_cap: the UB comes from a different
     # model, and an exact cutoff could exclude the incumbent from its own relaxation.
-    ub_scaled = (leader_objective_ub + lex_freeze_tolerance(leader_objective_ub)) / EMISSIONS_SCALE
+    ub_scaled = (leader_objective_ub + epsilon_prime_tolerance(leader_objective_ub)) / EMISSIONS_SCALE
     if hpr.objective_cap_constraint is None:
         hpr.objective_cap_constraint = model.addConstr(
             artifacts.emissions_total_var + hpr.tax_weight_scaled * artifacts.tax_index_var <= ub_scaled,
@@ -623,8 +611,8 @@ def set_emissions_cap(
     # LinExpr can land a hair above it. An exact (non-widened) cutoff can
     # then spuriously exclude the true incumbent point from its own
     # relaxation, making the HPR falsely INFEASIBLE. Mirrors the same
-    # relative-tolerance pattern as `lex_freeze_tolerance`.
-    tolerant_upper_bound = upper_bound + lex_freeze_tolerance(upper_bound)
+    # relative-tolerance pattern as `epsilon_prime_tolerance`.
+    tolerant_upper_bound = upper_bound + epsilon_prime_tolerance(upper_bound)
 
     if hpr.emissions_cap is not None and math.isclose(
         tolerant_upper_bound,

@@ -29,13 +29,10 @@ class ToleranceConfig:
     to be declared and varied. The DBP resolves the tax to about ``dbp_relative_gap / q`` USD/t
     (1 USD/t at these values).
 
-    ``lex_epsilon_prime`` is eps' for the follower's optimistic tie-break, ``f <= f* + eps'``, as a
-    relative fraction of the follower objective (Soares et al.'s eps' = 1e-5 sits on objectives
-    of a few euros, i.e. ~1e-6 relative). ``dbp_cut_epsilon`` (their eps' = 1e-5, absolute) and
-    ``dbp_cut_epsilon_relative`` size the slack on the HPR's cuts,
-    ``max(dbp_cut_epsilon, dbp_cut_epsilon_relative * |cut.cost|)``, which guards against
-    round-off between two Gurobi models reconstructing the same point; at this project's cost
-    scale (~1e6 USD) the relative term (~0.1 USD) is the one that binds. ``eps`` is the absolute
+    ``epsilon_prime`` is Soares et al.'s single eps', used both in the follower's optimistic
+    tie-break, ``f <= f* + eps'``, and in the HPR's cuts, ``f <= f(y_k) + eps'``. It is a relative
+    fraction of the value it is added to (their eps' = 1e-5 sits on objectives of a few euros,
+    i.e. ~1e-6 relative), floored at the absolute ``eps``. ``eps`` is the absolute
     numerical floor used where a tolerance is needed near zero. ``elastic_penalty_mult`` sizes
     the penalty on the HPR's elastic cut slacks (see build_hpr).
     """
@@ -48,9 +45,7 @@ class ToleranceConfig:
     time_limit: float = 600.0
     stagnation_limit: int = 10
     tax_weight_relative: float = 1e-4
-    lex_epsilon_prime: float = 1e-6
-    dbp_cut_epsilon: float = 1e-5
-    dbp_cut_epsilon_relative: float = 1e-7
+    epsilon_prime: float = 1e-6
     elastic_penalty_mult: float = 10.0
 
     # ----- Gurobi pass-through -----

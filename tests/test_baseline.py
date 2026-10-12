@@ -87,5 +87,5 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
     assert summary["validation_status"] == "validated"
     assert summary["cost"] == pytest.approx(2525919.350079193, rel=1e-9)
     assert summary["emissions"] == pytest.approx(25406136.47956628, rel=1e-9)
-    assert summary["leader_objective_lb"] == pytest.approx(25471977.012896396, rel=1e-9)
+    assert summary["leader_objective_lb"] == pytest.approx(25471976.602475137, rel=1e-9)
     assert summary["leader_objective_ub"] == pytest.approx(25471977.05849877, rel=1e-9)

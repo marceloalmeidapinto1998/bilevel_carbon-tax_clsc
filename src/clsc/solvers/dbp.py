@@ -17,7 +17,7 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   (P3)+(P4-eps')          follower at a fixed tax           solve_follower_lexicographic ***
   y_k                     the point that generates cut k    ValueFunctionCut
   eps                     loop stopping criterion           dbp_relative_gap
-  eps'                    subproblem feasibility slack      lex_freeze_tolerance
+  eps'                    subproblem feasibility slack      epsilon_prime_tolerance
   Lemma 1                 the follower's point is           where the follower's answer
                           bilevel-feasible, so it bounds    sets leader_objective_ub_
                                                             certificate (the UB on F)
@@ -283,7 +283,7 @@ def _emissions_tie_tolerance(first_emissions: float, second_emissions: float) ->
     far below the floating-point reconstruction noise floor between two
     independently built Gurobi models -- effectively never detecting a tie
     that should be one. Scaling by the values' own magnitude, the same
-    pattern used by ``lex_freeze_tolerance``, keeps the tolerance meaningful
+    pattern used by ``epsilon_prime_tolerance``, keeps the tolerance meaningful
     regardless of instance scale.
     """
     return max(

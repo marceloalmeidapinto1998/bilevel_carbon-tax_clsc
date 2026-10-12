@@ -56,7 +56,7 @@ The HPR minimises $F$ over the follower's physical constraints alone and does no
 **Tolerances**
 
 - $\varepsilon$: tolerance on the relative gap.
-- $\varepsilon'$: a very small tolerance on the follower's objective, used only to keep the subproblems numerically feasible, as in Soares et al. (2021).
+- $\varepsilon'$ (`epsilon_prime`, $10^{-6}$ relative to the objective value it is added to): a very small tolerance on the follower's objective, used only to keep the subproblems numerically feasible, as in Soares et al. (2021). The same value is used in the follower's second stage and in the cuts.
 - Subproblems are solved to a relative MIP gap of $10^{-4}$.
 
 **Initialisation.** Fix $w$ (see Problem) and solve the HPR without cuts. Set $\mathrm{LB}$ to the bound proven by the solver and $\tau_{0}$ to the tax rate of the HPR solution. Set $\mathrm{UB} = +\infty$ and $k = 0$.
@@ -79,7 +79,6 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 <details>
 <summary>Tolerance values, time limits and stopping rules</summary>
 
-- **Values of $\varepsilon'$.** It is set separately for the follower's second stage (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) and for the cuts (`dbp_cut_epsilon`, $10^{-5}$ absolute, or `dbp_cut_epsilon_relative`, $10^{-7}$, times the cut's cost if larger).
 - **Ties.** When two evaluated points tie on $F$, Soares et al. keep the latest one. Here the lower tax is kept.
 - **Convergence.** Soares et al. note that with positive MIP gaps and elastic variables convergence cannot be ensured. This is why "optimal" requires the extra conditions in the table.
 - **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds a feasible point, the next tax proposal. Otherwise the cuts are made elastic. If the elastic HPR also returns no point, the run ends with the incumbent. Soares et al. do not specify this case; it is a safeguard of this implementation.

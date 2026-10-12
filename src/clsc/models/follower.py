@@ -40,7 +40,7 @@ def solve_follower_lexicographic(
     cannot be solved to optimality inside its budget.
 
     Stage 1 (P3) minimises ``cost + tau * emissions``. Stage 2 (P4-eps') minimises
-    ``emissions`` over the responses with ``f <= f* + eps'`` (see :func:`lex_freeze_tolerance`).
+    ``emissions`` over the responses with ``f <= f* + eps'`` (see :func:`epsilon_prime_tolerance`).
 
     When Stage 1 stops on its time limit with a positive gap, subproblem (P6) is solved:
     ``min D  s.t.  f <= f* (1 - gap) + D,  D >= 0`` -- a search for a response better than the
@@ -104,14 +104,14 @@ def solve_follower_lexicographic(
         improved = (
             improvement.has_solution
             and improvement.follower_objective is not None
-            and improvement.follower_objective < incumbent_value - lex_freeze_tolerance(incumbent_value)
+            and improvement.follower_objective < incumbent_value - epsilon_prime_tolerance(incumbent_value)
         )
         if improved:
             reference = improvement
 
     primary_optimum = float(reference.follower_objective)
     freeze = model.addConstr(
-        artifacts.follower_objective_expr <= primary_optimum + lex_freeze_tolerance(primary_optimum),
+        artifacts.follower_objective_expr <= primary_optimum + epsilon_prime_tolerance(primary_optimum),
         name="lex_primary_freeze",
     )
     model.update()
@@ -218,14 +218,14 @@ def _improve_follower_value(
         model.update()
 
 
-def lex_freeze_tolerance(primary_optimum: float) -> float:
-    """eps': the tolerance for freezing an objective value before a tie-break re-optimisation,
-    ``f <= f* + eps'`` -- Soares et al. (2021)'s (P4-eps') and (P5-eps').
+def epsilon_prime_tolerance(value: float) -> float:
+    """eps': the single tolerance added to a follower objective value, in the tie-break freeze
+    ``f <= f* + eps'`` and in the HPR's cuts ``f <= f(y_k) + eps'`` -- Soares et al. (2021)'s
+    (P4-eps') and (P5-eps').
 
-    Relative (``DEFAULT.lex_epsilon_prime * |f*|``) rather than absolute, so it means the same
+    Relative (``DEFAULT.epsilon_prime * |value|``) rather than absolute, so it means the same
     thing at every instance scale, with ``DEFAULT.eps`` as an absolute floor near zero. Soares et
-    al.'s eps' = 1e-5 sits on objectives of a few euros, i.e. ~1e-6 relative, which is this
-    project's lex_epsilon_prime.
+    al.'s eps' = 1e-5 sits on objectives of a few euros, i.e. ~1e-6 relative.
 
     NOT widened by the primary solve's MIP gap, as it was until 2026-10-08. That widening rested
     on the claim that a loose stopping gap could exclude the true optimum from the tie-break; it
@@ -235,10 +235,7 @@ def lex_freeze_tolerance(primary_optimum: float) -> float:
     into the optimistic tie-break. Soares et al. freeze at ``f* + eps'`` and attack the gap itself
     with subproblem (P6) instead (see solve_follower_lexicographic).
     """
-    return max(
-        DEFAULT.eps,
-        DEFAULT.lex_epsilon_prime * abs(primary_optimum),
-    )
+    return max(DEFAULT.eps, DEFAULT.epsilon_prime * abs(value))
 
 
 def build_fixed_tax_model(
