@@ -229,6 +229,9 @@ No licence has been chosen. Until one is added, the code is not licensed for reu
 
 ## Contact
 
-Marcelo Pinto. ORCID: [0000-0002-6909-3829](https://orcid.org/0000-0002-6909-3829). <!-- TODO: affiliation and e-mail -->
+Marcelo Pinto  
+University of Coimbra, Centre for Mechanical Engineering, Materials and Processes, Coimbra, Portugal  
+[marcelo.pinto@dem.uc.pt](mailto:marcelo.pinto@dem.uc.pt)  
+ORCID: [0000-0002-6909-3829](https://orcid.org/0000-0002-6909-3829)
 
 <!-- TODO: state project status (e.g. active development, accompanying a submitted paper, archival). Not specified in the source material for this rewrite. -->
