@@ -123,8 +123,7 @@ The repository includes a deterministic instance generator, based on the samplin
 | Standard testbed | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Main benchmark set |
 | Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3 | Scalability probes, one axis pushed past the standard range |
 
-`I` counts suppliers, factories, warehouses, retailers, airports and seaports together. `M4` corresponds to 2 raw materials and 1 product; `M8` to 4 raw materials and 2 products.
-<!-- FLAG: the M code does not equal raw_materials + products (M4 -> 2+1=3, M8 -> 4+2=6); see open question C1. Not corrected here per instructions — confirm the intended meaning of the M code before publishing. -->
+`I` counts suppliers, factories, warehouses, retailers, airports and seaports together. `M` is the total item count, `M = |raw materials| + |final products| + |recovered products|`, following the convention of Tautenhain et al. (2021, Table 11): each final product has exactly one recovered counterpart, so `|recovered products| = |final products|`. `M4` corresponds to 2 raw materials, 1 final product and 1 recovered product (2+1+1=4); `M8` to 4 raw materials, 2 final products and 2 recovered products (4+2+2=8).
 
 The escalation instances (`STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6`) are not written by the routine `benchmark` command — generate them explicitly with `escalation` (see [Usage](#usage)). Every instance, standard or escalation, uses 3 production and 3 remanufacturing technologies.
 
