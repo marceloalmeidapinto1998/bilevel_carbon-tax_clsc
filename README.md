@@ -74,7 +74,7 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 |---|---|
 | Optimal | The gap is at most $\varepsilon$ and $\tau_{k+1} = \tau_{k}$. |
 | $\varepsilon$-optimal | The gap is at most $\varepsilon$, but $\tau_{k+1} \neq \tau_{k}$. |
-| Gap not closed | The auxiliary stop was triggered: neither bound changed during 10 consecutive iterations. |
+| Auxiliary stop | Neither bound changed during 10 consecutive iterations. |
 
 <details>
 <summary>Tolerance values, time limits and stopping rules</summary>
@@ -86,7 +86,6 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 - **Elastic cuts.** The cuts are made elastic (formulation P5-D) the first time the HPR returns no feasible point.
 - **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^{\ast} + \varepsilon'$ of stage 2 is set. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
 - **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) consecutive iterations in which neither bound changes, as in Soares et al. A change of incumbent at an unchanged $\mathrm{UB}$ does not count. The gap test of step 4 comes first, so this stop occurs only while the gap exceeds $\varepsilon$.
-- **Run limit.** `--wall-clock-cap` optionally bounds the whole run. When it is exhausted, the incumbent is returned with the last $\mathrm{LB}$.
 
 </details>
 
@@ -132,7 +131,7 @@ The result class in `summary.json` follows the outcome table of the method secti
 |---|---|---|
 | `optimal` | Optimal | `optimal` |
 | `epsilon_optimal` | $\varepsilon$-optimal | `epsilon_optimal` |
-| `bounded` | Gap not closed | `incumbent_stagnation`, `incumbent_time_limit`, `incumbent_wall_clock_cap` |
+| `bounded` | Gap not closed | `incumbent_stagnation`, `incumbent_time_limit` |
 
 `clsc-solve --help` lists every option. `--emissions-cap` adds the optional cut $F \le \mathrm{UB}$ (Mitsos, 2010) to the HPR; it is off by default because it is not part of Soares et al.'s procedure.
 
@@ -172,7 +171,6 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | `mip_gap` | `--mip-gap` | `1e-4` | Gurobi MIP gap for the follower (solver default; the follower is solved to optimality) |
 | `hpr_mip_gap` | `--hpr-mip-gap` | `1e-4` | Gurobi MIP gap for the HPR |
 | `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--hpr-time-limit` sets the HPR's separately) |
-| — | `--wall-clock-cap` | none | optional limit on a whole run |
 | `stagnation_limit` | — | `10` | number of iterations without a bound update before the run stops |
 | `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
 | `threads`, `mip_focus` | `--threads`, `--mip-focus` | `4`, `2` | Gurobi settings |

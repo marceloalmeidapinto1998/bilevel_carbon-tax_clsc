@@ -353,11 +353,6 @@ def _require_optimal_or_usable_partial_hpr(result: SolveResult, label: str) -> N
     _require_optimal_result(result, label)
 
 
-def _timeout_reason(budget: "_WallClockBudget") -> str:
-    """Which budget ran out: the run's wall-clock cap, or one subproblem's own limit."""
-    return "incumbent_wall_clock_cap" if budget.expired() else "incumbent_time_limit"
-
-
 def _build_time_limit_result(
     *,
     incumbent: IncumbentSolution,
@@ -372,8 +367,7 @@ def _build_time_limit_result(
 ) -> BilevelSolveResult:
     """Return the best incumbent found so far when a time budget runs out.
 
-    Used for both budgets: ``time_limit`` (one subproblem hit its Gurobi limit) and
-    ``wall_clock_cap`` (the run's total budget expired between iterations). Either way the
+    Used when a subproblem hits its Gurobi time limit and leaves nothing to continue with. The
     incumbent is a genuine bilevel-feasible point with its cost, emissions and captured
     variable values; the lower bound is the last value certified by an OPTIMAL relaxation, so
     the reported gap is a valid -- if non-zero -- bound on how far the incumbent may be from
@@ -417,51 +411,21 @@ def _solve_with_wall_time(solver_fn, *args, **kwargs):
     return result, round(time.perf_counter() - started_at, 6)
 
 
-class _WallClockBudget:
-    """The run's total wall-clock budget, shared by every subproblem.
+class _TimeLimits:
+    """The per-subproblem time limits: one for the follower, one for the HPR.
 
-    Enforced INSIDE the solve rather than by killing the process, so that an exhausted budget
-    still yields the incumbent, its variable values and a certified bound -- a killed process
-    yields nothing. Two mechanisms:
-
-    * `subproblem_time_limit()` caps each Gurobi call at the budget that remains, so no single
-      subproblem can run past the deadline;
-    * `expired()` is checked between iterations, where the DBP loop can stop cleanly.
-
-    A cap of ``None`` disables both (the budget never expires).
+    The HPR and the follower are different problems with different cost profiles, so they may
+    carry different limits. ``hpr_limit=None`` keeps one shared limit.
     """
 
-    __slots__ = ("deadline", "per_subproblem_limit", "hpr_limit")
+    __slots__ = ("per_subproblem_limit", "hpr_limit")
 
-    def __init__(
-        self,
-        cap: float | None,
-        per_subproblem_limit: float | None,
-        hpr_limit: float | None = None,
-    ) -> None:
-        self.deadline = None if cap is None else time.perf_counter() + cap
+    def __init__(self, per_subproblem_limit: float | None, hpr_limit: float | None = None) -> None:
         self.per_subproblem_limit = per_subproblem_limit
-        # The HPR and the follower are different problems with different cost
-        # profiles, so they may carry different limits. None keeps one shared limit.
         self.hpr_limit = per_subproblem_limit if hpr_limit is None else hpr_limit
 
-    def remaining(self) -> float | None:
-        return None if self.deadline is None else self.deadline - time.perf_counter()
-
-    def expired(self) -> bool:
-        remaining = self.remaining()
-        return remaining is not None and remaining <= 0.0
-
     def subproblem_time_limit(self, *, hpr: bool = False) -> float | None:
-        limit = self.hpr_limit if hpr else self.per_subproblem_limit
-        remaining = self.remaining()
-        if remaining is None:
-            return limit
-        # Never hand Gurobi a non-positive limit: it would be read as "no limit".
-        remaining = max(remaining, 1.0)
-        if limit is None:
-            return remaining
-        return min(limit, remaining)
+        return self.hpr_limit if hpr else self.per_subproblem_limit
 
 
 def _build_bilevel_result(
@@ -682,7 +646,6 @@ def _solve_bilevel_dbp(
     output_flag: bool = False,
     time_limit: float | None = None,
     hpr_time_limit: float | None = None,
-    wall_clock_cap: float | None = None,
     mip_gap: float | None = None,
     hpr_mip_gap: float | None = None,
     dbp_relative_gap: float | None = None,
@@ -718,8 +681,8 @@ def _solve_bilevel_dbp(
     BUDGETS AND GAPS. Every ``None`` takes its value from :data:`clsc.config.defaults.DEFAULT`,
     which holds the literature-based method (see its docstring). ``time_limit`` bounds ONE follower
     subproblem, and the HPR too unless ``hpr_time_limit`` gives it its own (``math.inf``
-    removes the limit); ``wall_clock_cap`` optionally bounds the whole run (Soares et al. have
-    none -- a run ends on its own stopping criteria). ``mip_gap`` is the follower's target and
+    removes the limit). Soares et al. have no limit on the whole run: it ends on its own
+    stopping criteria. ``mip_gap`` is the follower's target and
     ``hpr_mip_gap`` the HPR's. The HPR's gap only loosens the lower bound, whose dual
     bound stays valid; the follower's gap loosens what counts as a best response.
 
@@ -755,7 +718,6 @@ def _solve_bilevel_dbp(
         output_flag=output_flag,
         time_limit=DEFAULT.time_limit if time_limit is None else time_limit,
         hpr_time_limit=hpr_time_limit,
-        wall_clock_cap=wall_clock_cap,
         mip_gap=mip_gap,
         hpr_mip_gap=DEFAULT.hpr_mip_gap if hpr_mip_gap is None else hpr_mip_gap,
         dbp_relative_gap=DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap,
@@ -787,7 +749,6 @@ class _DbpRun:
         output_flag: bool,
         time_limit: float,
         hpr_time_limit: float | None,
-        wall_clock_cap: float | None,
         mip_gap: float | None,
         hpr_mip_gap: float,
         dbp_relative_gap: float,
@@ -801,7 +762,7 @@ class _DbpRun:
     ) -> None:
         self.instance = instance
         self.output_flag = output_flag
-        self.budget = _WallClockBudget(wall_clock_cap, time_limit, hpr_time_limit)
+        self.budget = _TimeLimits(time_limit, hpr_time_limit)
         self.mip_gap = mip_gap
         self.hpr_mip_gap = hpr_mip_gap
         self.dbp_relative_gap = dbp_relative_gap
@@ -892,12 +853,6 @@ class _DbpRun:
         self.leader_objective_lb = _required_value(relaxation.emissions, "initial relaxation bound")
 
         for iteration in itertools.count(1):
-            if self.budget.expired() and self.incumbent is not None:
-                # Stop cleanly at the top of an iteration: the incumbent, its variable values and
-                # the last certified lower bound are all in hand, so the run reports a real
-                # (cost, emissions, gap) rather than nothing.
-                return self.time_limit_result(len(self.iteration_records), "incumbent_wall_clock_cap")
-
             current_relaxation_lower_bound = self.leader_objective_lb
             tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
 
@@ -917,7 +872,7 @@ class _DbpRun:
                 if relaxation.leader_lower_bound is not None:
                     self.leader_objective_lb = max(self.leader_objective_lb, relaxation.leader_lower_bound)
                 # Follower completed this iteration, so the incumbent is guaranteed set.
-                return self.time_limit_result(iteration, _timeout_reason(self.budget))
+                return self.time_limit_result(iteration, "incumbent_time_limit")
             _require_optimal_or_usable_partial_hpr(relaxation, f"DBP relaxation after iteration {iteration}")
 
             lower_bound_updated = self.update_lower_bound(relaxation)
@@ -980,7 +935,7 @@ class _DbpRun:
                     optimistic_seconds=0.0,
                     relaxation_seconds=0.0,
                 ))
-                return self.time_limit_result(len(self.iteration_records), _timeout_reason(self.budget))
+                return self.time_limit_result(len(self.iteration_records), "incumbent_time_limit")
             raise SubproblemStatusError(
                 f"follower solve at tax_index={tax_index}", follower_response,
             )

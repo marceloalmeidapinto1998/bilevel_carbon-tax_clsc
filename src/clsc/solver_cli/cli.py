@@ -98,17 +98,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--wall-clock-cap",
-        type=float,
-        help=(
-            "Total wall-clock budget for the whole DBP run, in seconds. Enforced inside the "
-            "solve: each subproblem's limit is clamped to the budget that remains and the loop "
-            "stops between iterations once it is exhausted, so an exhausted budget still "
-            "reports the incumbent, its variable values and the certified gap "
-            "(termination_reason=incumbent_wall_clock_cap)."
-        ),
-    )
-    parser.add_argument(
         "--mip-gap",
         type=float,
         help=(
@@ -321,7 +310,6 @@ def main() -> int:
                     hpr_time_limit=args.hpr_time_limit,
                     leader_tax_weight=args.leader_tax_weight,
                     leader_tax_weight_relative=args.leader_tax_weight_relative,
-                    wall_clock_cap=args.wall_clock_cap,
                     mip_gap=args.mip_gap,
                     hpr_mip_gap=args.hpr_mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
@@ -521,7 +509,6 @@ def build_manifest(
         ),
         "leader_tax_weight": args.leader_tax_weight,
         "leader_tax_weight_relative": args.leader_tax_weight_relative,
-        "wall_clock_cap": args.wall_clock_cap,
         "tolerances": tolerance_config,
         "tax_scale_factor": args.scale_factor,
         "gurobi_seed": args.seed,
