@@ -11,8 +11,10 @@ class ToleranceConfig:
     values come from the literature rather than from calibration on these instances.
 
     ``dbp_relative_gap`` (eps = 1e-4) is the DBP's own stopping tolerance, Soares et al. (2021)'s
-    eps. ``mip_gap`` (1e-2) is the follower's MIP gap, Tautenhain et al. (2021)'s CPLEX stopping
-    criterion for this follower model. ``master_mip_gap`` (1e-4) is the relaxation master's, the
+    eps. ``mip_gap`` (1e-4) is the follower's MIP gap, the solver default, so that the follower is
+    solved to optimality as Soares et al. do: their Lemma 1 needs a proven best response, and a
+    response accepted at a looser gap is not one, so the run could not be reported as optimal.
+    ``master_mip_gap`` (1e-4) is the relaxation master's, likewise the
     solver default, which is what Soares et al. ran their relaxation at: a percentage target on the
     master would freeze the lower bound at its first dual bound, since the master would stop as
     soon as its incumbent sat within that percentage of the bound. ``time_limit`` (600 s) bounds
@@ -41,7 +43,7 @@ class ToleranceConfig:
     # ----- Algorithm -----
     eps: float = 1e-7
     dbp_relative_gap: float = 1e-4
-    mip_gap: float = 1e-2
+    mip_gap: float = 1e-4
     master_mip_gap: float = 1e-4
     time_limit: float = 600.0
     stagnation_limit: int = 10

@@ -82,7 +82,7 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
 
     assert summary["result_class"] == "certified"
     assert summary["termination_reason"] == "optimal"
-    assert summary["iterations"] == 5
+    assert summary["iterations"] == 4
     assert summary["tax_index"] == 26
     assert summary["validation_status"] == "validated"
     assert summary["cost"] == pytest.approx(2525919.350079193, rel=1e-9)

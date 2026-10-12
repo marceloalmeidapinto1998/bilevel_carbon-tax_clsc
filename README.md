@@ -49,33 +49,41 @@ $$f(\tau, y) = c(y) + \tau \, \beta(y).$$
 
 ## Solution method
 
-The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares et al. (2021), which generates successively tighter lower and upper bounds on the leader's objective $F$ until their relative gap falls below a prescribed tolerance. Since the leader minimises $F$, the relaxation master problem yields lower bounds on $F$, and the evaluated follower responses yield upper bounds.
+The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares et al. (2021). The procedure alternates between a relaxation master problem, which yields lower bounds on the leader's objective $F$, and evaluations of the follower, which yield upper bounds. It stops when the relative gap between the two bounds is at most a prescribed tolerance $\varepsilon$.
 
-The procedure relies on the fact that the follower's constraints do not contain $\tau$. Every follower response is therefore feasible at every tax rate, which makes the value-function cuts below valid globally.
+The master is the high-point relaxation: $F$ is minimised over the follower's physical constraints only, without requiring the follower's response to be optimal. These constraints do not contain $\tau$, so every follower response is feasible at every tax rate, and each evaluated response yields a cut that is valid for the whole problem.
 
 **Parameters**
 
-- Optimality tolerance $\varepsilon$ (`dbp_relative_gap`, default $10^{-4}$).
-- Tolerance $\varepsilon'$ on the follower's objective in the cuts (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$).
+- $\varepsilon$ (`dbp_relative_gap`, default $10^{-4}$): optimality tolerance on the relative gap.
+- $\varepsilon'$: tolerance on the follower's objective. In the follower's second stage it is `lex_epsilon_prime` ($10^{-6}$ relative, floored at an absolute $10^{-7}$); in the cuts it is `dbp_cut_epsilon` ($10^{-5}$ absolute), or `dbp_cut_epsilon_relative` ($10^{-7}$) times the cut's cost if larger.
+- Subproblems are solved to Gurobi's default relative MIP gap, $10^{-4}$ (`mip_gap` for the follower, `master_mip_gap` for the master). Subproblems that reach their time limit are handled as described below.
 
-**Initialisation.** Solve the relaxation master problem without cuts: the high-point relaxation, in which $F$ is minimised over the follower's physical constraints only, so that its feasible set does not depend on the tax. Its optimal value is the initial lower bound $\mathrm{LB}$, and its tax rate is the first proposal $\tau_0$. Set $\mathrm{UB} = +\infty$ and $k = 0$.
+**Initialisation.** The weight $w$ is fixed beforehand (see Problem). Solve the master without cuts. Its optimal value is the initial lower bound $\mathrm{LB}$, and its tax rate is the first proposal $\tau_0$. Set $\mathrm{UB} = +\infty$ and $k = 0$.
 
-**Iteration $k$**
+**Iteration** ($k = 0, 1, \dots$)
 
-1. **Evaluate the follower.** Solve the follower's problem at $\tau_k$ with the optimistic tie-breaking rule (see Follower problem), obtaining $y_k$. If $F(\tau_k, y_k) < \mathrm{UB}$, update $\mathrm{UB} = F(\tau_k, y_k)$ and store $(\tau_k, y_k)$ as the incumbent.
-2. **Add a value-function cut.** Append $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$ to the master problem. The cut removes no bilevel-feasible solution, because $y_k$ is feasible for the follower at every $\tau$.
-3. **Re-solve the master.** Its optimal value is the new $\mathrm{LB}$, and its tax rate is the next proposal $\tau_{k+1}$.
+1. **Evaluate the follower.** Solve the follower's problem at $\tau_k$ with the optimistic rule, obtaining $y_k$: stage 1 minimises $f$, giving $f^*$; stage 2 minimises $E$ subject to $f \le f^* + \varepsilon'$. If $F(\tau_k, y_k) < \mathrm{UB}$, set $\mathrm{UB} = F(\tau_k, y_k)$. The incumbent is the evaluated pair with the least $F$, ties being broken towards the lower tax.
+2. **Add a value-function cut.** Append $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$ to the master. If $(\tau, y^*)$ is bilevel-feasible, $y^*$ minimises $f(\tau, \cdot)$ over the follower's feasible set, which contains $y_k$; hence $f(\tau, y^*) \le f(\tau, y_k)$ and the cut removes no bilevel-feasible point (Lemma 2 of Soares et al., 2021). The master also receives $F \le \mathrm{UB}$ and $E \le \mathrm{UB}$, which remove only points that cannot improve on the incumbent.
+3. **Re-solve the master.** The new $\mathrm{LB}$ is the larger of the previous $\mathrm{LB}$ and the master's optimal value, and the master's tax rate is the next proposal $\tau_{k+1}$.
 4. **Test termination.** If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop. Otherwise set $k \leftarrow k + 1$ and return to step 1.
 
-At termination, the incumbent is returned. The result is classified as optimal if $\tau_{k+1} = \tau_k$, and as $\varepsilon$-optimal otherwise, in which case the incumbent's objective lies within the relative gap of the lower bound.
+At termination, the incumbent is returned together with $\mathrm{LB}$ and $\mathrm{UB}$, and the result is classified as follows.
+
+| Outcome | Condition | `result_class` |
+|---|---|---|
+| Optimal | Gap $\le \varepsilon$ and $\tau_{k+1} = \tau_k$ (Lemma 3 of Soares et al., 2021); the master was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality | `certified` |
+| $\varepsilon$-optimal | Gap $\le \varepsilon$, but at least one condition above fails | `epsilon_optimal` |
+| Gap not closed | Run ended by the auxiliary stop or by a run limit (`incumbent_stagnation`, `incumbent_time_limit`, `incumbent_wall_clock_cap`) | `bounded` |
 
 <details>
 <summary>Time limits, fallbacks and auxiliary stopping rule</summary>
 
-- **Master time limit.** A master problem that reaches its time limit still yields a valid dual bound and a usable tax proposal.
-- **Follower time limit.** If the first stage of the follower's solve reaches its time limit, subproblem (P6) first searches for a response that improves on it, before the freeze described in Follower problem is set. If the second stage finds nothing feasible, the first-stage (or P6) response is kept.
+- **Master time limit.** A master problem that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds an incumbent point, the next tax proposal. Otherwise the cuts are made elastic (below) and, failing that, the run ends with the incumbent.
+- **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem (P6) first searches for a better response, before the freeze $f \le f^* + \varepsilon'$ of stage 2 is set. If stage 2 finds nothing feasible, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
 - **Elastic cuts.** The master's value-function cuts are made elastic (formulation P5-D) the first time the master returns no feasible point.
-- **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) iterations without a bound update.
+- **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) consecutive iterations in which neither bound changes. The gap test of step 4 is applied first, so this stop occurs only while the gap exceeds $\varepsilon$.
+- **Run limit.** `--wall-clock-cap` optionally bounds the whole run; when it is exhausted, the incumbent is returned with the last lower bound.
 
 </details>
 
@@ -150,7 +158,7 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | Parameter | CLI flag | Default | Meaning |
 |---|---|---|---|
 | `dbp_relative_gap` | `--dbp-relative-gap` | `1e-4` | DBP stopping tolerance on the relative gap of $F$ (Soares et al., 2021) |
-| `mip_gap` | `--mip-gap` | `1e-2` | Gurobi MIP gap for the follower (Tautenhain et al., 2021) |
+| `mip_gap` | `--mip-gap` | `1e-4` | Gurobi MIP gap for the follower (solver default; the follower is solved to optimality) |
 | `master_mip_gap` | `--master-mip-gap` | `1e-4` | Gurobi MIP gap for the relaxation master |
 | `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--master-time-limit` sets the master's separately) |
 | — | `--wall-clock-cap` | none | optional limit on a whole run |

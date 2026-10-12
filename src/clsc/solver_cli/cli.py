@@ -113,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Gurobi MIPGap target for every follower sub-solve "
-            "(default: clsc.config.defaults.DEFAULT.mip_gap, 1e-2)."
+            "(default: clsc.config.defaults.DEFAULT.mip_gap, 1e-4)."
         ),
     )
     parser.add_argument(
