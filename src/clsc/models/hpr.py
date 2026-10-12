@@ -396,7 +396,7 @@ def add_value_function_cut(hpr: HighPointRelaxation, cut: ValueFunctionCut) -> N
     # tax_rate == scale_factor * tax_index is an equality of this very model, so
     # cost_v + base_v * tax_rate and cost_v + (base_v * scale_factor) * tax_index describe the
     # identical constraint. They are NOT the same numerically. base_v is an emissions aggregate
-    # in kg -- tens of millions -- while tax_rate is a price per kg confined to [0, 0.2]; the
+    # in kg -- tens of millions -- while tax_rate is a rate per kg confined to [0, 0.2]; the
     # product is an ordinary six-figure number of USD reached by multiplying a huge coefficient
     # by a tiny variable. Folding the scale factor into the coefficient rescales the pair without
     # touching the product: on STD_TOY5's first cut, 3.7e7 becomes 3.7e4 against a variable that

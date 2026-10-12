@@ -5,7 +5,7 @@ from __future__ import annotations
 #
 # The leader does not choose a real number. It chooses a tax expressed to a fixed resolution,
 # which makes tax_index an integer variable and TAX_SCALE_FACTOR the constant that turns it back
-# into a price -- the same device Soares et al. (2021) use for their tariffs: "we considered
+# into a tax rate -- the same device Soares et al. (2021) use for their tariffs: "we considered
 # electricity prices with five decimal places. Therefore, the UL decision variables can be seen
 # as integer variables by considering a 10^5 scale factor."
 #
@@ -18,7 +18,7 @@ from __future__ import annotations
 #
 # tax_index in {0..200} spans 0-0.2 USD/kg: the leader sets a WHOLE number of USD per
 # tonne. That is the resolution Soares et al.'s phrasing needs -- 1e-3 is a power of ten,
-# so the tax is a price 'with three decimal places in USD/kg', and tax_index is its
+# so the tax rate has 'three decimal places in USD/kg', and tax_index is its
 # integer form. The previous 5e-4 (0.5 USD/t) was not a power of ten and could not be
 # described that way. It also halves the one-hot gadget: 201 binaries instead of 401, in
 # an HPR that is ~95% of every run's wall time.
