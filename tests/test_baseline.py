@@ -80,7 +80,7 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
     summary = json.loads(summaries[0].read_text(encoding="utf-8"))
     summary = summary[0] if isinstance(summary, list) else summary
 
-    assert summary["result_class"] == "certified"
+    assert summary["result_class"] == "optimal"
     assert summary["termination_reason"] == "optimal"
     assert summary["iterations"] == 4
     assert summary["tax_index"] == 26

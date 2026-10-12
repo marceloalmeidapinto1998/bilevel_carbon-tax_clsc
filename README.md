@@ -72,7 +72,7 @@ At termination, the incumbent is returned together with $\mathrm{LB}$ and $\math
 
 | Outcome | Condition | `result_class` |
 |---|---|---|
-| Optimal | Gap $\le \varepsilon$ and $\tau_{k+1} = \tau_k$ (Lemma 3 of Soares et al., 2021); the master was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality | `certified` |
+| Optimal | Gap $\le \varepsilon$ and $\tau_{k+1} = \tau_k$ (Lemma 3 of Soares et al., 2021); the master was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality | `optimal` |
 | $\varepsilon$-optimal | Gap $\le \varepsilon$, but at least one condition above fails | `epsilon_optimal` |
 | Gap not closed | Run ended by the auxiliary stop or by a run limit (`incumbent_stagnation`, `incumbent_time_limit`, `incumbent_wall_clock_cap`) | `bounded` |
 

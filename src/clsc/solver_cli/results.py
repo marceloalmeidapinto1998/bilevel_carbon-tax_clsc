@@ -68,14 +68,14 @@ TRACE_FIELDNAMES = [
 def classify_result(result) -> str:
     """How strong a claim the result supports, in Soares et al. (2021)'s terms.
 
-    ``certified``        gap <= dbp_relative_gap with every certificate in hand (``exact``).
+    ``optimal``          gap <= dbp_relative_gap with every certificate in hand (``exact``).
     ``epsilon_optimal``  gap <= dbp_relative_gap, but the tax or a bound is not certified.
     ``bounded``          the gap did not close: the result is the interval [LB, UB] and the
                          incumbent that attains UB -- "optimal or nearly optimal" at best, with
                          convergence not guaranteed under positive subproblem gaps.
     """
     if result.exact:
-        return "certified"
+        return "optimal"
     if result.termination_reason.startswith(("optimal", "epsilon_optimal")):
         return "epsilon_optimal"
     return "bounded"

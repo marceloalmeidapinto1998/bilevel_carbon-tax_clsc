@@ -97,7 +97,7 @@ from clsc.models.master import (
 # rest is why the run stopped there. Sorting a results column by this groups by strength of
 # claim:
 #
-#   optimal_*          certified. Gap closed AND Lemma 3 confirmed it.
+#   optimal_*          optimal. Gap closed AND Lemma 3 confirmed it.
 #   epsilon_optimal    within dbp_relative_gap; Lemma 3 does not apply.
 #   incumbent_*        the best point found; the gap did NOT close.
 #
