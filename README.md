@@ -88,14 +88,14 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 ## Data
 
-The instances are those of the test bed of Tautenhain et al. (2021, Section 6.3 and Table 11), plus three larger instances added by this repository. They are stored in `data/`, one JSON file per instance.
+The instances are those of the test bed of Tautenhain et al. (2021), plus three larger instances added by this repository. They are stored in `data/`, one JSON file per instance.
 
 Each instance is named `STD_I<entities>_M<items>_T<periods>`: `I` is the number of entities, `M` the number of items (raw materials, final products and recovered products), and `T` the number of periods.
 
 | Set | `I` | `M` | `T` | Instances | Source | Generated with |
 |---|---|---|---|---|---|---|
 | Standard | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Tautenhain et al. | `benchmark` |
-| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3: `STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6` | This repository | `escalation` (see "Usage") |
+| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3: `STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6` | This repository | `escalation` |
 
 **Entities**
 
@@ -145,17 +145,6 @@ Each instance writes to `results/runs/<dataset>/<instance>/dbp/`:
 | `dbp_trace.csv` | one row per DBP iteration: proposed tax, bounds, subproblem times |
 | `manifest.json` | configuration used: tolerances, time limits, tax weight, flags |
 
-The result class in `summary.json` follows the outcome table of the method section. It is an extension of this repository; Soares et al. define no such classes.
-
-| `result_class` | Outcome | Termination reasons |
-|---|---|---|
-| `optimal` | Optimal | `optimal` |
-| `epsilon_optimal` | $\varepsilon$-optimal | `epsilon_optimal` |
-| `bounded` | Gap not closed | `incumbent_stagnation`, `incumbent_time_limit` |
-
-`clsc-solve --help` lists every option. `--emissions-cap` adds the optional cut $F \le \mathrm{UB}$ (Mitsos, 2010) to the HPR; it is off by default because it is not part of Soares et al.'s procedure.
-
-<!-- TODO: add an example `summary.json` (or excerpt) once a representative, citable run is agreed on. No example output was provided in the source material for this rewrite. -->
 
 ### Generating instances
 
@@ -183,19 +172,17 @@ python -m pytest -m "not slow"    # skip the solver test
 
 ## Configuration
 
-The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/config/defaults.py) (`DEFAULT`). A solve invoked without options uses these defaults; each CLI flag below overrides the corresponding one.
+The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/config/defaults.py) (`DEFAULT`). A solve invoked without options uses these defaults.
 
-| Parameter | CLI flag | Default | Meaning |
-|---|---|---|---|
-| `dbp_relative_gap` | `--dbp-relative-gap` | `1e-4` | DBP stopping tolerance on the relative gap of $F$ (Soares et al., 2021) |
-| `mip_gap` | `--mip-gap` | `1e-4` | Gurobi MIP gap for the follower (solver default; the follower is solved to optimality) |
-| `hpr_mip_gap` | `--hpr-mip-gap` | `1e-4` | Gurobi MIP gap for the HPR |
-| `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--hpr-time-limit` sets the HPR's separately) |
-| `stagnation_limit` | — | `10` | number of iterations without a bound update before the run stops |
-| `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
-| `threads`, `mip_focus` | `--threads`, `--mip-focus` | `4`, `2` | Gurobi settings |
-
-`--leader-tax-weight` sets $w$ directly, in kg CO2e per USD/t, as an alternative to `tax_weight_relative`. The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO2e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The instances use a tax range of 0–200 USD/t.
+| Parameter | Default | Meaning |
+|---|---|---|
+| `dbp_relative_gap` | `1e-4` | DBP stopping tolerance on the relative gap of $F$ |
+| `mip_gap` | `1e-4` | Gurobi MIP gap for the follower |
+| `hpr_mip_gap` | `1e-4` | Gurobi MIP gap for the HPR |
+| `time_limit` | `600` s | time limit per MILP subproblem (`--hpr-time-limit` sets the HPR's separately) |
+| `stagnation_limit` | `10` | number of iterations without a bound update before the run stops |
+| `tax_weight_relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
+| `threads`, `mip_focus` | `4`, `2` | Gurobi settings |
 
 ## Requirements and reproducibility
 
@@ -229,22 +216,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 └── requirements.txt           # mirrors the dependencies in pyproject.toml
 ```
 
-## Citation
-
-```bibtex
-@misc{clsc_carbon_tax,
-  author = {<!-- TODO: authors -->},
-  title  = {<!-- TODO: title -->},
-  year   = {<!-- TODO: year -->},
-  note   = {<!-- TODO: journal, DOI or repository URL -->}
-}
-```
-
-<!-- TODO: add a CITATION.cff file so GitHub's "Cite this repository" feature resolves automatically; none exists yet. -->
-
 ## References
-
-The method builds on:
 
 - Soares, Alves and Henggeler Antunes (2021). A deterministic bounding procedure for the global optimization of a bi-level mixed-integer problem. *European Journal of Operational Research*, 291, 52–66.
 - Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021). An efficient Lagrangian-based heuristic to solve a multi-objective sustainable supply chain problem. *European Journal of Operational Research*, 294, 70–90.
@@ -257,6 +229,6 @@ No licence has been chosen. Until one is added, the code is not licensed for reu
 
 ## Contact
 
-Marcelo Pinto. <!-- TODO: affiliation, e-mail and profile links -->
+Marcelo Pinto. ORCID: [0000-0002-6909-3829](https://orcid.org/0000-0002-6909-3829). <!-- TODO: affiliation and e-mail -->
 
 <!-- TODO: state project status (e.g. active development, accompanying a submitted paper, archival). Not specified in the source material for this rewrite. -->
