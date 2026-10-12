@@ -24,10 +24,10 @@ class ToleranceConfig:
 
     ``tax_weight_relative`` (q = 1e-4) sets the leader's tax weight w = q * E_ref, E_ref being the
     least emissions the cut-free HPR can reach: q is the fraction of the minimum emissions the
-    regulator gives up per 1 USD/t of tax saved. It is a POLICY ASSUMPTION, not a tolerance --
-    q = 1e-4 reads "lose 1% of the minimum emissions to avoid 100 USD/t of tax" -- and it is meant
-    to be declared and varied. The DBP resolves the tax to about ``dbp_relative_gap / q`` USD/t
-    (1 USD/t at these values).
+    regulator gives up per 1 EUR/t of tax saved. It is a POLICY ASSUMPTION, not a tolerance --
+    q = 1e-4 reads "lose 1% of the minimum emissions to avoid 100 EUR/t of tax" -- and it is meant
+    to be declared and varied. The DBP resolves the tax to about ``dbp_relative_gap / q`` EUR/t
+    (1 EUR/t at these values).
 
     ``epsilon_prime`` is Soares et al.'s single eps', used both in the follower's optimistic
     tie-break, ``f <= f* + eps'``, and in the HPR's cuts, ``f <= f(y_k) + eps'``. It is a relative

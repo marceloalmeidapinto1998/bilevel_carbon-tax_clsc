@@ -60,11 +60,14 @@ SELLING_PRICE_RANGE = (23.0, 37.0)
 RECOVERY_COST_FRACTION_RANGE = (0.005, 0.5)
 RAW_MATERIAL_COST_RANGE = (0.01, 0.27)
 DISTANCE_RANGE = (10.0, 750.0)
-# c_area_i (USD/m^2): the sole factory/warehouse installation cost, charged on
+# c_area_i (EUR/m^2): the sole factory/warehouse installation cost, charged on
 # the installed floor area YC_i, with no separate fixed opening cost. Both
 # sources price facility installation exclusively as sqmc_i * YC_i. The range
 # is Mota et al. (2018) Table 8, "Construction cost, sqmc_i", whose ten
-# countries span Bulgaria 270 to Germany 661 USD/m^2.
+# countries span Bulgaria 270 to Germany 661 per m^2. Every monetary parameter
+# in this module is in EUR, the currency of Tautenhain et al.'s data; Mota's
+# Table 8, a European case study whose labour column is the EUR/h range used
+# below, is read in the same currency.
 #
 # We follow Mota's per-square-metre rates and NOT Tautenhain et al.'s
 # generator, which draws
@@ -93,9 +96,7 @@ DISTANCE_RANGE = (10.0, 750.0)
 # 73.0 (Bulgaria), a factor of four. Adopting the idea while repairing the
 # scale would mean inventing a third convention with no source, which is the
 # defect just removed from the supplier selection cost. Mota's tabulated rates
-# close dimensionally, come from ten real countries, and reproduce his
-# published capital-to-labour balance to within 7% -- asserted in
-# tests/test_capital_charge.py, not merely claimed here.
+# close dimensionally and come from ten real countries.
 AREA_INSTALLATION_COST_RANGE = (270.0, 661.0)
 
 # Tautenhain-based: transport assumptions and case-study coefficients.
@@ -208,11 +209,26 @@ MAX_DRIVING_HOURS_PER_PERIOD = round(MAX_DRIVING_HOURS_PER_WEEK * WEEKS_PER_PERI
 AIR_COST_PER_KGKM = 0.04
 SEA_COST_PER_KGKM = 0.01
 
-# Tautenhain-based: climate-change environmental coefficients.
+# Tautenhain-based: climate-change environmental coefficients, kg CO2e. The climate-change (CC)
+# row of the ReCiPe 2008 impact data in Tautenhain et al.'s data document (doi
+# 10.17632/f82by28vnm.2, Table 1): per m^2 of installed area, per kg produced, remanufactured or
+# acquired from a supplier, and per kg.km transported. Their environmental objective is a
+# normalised sum over all seventeen ReCiPe categories; a carbon tax prices CC alone.
 ENTITY_INSTALL_EMISSION_PER_AREA = 3.7791e02
 PROCESS_EMISSION_RANGE_PER_KG_MASS = (1.0286e02, 5.3629e02)
 SUPPLIER_ACQUISITION_EMISSION_RANGE_PER_KG = PROCESS_EMISSION_RANGE_PER_KG_MASS
-TRANSPORT_EMISSION_RANGE_PER_KGKM = (1.0890e-05, 1.8013e-03)
+# Transport emission factor ranges per mode family, kg CO2e per kg.km. Tautenhain et al.'s generator
+# draws every mode from ONE range, [1.0890e-05, 1.8013e-03], which is the hull of the four CC values
+# of Mota et al.'s case study (data document, Table 25): truck1 1.80e-03, truck2 4.34e-04, plane
+# 1.03e-03, boat 1.09e-05. One shared range lets a ship emit as much per kg.km as a truck, which
+# erases the modal signal a carbon tax acts on. We draw instead within each family's own values:
+# trucks between the two case-study trucks, air and sea at their single case-study value. The
+# range endpoints that coincide with Tautenhain's bounds keep their five significant digits.
+TRANSPORT_EMISSION_RANGE_PER_KGKM = {
+    "truck": (4.34e-04, 1.8013e-03),
+    "air": (1.03e-03, 1.03e-03),
+    "sea": (1.0890e-05, 1.0890e-05),
+}
 TRANSPORT_MIN_CAPACITY_KG = 0.0
 CONTRACTED_CAPACITY_KG = 300000.0
 MAX_ENTITY_FLOW_KG = 7000000.0
@@ -402,6 +418,18 @@ def sample_transport_fixed_cost(rng: random.Random, family: str) -> float:
         # use" as one payment. A nonzero value here would double-charge that fee.
         return 0.0
     raise ValueError(f"Unsupported transport family: {family}")
+
+
+def sample_transport_emission_per_kg_km(rng: random.Random, family: str) -> float:
+    """e_ship_m: kg CO2e per kg.km for a mode of ``family``. One uniform draw for every family,
+    the degenerate air and sea ranges included, so the generator's random stream is the same
+    whatever the family. Rounded to six significant digits: six decimals would turn the sea
+    value 1.089e-05 into 1.1e-05."""
+    try:
+        lower, upper = TRANSPORT_EMISSION_RANGE_PER_KGKM[family]
+    except KeyError:
+        raise ValueError(f"Unsupported transport family: {family}") from None
+    return float(f"{rng.uniform(lower, upper):.6g}")
 
 
 def sample_hub_operating_cost(rng: random.Random) -> float:

@@ -8,7 +8,7 @@ from typing import Any
 from clsc.config.defaults import DEFAULT
 from clsc.config.tax_scale import TAX_SCALE_FACTOR
 
-# TAX_SCALE_FACTOR: USD/kg CO2e per integer tax_index step: tax_rate = TAX_SCALE_FACTOR * tax_index.
+# TAX_SCALE_FACTOR: EUR/kg CO2e per integer tax_index step: tax_rate = TAX_SCALE_FACTOR * tax_index.
 # The one carbon-tax resolution in the project (clsc.config.tax_scale.TAX_SCALE_FACTOR),
 # re-exported under this name since it is part of this module's public API (imported elsewhere
 # as clsc.models.instance_data.TAX_SCALE_FACTOR).
@@ -119,7 +119,7 @@ class InstanceData:
     sets: dict[str, Any]
     parameters: dict[str, Any]
     source_path: Path | None = None
-    # Optional grid-resolution override (theta, USD/kg CO2e per integer tax_index step). When None
+    # Optional grid-resolution override (theta, EUR/kg CO2e per integer tax_index step). When None
     # the tax resolution is read from the stored parameters (the project's one grid, TAX_SCALE_FACTOR,
     # index {0..200}); when set, the index bounds and scale_factor are DERIVED from it over the same
     # real tau range, without touching `parameters`. Set only via with_tax_grid_step(); a caller
@@ -235,7 +235,7 @@ class InstanceData:
 
     @property
     def scale_factor(self) -> float:
-        """USD/kg CO2e per integer tax_index step. When a resolution override is in
+        """EUR/kg CO2e per integer tax_index step. When a resolution override is in
         effect (see :meth:`with_tax_grid_step`) the override step is returned
         directly, exactly. Otherwise it is DERIVED from this instance's own stored
         grid (``overline_tax_rate``/``overline_tax_index``) rather than the module
@@ -253,14 +253,14 @@ class InstanceData:
 
     def with_tax_grid_step(self, scale_factor: float) -> "InstanceData":
         """Return a NEW instance whose carbon-tax resolution is refined to resolution
-        ``scale_factor`` (theta, USD/kg CO2e per integer tax_index step), while
+        ``scale_factor`` (theta, EUR/kg CO2e per integer tax_index step), while
         PRESERVING the real tax range ``[underline_tax_rate, overline_tax_rate]``.
 
         This is the immutable, first-class replacement for mutating the stored
         ``*_tax_index`` parameters in place. The refined index bounds are DERIVED
         (``round(tau / theta)``) from the step rather than stored, so overline_tax_rate
         = 0.2 with theta = 0.001 exposes ``upper_tax_index = 200`` (index
-        {0..200}, 1 USD/t over the same 0-200 USD/t span). ``parameters`` and
+        {0..200}, 1 EUR/t over the same 0-200 EUR/t span). ``parameters`` and
         the on-disk file are untouched. Every base instance is generated directly
         at the project's one grid (``TAX_SCALE_FACTOR``), so calling this
         with that same step is a no-op; it exists for the rare deliberate probe
@@ -296,7 +296,7 @@ class InstanceData:
         return self.parameters[parameter_name]
 
     def tax_rate(self, tax_index: int) -> float:
-        """Real carbon tax rate (USD/kg CO2e) for leader tax index ``tax_index``.
+        """Real carbon tax rate (EUR/kg CO2e) for leader tax index ``tax_index``.
 
         ``tax_index`` is the integer decision index the solver optimises over;
         this converts it to the actual tax rate via ``tax_rate = scale_factor *
@@ -367,7 +367,7 @@ def _tax_rate_to_tax_index(rate: Any) -> int:
     numeric_rate = float(rate)
     scaled = round(numeric_rate / TAX_SCALE_FACTOR)
     if abs(numeric_rate - scaled * TAX_SCALE_FACTOR) > DEFAULT.eps:
-        raise InstanceValidationError(f"Tax bounds must be multiples of {TAX_SCALE_FACTOR} USD/kg CO2e")
+        raise InstanceValidationError(f"Tax bounds must be multiples of {TAX_SCALE_FACTOR} EUR/kg CO2e")
     return int(scaled)
 
 
@@ -376,7 +376,7 @@ def _tax_rate_to_tax_index(rate: Any) -> int:
 def _apply_metadata_defaults(metadata: dict[str, Any]) -> None:
     unit_convention = metadata.setdefault("unit_convention", {})
     unit_convention.setdefault("raw_material_flow", "item_units")
-    unit_convention.setdefault("raw_material_cost", "USD/raw-material unit")
+    unit_convention.setdefault("raw_material_cost", "EUR/raw-material unit")
     unit_convention.setdefault("raw_material_emission_intensity", "kg CO2e/kg")
 
 

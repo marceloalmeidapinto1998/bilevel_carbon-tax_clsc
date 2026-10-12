@@ -98,7 +98,7 @@ def build_summary_record(
         "termination_reason": result.termination_reason,
         "iterations": result.iterations,
         "tax_index": result.incumbent.tax_index,
-        # kg CO2e per USD/t in the leader's objective F = E + w*tau. The bounds below
+        # kg CO2e per EUR/t in the leader's objective F = E + w*tau. The bounds below
         # (leader_objective_lb / leader_objective_ub) are bounds on F, not on emissions alone.
         "leader_tax_weight": getattr(result, "leader_tax_weight", 0.0),
         "tax_rate": result.incumbent.tax_rate,

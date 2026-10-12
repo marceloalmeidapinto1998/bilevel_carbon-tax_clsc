@@ -1,7 +1,7 @@
 {
   "name": "STD_I17_M4_T3",
   "metadata": {
-    "generated_at_utc": "2026-10-12T15:17:03.735766+00:00",
+    "generated_at_utc": "2026-10-12T16:54:08.445112+00:00",
     "seed": 1456480296,
     "sampling_rules_module": "clsc.generator.tautenhain_data",
     "config": {
@@ -110,11 +110,14 @@
       "ms2": "sea"
     },
     "unit_convention": {
+      "currency": "EUR",
       "raw_material_flow": "item_units",
-      "raw_material_cost": "USD/raw-material unit",
+      "raw_material_cost": "EUR/raw-material unit",
       "raw_material_emission_intensity": "kg CO2e/kg",
       "production_emission_intensity": "kg CO2e/kg",
-      "remanufacturing_emission_intensity": "kg CO2e/kg"
+      "remanufacturing_emission_intensity": "kg CO2e/kg",
+      "installation_emission_intensity": "kg CO2e/m2",
+      "transport_emission_intensity": "kg CO2e/(kg km), per mode family"
     },
     "derived_unit_profiles": {
       "return_yield_rp_p": {
@@ -124,9 +127,9 @@
       }
     },
     "carbon_tax_units": {
-      "underline_tax_rate_overline_tax_rate": "USD/kg CO2e",
-      "tax_index_step": "0.001 USD/kg CO2e",
-      "tau_formula_usd_per_kg_co2e": "0.001 * tax_index"
+      "underline_tax_rate_overline_tax_rate": "EUR/kg CO2e",
+      "tax_index_step": "0.001 EUR/kg CO2e",
+      "tau_formula_eur_per_kg_co2e": "0.001 * tax_index"
     },
     "benchmark": {
       "kind": "base",
@@ -2938,12 +2941,12 @@
       }
     },
     "e_ship_m": {
-      "mrd1": 0.001726,
-      "mrd2": 0.000552,
-      "ma1": 0.000318,
-      "ma2": 0.001364,
-      "ms1": 6.9e-05,
-      "ms2": 0.001439
+      "mrd1": 0.00174401,
+      "mrd2": 0.000847384,
+      "ma1": 0.00103,
+      "ma2": 0.00103,
+      "ms1": 1.089e-05,
+      "ms2": 1.089e-05
     },
     "underline_tax_rate": 0.0,
     "overline_tax_rate": 0.2,

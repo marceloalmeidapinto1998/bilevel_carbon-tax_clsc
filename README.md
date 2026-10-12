@@ -31,11 +31,11 @@ Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of eac
 
 ## Problem
 
-**Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$ between 0 and 200 USD/t CO2e. In the computations, the tax rate is expressed in USD/kg CO2e with three decimal places, so that the leader's variable can be treated as an integer by applying a scale factor of $10^{3}$. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO2e) that it induces. When the follower has alternative optimal responses, the one most favourable to the leader is selected (optimistic approach). The leader minimises
+**Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$ between 0 and 200 EUR/t CO2e. In the computations, the tax rate is expressed in EUR/kg CO2e with three decimal places, so that the leader's variable can be treated as an integer by applying a scale factor of $10^{3}$. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO2e) that it induces. When the follower has alternative optimal responses, the one most favourable to the leader is selected (optimistic approach). The leader minimises
 
 $$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
-where $w$ (kg CO2e per USD/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 USD/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ (kg CO2e) the minimum of $E(y)$ over all feasible network designs.
+where $w$ (kg CO2e per EUR/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 EUR/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ (kg CO2e) the minimum of $E(y)$ over all feasible network designs.
 
 **Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network of suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport. Its decisions are of two kinds:
 
@@ -45,6 +45,8 @@ where $w$ (kg CO2e per USD/t) is a policy weight. Since $w > 0$, the lowest tax 
 Let $c(y)$ denote the follower's operating cost (procurement, production, remanufacturing, transport, handling and inventory), discounted over the planning horizon, and $\beta(y)$ the emissions aggregate on which the follower is taxed, discounted with the same present-value weights. The follower minimises
 
 $$f(\tau, y) = c(y) + \tau \, \beta(y).$$
+
+All monetary quantities are in EUR. Emissions are the climate-change category of ReCiPe 2008, in kg CO2e, from raw-material acquisition, production, remanufacturing, transport and facility construction. The construction emissions of factories and warehouses are amortised over the facilities' 20-year asset life, as their capital cost is: each period carries the fraction (period length)/(20 years) of them. $E(y)$ sums the emissions of all periods undiscounted; $\beta(y)$ weights each period's emissions by its present-value factor.
 
 
 ## Solution method
@@ -88,7 +90,13 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 ## Data
 
-The instances are those of the test bed of Tautenhain et al. (2021), plus three larger instances added by this repository. They are stored in `data/`, one JSON file per instance.
+The instances are new samples drawn with the instance generator of Tautenhain et al. (2021), whose data are published as Tautenhain et al. (2020), with the departures listed below. They have the dimensions of the Tautenhain et al. test bed, plus three larger instances added by this repository. They are stored in `data/`, one JSON file per instance.
+
+Departures from Tautenhain et al. that change the instances:
+
+- **Transport emission factors per mode.** Tautenhain et al. draw the factor of every transport mode from one range, which spans the four case-study modes of Mota et al. (2018). Here each mode is drawn from its own case-study values (kg CO2e per kg·km): trucks between 4.34e-4 and 1.8013e-3, air 1.03e-3, sea 1.089e-5.
+- **Climate change only.** Tautenhain et al.'s environmental objective sums seventeen normalised ReCiPe 2008 categories; the carbon tax prices only the climate-change category.
+- **Facility construction cost** per m² from Mota et al. (2018), Table 8.
 
 Each instance is named `STD_I<entities>_M<items>_T<periods>`: `I` is the number of entities, `M` the number of items (raw materials, final products and recovered products), and `T` the number of periods.
 
@@ -219,6 +227,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 ## References
 
 - Soares, Alves and Henggeler Antunes (2021). A deterministic bounding procedure for the global optimization of a bi-level mixed-integer problem. *European Journal of Operational Research*, 291, 52–66.
+- Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2020). Data for: An efficient Lagrangian-based heuristic to solve a multi-objective sustainable supply chain problem. Mendeley Data, V2. https://doi.org/10.17632/f82by28vnm.2
 - Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021). An efficient Lagrangian-based heuristic to solve a multi-objective sustainable supply chain problem. *European Journal of Operational Research*, 294, 70–90.
 - Mota, Gomes, Carvalho and Barbosa-Póvoa (2018). Sustainable supply chains: An integrated modeling approach under uncertainty. *Omega*, 77, 32–57.
 

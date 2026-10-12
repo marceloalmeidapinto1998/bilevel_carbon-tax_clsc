@@ -72,8 +72,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--leader-tax-weight",
         type=float,
         help=(
-            "The leader minimises F = E + w*tau, with w this many kg CO2e per USD/t of tax: how "
-            "much emissions the regulator gives up to avoid 1 USD/t. A POLICY assumption, not a "
+            "The leader minimises F = E + w*tau, with w this many kg CO2e per EUR/t of tax: how "
+            "much emissions the regulator gives up to avoid 1 EUR/t. A POLICY assumption, not a "
             "tolerance. Give at most one tax-weight flag; with neither, "
             "--leader-tax-weight-relative defaults to clsc.config.defaults.DEFAULT.tax_weight_relative. "
             ""
@@ -84,9 +84,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Like --leader-tax-weight, but w = this fraction q of the least emissions the cut-free "
-            "HPR can reach, per USD/t of tax -- the same meaning on every instance. q = 1e-4 "
-            "reads 'lose 1%% of the minimum emissions to avoid 100 USD/t of tax'. The run resolves "
-            "the tax to about eps / q USD/t (eps = --dbp-relative-gap)."
+            "HPR can reach, per EUR/t of tax -- the same meaning on every instance. q = 1e-4 "
+            "reads 'lose 1%% of the minimum emissions to avoid 100 EUR/t of tax'. The run resolves "
+            "the tax to about eps / q EUR/t (eps = --dbp-relative-gap)."
         ),
     )
     parser.add_argument(
@@ -145,14 +145,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--scale-factor",
         type=float,
         help=(
-            "Grid-resolution override theta (USD/kg CO2e per integer tax_index step). "
+            "Grid-resolution override theta (EUR/kg CO2e per integer tax_index step). "
             "When set, each in-memory instance's tax resolution is refined to this step "
             "WHILE PRESERVING its real tax range [underline_tax_rate, overline_tax_rate]: the "
             "index bounds are recomputed as round(tau / theta) so overline_tax_index "
             "becomes overline_tax_rate/theta (e.g. 0.2/0.001 = 200). The stored instance "
             "files are never touched. Omit to use each instance's stored grid, which "
             "is already the project's one grid (theta = TAX_SCALE_FACTOR = 1e-3, "
-            "index {0..200}, a whole USD/tonne per step) for every base instance -- this "
+            "index {0..200}, a whole EUR/tonne per step) for every base instance -- this "
             "flag exists for a deliberate probe at a different resolution."
         ),
     )
@@ -519,7 +519,7 @@ def build_manifest(
     if args.method == "dbp":
         # The leader's POLICY assumption, deliberately recorded here and not under "tolerances":
         # the reported tax_index is a function of it, so a run is not reproducible or
-        # interpretable without it. The effective w (kg per USD/t) is in each summary.
+        # interpretable without it. The effective w (kg per EUR/t) is in each summary.
         solver_manifest["leader_objective"] = "emissions_plus_weighted_tax"
         solver_manifest["leader_tax_weight_relative_effective"] = (
             args.leader_tax_weight_relative

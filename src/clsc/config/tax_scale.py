@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # Scale factor converting the leader's INTEGER decision variable into a carbon-tax rate:
-# tax_rate = TAX_SCALE_FACTOR * tax_index, in USD/kg CO2e.
+# tax_rate = TAX_SCALE_FACTOR * tax_index, in EUR/kg CO2e.
 #
 # The leader does not choose a real number. It chooses a tax expressed to a fixed resolution,
 # which makes tax_index an integer variable and TAX_SCALE_FACTOR the constant that turns it back
@@ -16,10 +16,10 @@ from __future__ import annotations
 # The integer resolution is what makes the exact one-hot linearisation possible at all (see
 # build_hpr). It is a requirement of the formulation, not a convenience.
 #
-# tax_index in {0..200} spans 0-0.2 USD/kg: the leader sets a WHOLE number of USD per
+# tax_index in {0..200} spans 0-0.2 EUR/kg: the leader sets a WHOLE number of EUR per
 # tonne. That is the resolution Soares et al.'s phrasing needs -- 1e-3 is a power of ten,
-# so the tax rate has 'three decimal places in USD/kg', and tax_index is its
-# integer form. The previous 5e-4 (0.5 USD/t) was not a power of ten and could not be
+# so the tax rate has 'three decimal places in EUR/kg', and tax_index is its
+# integer form. The previous 5e-4 (0.5 EUR/t) was not a power of ten and could not be
 # described that way. It also halves the one-hot gadget: 201 binaries instead of 401, in
 # an HPR that is ~95% of every run's wall time.
 #

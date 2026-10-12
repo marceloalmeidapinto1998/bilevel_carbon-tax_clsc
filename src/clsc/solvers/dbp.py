@@ -47,7 +47,7 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
     the leader HPR as readily as by the follower, so it is not "y" and is not the follower's.
 
  ** THE LEADER HAS ONE OBJECTIVE, F = E + w * tax_index, where E is total physical emissions and
-    w (kg CO2e per grid index, derived from ``leader_tax_weight`` in kg per USD/t) is how much
+    w (kg CO2e per grid index, derived from ``leader_tax_weight`` in kg per EUR/t) is how much
     emissions the regulator gives up to avoid one more index of tax. w is a POLICY assumption, not
     a tolerance. One criterion is what lets this procedure be Soares et al.'s as written: a single
     HPR stage, the UB_F - LB_F gap, their Step 6 and Lemma 3, with nothing added to the leader
@@ -128,7 +128,7 @@ class IncumbentSolution:
 
     @property
     def tax_rate(self) -> float:
-        """Real carbon tax rate (USD/kg CO2e) for this solution's ``tax_index``."""
+        """Real carbon tax rate (EUR/kg CO2e) for this solution's ``tax_index``."""
         return self.scale_factor * self.tax_index
 
 
@@ -206,7 +206,7 @@ class BilevelSolveResult:
     iteration_records: tuple[DbpIterationRecord, ...]
     dbp_timing: DbpTimingSummary
     incumbent_solution: SolveResult | None = None
-    # Weight of the tax in the leader's objective F = E + w*tau, kg CO2e per USD/t. The fields
+    # Weight of the tax in the leader's objective F = E + w*tau, kg CO2e per EUR/t. The fields
     # named ``leader_objective_lb`` / ``leader_objective_ub`` are bounds on F, not on emissions
     # alone; the incumbent's own emissions are in ``incumbent``.
     leader_tax_weight: float = 0.0
@@ -636,7 +636,7 @@ def solve_bilevel_dbp(instance_or_path: InstanceData | str | Path, **kwargs) -> 
     (it can be derived from the instance's own emissions scale)."""
     sink: dict[str, float] = {}
     result = _solve_bilevel_dbp(instance_or_path, _effective_tax_weight_sink=sink, **kwargs)
-    return replace(result, leader_tax_weight=sink.get("usd_per_tonne", 0.0))
+    return replace(result, leader_tax_weight=sink.get("kg_per_eur_t", 0.0))
 
 
 def _solve_bilevel_dbp(
@@ -667,13 +667,13 @@ def _solve_bilevel_dbp(
     Lemma 3) and **epsilon-optimal** otherwise -- Step 6, as written. The incumbent is the
     evaluated point with the least F, and at an exact tie the lower tax.
 
-    THE LEADER'S OBJECTIVE. ``leader_tax_weight`` is ``w`` in kg of emissions per USD/t of tax;
+    THE LEADER'S OBJECTIVE. ``leader_tax_weight`` is ``w`` in kg of emissions per EUR/t of tax;
     ``leader_tax_weight_relative`` is the same as a fraction ``q`` of the least emissions the
     cut-free HPR can reach (so it means the same on every instance), and is the default
     (``DEFAULT.tax_weight_relative``). Give at most one. ``w`` states how much emissions the
-    regulator gives up to avoid 1 USD/t of tax: a POLICY assumption, not a tolerance, to be
-    declared and varied. ``q = 1e-4`` reads "lose 1% of the minimum emissions to avoid 100 USD/t
-    of tax". The run can resolve the tax only to about ``eps / q`` USD/t, because two taxes
+    regulator gives up to avoid 1 EUR/t of tax: a POLICY assumption, not a tolerance, to be
+    declared and varied. ``q = 1e-4`` reads "lose 1% of the minimum emissions to avoid 100 EUR/t
+    of tax". The run can resolve the tax only to about ``eps / q`` EUR/t, because two taxes
     whose F differ by less than eps are indistinguishable to the gap. The bounds, trace values
     and the ``emissions_*`` result fields refer to F; the incumbent's own emissions are in
     ``incumbent.emissions``.
@@ -729,9 +729,9 @@ def _solve_bilevel_dbp(
         use_follower_improvement=use_follower_improvement,
         use_elastic_hpr=use_elastic_hpr,
     )
-    weight_usd_per_tonne = run.set_tax_weight(leader_tax_weight, leader_tax_weight_relative)
+    weight_kg_per_eur_t = run.set_tax_weight(leader_tax_weight, leader_tax_weight_relative)
     if _effective_tax_weight_sink is not None:
-        _effective_tax_weight_sink["usd_per_tonne"] = weight_usd_per_tonne
+        _effective_tax_weight_sink["kg_per_eur_t"] = weight_kg_per_eur_t
     return run.run()
 
 
@@ -810,8 +810,8 @@ class _DbpRun:
         )
 
     def set_tax_weight(self, leader_tax_weight: float | None, leader_tax_weight_relative: float | None) -> float:
-        """Fix w in the HPR's objective and return it in kg per USD/t."""
-        usd_per_tonne_per_index = self.instance.scale_factor * 1000.0  # USD/t that one grid index is
+        """Fix w in the HPR's objective and return it in kg per EUR/t."""
+        eur_per_tonne_per_index = self.instance.scale_factor * 1000.0  # EUR/t that one grid index is
         if leader_tax_weight_relative is not None:
             # The weight is relative to the least emissions the cut-free HPR can reach, which is a
             # lower bound on the leader's emissions at any tax: a scale that exists before any
@@ -820,12 +820,12 @@ class _DbpRun:
             scale_run, self.scale_seconds = self.solve_hpr()
             _require_optimal_or_usable_partial_hpr(scale_run, "initial DBP relaxation (weight scale)")
             reference_emissions = _required_value(scale_run.emissions, "reference emissions")
-            weight_usd_per_tonne = leader_tax_weight_relative * float(reference_emissions)
+            weight_kg_per_eur_t = leader_tax_weight_relative * float(reference_emissions)
         else:
-            weight_usd_per_tonne = float(leader_tax_weight)
-        self.tax_weight_per_index = weight_usd_per_tonne * usd_per_tonne_per_index
+            weight_kg_per_eur_t = float(leader_tax_weight)
+        self.tax_weight_per_index = weight_kg_per_eur_t * eur_per_tonne_per_index
         set_leader_tax_weight(self.hpr, self.tax_weight_per_index)
-        return weight_usd_per_tonne
+        return weight_kg_per_eur_t
 
     # ---------------------------------------------------------------- results
 
@@ -1102,7 +1102,7 @@ class _DbpRun:
         )
         if gap > self.dbp_relative_gap:
             return None
-        # The penalty is in tonnes per USD of violation, so anything above round-off is a real one.
+        # The penalty is in tonnes per EUR of violation, so anything above round-off is a real one.
         elastic_active = relaxation.slack_value is not None and relaxation.slack_value > 1e-6
         next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
         if (

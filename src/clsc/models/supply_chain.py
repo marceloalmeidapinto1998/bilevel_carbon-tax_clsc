@@ -39,7 +39,7 @@ def total_emissions_upper_bound(instance: InstanceData) -> float:
     airports = instance.sets.get("AIR", tuple())
     seaports = instance.sets.get("PORT", tuple())
 
-    open_bound = (
+    open_bound = len(periods) * embodied_emission_share_per_period(params) * (
         sum(params["e_open_f"][factory] * params["A_f"][factory] for factory in factories)
         + sum(params["e_open_w"][warehouse] * params["A_w"][warehouse] for warehouse in warehouses)
     )
@@ -280,15 +280,22 @@ def build_supply_chain_model(instance: InstanceData, *, model_name: str) -> _Sup
         )
     )
 
-    def _emissions(weight: dict[str, float]) -> gp.LinExpr:
-        """Total emissions, with ``weight[t]`` applied to per-period terms.
+    embodied_share = embodied_emission_share_per_period(params)
+    embodied_emissions = (
+        gp.quicksum(params["e_open_f"][f] * installed_area[f] for f in factories)
+        + gp.quicksum(params["e_open_w"][w] * installed_area[w] for w in warehouses)
+    )
 
-        Construction emissions are unweighted in both variants: they are
-        incurred once, at t=0, when the facility is built.
+    def _emissions(weight: dict[str, float]) -> gp.LinExpr:
+        """Total emissions, with ``weight[t]`` applied to every per-period term.
+
+        Construction emissions are amortised like the facility's capital: each
+        period carries the share of the building's embodied emissions that it
+        consumes (see embodied_emission_share_per_period), weighted like any
+        other per-period emission.
         """
         return (
-            gp.quicksum(params["e_open_f"][f] * installed_area[f] for f in factories)
-            + gp.quicksum(params["e_open_w"][w] * installed_area[w] for w in warehouses)
+            sum(weight[t] for t in periods) * embodied_share * embodied_emissions
             + gp.quicksum(
                 weight[t] * params["e_prod_g"][g] * params["omega_p"][p] * q[p, f, g, t]
                 for p, f, g, t in q.keys()
@@ -1181,6 +1188,22 @@ def capital_multipliers(params, periods) -> dict[str, float]:
         * capital_recovery_factor(rate_per_period, float(life) / years_per_period)
         for asset_class, life in lives.items()
     }
+
+
+def embodied_emission_share_per_period(params) -> float:
+    """Share of a facility's embodied (construction) emissions charged to each period.
+
+    Straight-line over the facility's asset life, ``years_per_period / life``: the
+    emissions counterpart of the capital rental in ``capital_multipliers``. Charging
+    the full embodied emissions inside a horizon of one to four years, while capital
+    is charged only for the asset-years consumed, would make the share of construction
+    in E and in the tax base, and so the leader's optimal tax, depend on ``|T|`` for
+    no physical reason. No interest is applied: a tonne of CO2e does not earn interest.
+    The tax on each period's share is discounted like every other per-period payment.
+    """
+    lives = params.get("asset_life_years") or DEFAULT_ASSET_LIFE_YEARS
+    weeks = float(params.get("weeks_per_period") or WEEKS_PER_YEAR)
+    return (weeks / WEEKS_PER_YEAR) / float(lives[ASSET_CLASS_FACILITY])
 
 
 def _inventory_cost(params, products, warehouses, periods, inv_w, discount):

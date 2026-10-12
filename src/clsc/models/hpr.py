@@ -34,7 +34,7 @@ from .follower import epsilon_prime_tolerance
 # At 1e3 the contradiction disappears and both solves agree on 38 351 450.584 kg (1.0, i.e.
 # raw kg, also works; tonnes keeps the magnitudes moderate and is the natural reporting unit).
 # Two companion changes went in with it: the cuts are written in tax_index rather than
-# tax_rate, and the tau*emissions product is carried in USD -- both keeping large constants out
+# tax_rate, and the tau*emissions product is carried in EUR -- both keeping large constants out
 # of the cut rows. This constant is the one that actually decides correctness.
 EMISSIONS_SCALE = 1_000.0  # kg to tonnes
 
@@ -246,8 +246,8 @@ def build_hpr(
         )
         # NOT ADDED, deliberately: `tax_base_scaled <= emissions_total_scaled`.
         #
-        # The inequality is true -- every per-period discount weight is <= 1 and the
-        # construction term is unweighted in both aggregates (see _emissions) -- and adding it
+        # The inequality is true -- every term of both aggregates is per-period, including the
+        # amortised construction term, and every discount weight is <= 1 (see _emissions) -- and adding it
         # looked free, since it only restates what the flow variables already imply. It is not
         # free. Measured on STD_I25_M8_T3's reconstructed iteration-2 HPR (2026-09-25),
         # Stage 1 proves optimality in 466 s WITHOUT the row and fails to find any feasible
@@ -313,7 +313,7 @@ def build_hpr(
             >= tax_base_scaled - emissions_upper_bound_scaled * (1 - tax_level_selected[index]),
             name=f"tax_base_if_level_ge_{index}",
         )
-    # The product is carried in USD, not in scaled units later multiplied back up. Both spell
+    # The product is carried in EUR, not in scaled units later multiplied back up. Both spell
     # the same quantity -- tax_rate * E_scaled * EMISSIONS_SCALE == tax_rate * E_raw -- but the
     # scaled form leaves a bare EMISSIONS_SCALE (1e6) sitting as the coefficient of this single
     # variable in EVERY value-function cut, and the cuts are the rows where the leader and
@@ -323,7 +323,7 @@ def build_hpr(
     tau_emissions_product = model.addVar(
         lb=0.0,
         ub=EMISSIONS_SCALE * (scale_factor * upper_tax_index) * emissions_upper_bound_scaled,
-        name="tau_emissions_product_usd",
+        name="tau_emissions_product_eur",
     )
     model.addConstr(
         tau_emissions_product
@@ -331,14 +331,14 @@ def build_hpr(
             (EMISSIONS_SCALE * scale_factor * index) * tax_base_if_level[index]
             for index in tax_levels
         ),
-        name="tau_emissions_usd_def",
+        name="tau_emissions_eur_def",
     )
     follower_objective_expr = common.cost_expr + tau_emissions_product
 
     # (P5-D) of Soares et al. (2021): with `elastic`, each cut gets its own slack D_k >= 0 (added
     # by add_value_function_cut), and `dbp_elastic_slack_total` == sum(D_k) is penalised in the
-    # objective. The penalty is per USD of cut violation and in the objective's tonnes: at
-    # emissions_upper_bound_scaled * multiplier, violating any cut by more than 1/multiplier USD
+    # objective. The penalty is per EUR of cut violation and in the objective's tonnes: at
+    # emissions_upper_bound_scaled * multiplier, violating any cut by more than 1/multiplier EUR
     # costs more than the entire emissions range, so D > 0 is chosen only where no D = 0 point
     # exists within the solver's reach. It never weakens the lower bound: D = 0 points keep their
     # objective, so the elastic optimum -- and its dual bound -- is at most the original's.
@@ -397,7 +397,7 @@ def add_value_function_cut(hpr: HighPointRelaxation, cut: ValueFunctionCut) -> N
     # cost_v + base_v * tax_rate and cost_v + (base_v * scale_factor) * tax_index describe the
     # identical constraint. They are NOT the same numerically. base_v is an emissions aggregate
     # in kg -- tens of millions -- while tax_rate is a rate per kg confined to [0, 0.2]; the
-    # product is an ordinary six-figure number of USD reached by multiplying a huge coefficient
+    # product is an ordinary six-figure number of EUR reached by multiplying a huge coefficient
     # by a tiny variable. Folding the scale factor into the coefficient rescales the pair without
     # touching the product: on STD_TOY5's first cut, 3.7e7 becomes 3.7e4 against a variable that
     # runs 0..200 instead of 0..0.2.
@@ -551,7 +551,7 @@ def _retighten_tax_base_big_m(hpr: HighPointRelaxation, cap_scaled: float | None
     relaxation weak and its solve times dominate every run.
 
     Once an incumbent exists, ``E <= cap`` holds in the HPR, and ``B <= E`` holds at every
-    feasible point by construction (per-period weights <= 1, identical construction term), so
+    feasible point by construction (every term is per-period and every weight is <= 1), so
     ``cap`` is itself a valid bound on B and usually a far better one. That inequality is NOT
     written as a constraint -- doing so was measured to be badly counterproductive, see
     build_hpr -- but it does not need to be: the bound is valid on the algebra.

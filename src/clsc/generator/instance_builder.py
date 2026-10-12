@@ -544,10 +544,7 @@ def _sample_transport_modes(rng: random.Random, modes: list[str]) -> dict[str, d
         # Stored as a coarse mode-level fallback only. The follower model tightens
         # truck trip activation further with endpoint-specific flow bounds.
         trip_big_m[mode] = max(1, math.ceil(taut.MAX_ENTITY_FLOW_KG / capacity_kg) + 1)
-        transport_emission[mode] = round(
-            rng.uniform(*taut.TRANSPORT_EMISSION_RANGE_PER_KGKM),
-            6,
-        )
+        transport_emission[mode] = taut.sample_transport_emission_per_kg_km(rng, family)
 
     return {
         "mode_family_m": transport_family,
@@ -720,20 +717,23 @@ def _build_metadata(config: GeneratorConfig, coordinates, transport_family, retu
         "node_coordinates": coordinates,
         "transport_mode_family": transport_family,
         "unit_convention": {
+            "currency": "EUR",
             "raw_material_flow": "item_units",
-            "raw_material_cost": "USD/raw-material unit",
+            "raw_material_cost": "EUR/raw-material unit",
             "raw_material_emission_intensity": "kg CO2e/kg",
             "production_emission_intensity": "kg CO2e/kg",
             "remanufacturing_emission_intensity": "kg CO2e/kg",
+            "installation_emission_intensity": "kg CO2e/m2",
+            "transport_emission_intensity": "kg CO2e/(kg km), per mode family",
         },
         "derived_unit_profiles": {
             "return_yield_rp_p": return_yield_matrix,
         },
         "carbon_tax_units": {
-            "underline_tax_rate_overline_tax_rate": "USD/kg CO2e",
+            "underline_tax_rate_overline_tax_rate": "EUR/kg CO2e",
             # Written from the project's one tax-grid step, so it cannot drift from it.
-            "tax_index_step": f"{TAX_SCALE_FACTOR:g} USD/kg CO2e",
-            "tau_formula_usd_per_kg_co2e": f"{TAX_SCALE_FACTOR:g} * tax_index",
+            "tax_index_step": f"{TAX_SCALE_FACTOR:g} EUR/kg CO2e",
+            "tau_formula_eur_per_kg_co2e": f"{TAX_SCALE_FACTOR:g} * tax_index",
         },
     }
 
