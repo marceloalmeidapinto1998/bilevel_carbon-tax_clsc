@@ -55,16 +55,16 @@ The HPR minimises $F$ over the follower's physical constraints alone and does no
 
 **Tolerances**
 
-- $\varepsilon$ (`dbp_relative_gap`, default $10^{-4}$): tolerance on the relative gap.
+- $\varepsilon$: tolerance on the relative gap.
 - $\varepsilon'$: a very small tolerance on the follower's objective, used only to keep the subproblems numerically feasible, as in Soares et al. (2021).
-- Subproblems are solved to a relative MIP gap of $10^{-4}$ (`mip_gap` for the follower, `hpr_mip_gap` for the HPR).
+- Subproblems are solved to a relative MIP gap of $10^{-4}$.
 
 **Initialisation.** Fix $w$ (see Problem) and solve the HPR without cuts. Set $\mathrm{LB}$ to the bound proven by the solver and $\tau_{0}$ to the tax rate of the HPR solution. Set $\mathrm{UB} = +\infty$ and $k = 0$.
 
 **Iteration** ($k = 0, 1, \dots$)
 
 1. **Evaluate the follower.** Solve the follower's problem at $\tau_{k}$ with the optimistic rule. Stage 1 minimises $f$ and gives $f^{\ast}$. Stage 2 minimises $E$ subject to $f \le f^{\ast} + \varepsilon'$ and gives $y_{k}$. If $F(\tau_{k}, y_{k}) < \mathrm{UB}$, set $\mathrm{UB} = F(\tau_{k}, y_{k})$. The incumbent is the evaluated pair of least $F$; ties go to the lower tax.
-2. **Add a cut.** Add $f(\tau, y) \le f(\tau, y_{k}) + \varepsilon'$ to the HPR. The point $y_{k}$ is feasible for every $\tau$. If $(\tau, y^{\ast})$ is bilevel-feasible, $y^{\ast}$ minimises $f(\tau, \cdot)$, so $f(\tau, y^{\ast}) \le f(\tau, y_{k})$. The cut therefore removes no bilevel-feasible point (Lemma 2 of Soares et al., 2021). Optimality of $y_{k}$ is not needed.
+2. **Add a cut.** Add $f(\tau, y) \le f(\tau, y_{k}) + \varepsilon'$ to the HPR. The point $y_{k}$ is feasible for every $\tau$. If $(\tau, y^{\ast})$ is bilevel-feasible, $y^{\ast}$ minimises $f(\tau, \cdot)$, so $f(\tau, y^{\ast}) \le f(\tau, y_{k})$. The cut therefore removes no bilevel-feasible point.
 3. **Re-solve the HPR.** Set $\mathrm{LB}$ to the larger of its previous value and the bound proven by this solve. Set $\tau_{k+1}$ to the tax rate of the HPR solution.
 4. **Test termination.** If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop and classify the result. Otherwise set $k \leftarrow k + 1$ and return to step 1.
 
