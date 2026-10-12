@@ -11,7 +11,7 @@ Exact and ε-optimal solutions to a bilevel closed-loop supply chain design prob
 
 This repository implements a bilevel mixed-integer model of closed-loop supply chain (CLSC) network design under a carbon tax, an exact solution method for it, and a reproducible benchmark set. A leader (the regulator) sets the tax rate; a follower (the CLSC operator) selects facility locations, installed capacities, technologies, and forward and reverse flows to minimise its own cost, inclusive of the tax. The leader anticipates the follower's response when choosing the tax, which makes the problem a bilevel mixed-integer program. The problem is solved with the Deterministic Bounding Procedure (DBP) of Soares et al. (2021), whose overall strategy is to generate a series of convergent upper and lower bounds on the leader's objective until their difference falls below a given threshold. The repository also provides a deterministic instance generator and fifteen instances, built from the sampling rules of Tautenhain et al. (2021).
 
-## Installation and quick start
+## Installation
 
 ```bash
 git clone https://github.com/marceloalmeidapinto1998/bilevel-clsc-carbon-pricing.git
@@ -29,7 +29,7 @@ clsc-solve data/STD_I17_M4_T3.json --results-root results/runs
 
 Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of each output file, and further command-line options, are described in "Usage".
 
-## Problem formulation
+## Problem
 
 **Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$ between 0 and 200 USD/t CO2e. In the computations, the tax rate is expressed in USD/kg CO2e with three decimal places, so that the leader's variable can be treated as an integer by applying a scale factor of $10^{3}$. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO2e) that it induces. When the follower has alternative optimal responses, the one most favourable to the leader is selected (optimistic approach). The leader minimises
 
@@ -46,28 +46,36 @@ Let $c(y)$ denote the follower's operating cost (procurement, production, remanu
 
 $$f(\tau, y) = c(y) + \tau \, \beta(y).$$
 
-The quantity $\beta(y)$ coincides with $E(y)$ only when the instance carries no interest rate; the benchmark instances are generated with a strictly positive interest rate, so in general $\beta(y) \neq E(y)$.
-
-**Tie-breaking rule.** Multiple responses $y$ may attain the minimum of $f(\tau, \cdot)$ for a given $\tau$. The follower is assumed to select, among these, the response of least physical emissions $E(y)$ — the optimistic rule. This selection is enforced by a two-stage lexicographic procedure: Stage 1 minimises $f$, yielding $f^*$; Stage 2 minimises $E$ subject to $f(\tau, y) \le f^* + \varepsilon'$, where $\varepsilon'$ (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) freezes the Stage-1 value within a numerical tolerance before re-optimisation. If Stage 1 terminates at its time limit, subproblem (P6) is solved first to search for an improving response before the freeze is applied; if Stage 2 returns no feasible point, the Stage-1 (or P6) response is retained.
 
 ## Solution method
 
-The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021). The procedure maintains a lower bound and an upper bound on $F$ and terminates when their relative gap is within a specified tolerance.
+The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares et al. (2021), which generates successively tighter lower and upper bounds on the leader's objective $F$ until their relative gap falls below a prescribed tolerance. Since the leader minimises $F$, the relaxation master problem yields lower bounds on $F$, and the evaluated follower responses yield upper bounds.
 
-1. Solve the relaxation master problem (the high-point relaxation of Soares et al., 2021) — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — to obtain a lower bound on $F$ and a proposed tax rate $\tau_k$.
-2. Solve the follower's problem at $\tau_k$ (see "Problem formulation") to obtain an evaluated response $y_k$, hence an upper bound on $F$.
-3. Append a value-function cut, derived from $y_k$, to the master problem: $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$. The cut is valid at every tax rate, since the follower's constraints are independent of $\tau$.
-4. Re-solve the master problem with the additional cut.
-5. If the relative gap $(\mathrm{UB}-\mathrm{LB}) / \max(1, |\mathrm{UB}|)$ is at most `dbp_relative_gap` (default $10^{-4}$), terminate; otherwise return to step 2 with the master's updated proposal.
+The procedure relies on the fact that the follower's constraints do not contain $\tau$. Every follower response is therefore feasible at every tax rate, which makes the value-function cuts below valid globally.
 
-Upon termination, the result is classified as optimal if the master re-proposes the tax rate just evaluated (Lemma 3 of Soares et al., 2021), and as epsilon-optimal otherwise.
+**Parameters**
 
-As in Soares et al. (2021, Section 5), where prices are considered with five decimal places and the upper-level variables can therefore be seen as integers through a $10^5$ scale factor, here tax rates are considered with three decimal places in USD/kg CO2e (`TAX_SCALE_FACTOR` $= 10^{-3}$), that is, in whole USD per tonne. The leader's decision variable can therefore be seen as an integer variable, `tax_index` $\in \{0, 1, \dots, 200\}$ on the benchmark instances, by considering a $10^3$ scale factor. The discretisation does not change the formulation, but the bounds and optimality certificates refer to the problem restricted to this grid. It also has a role that it does not have in Soares et al.: there the price multiplies binary follower variables, whereas here $\tau$ multiplies continuous emission flows, and the integer resolution is what allows the product $\tau \cdot \beta(y)$ to be linearised exactly in the master problem.
+- Optimality tolerance $\varepsilon$ (`dbp_relative_gap`, default $10^{-4}$).
+- Tolerance $\varepsilon'$ on the follower's objective in the cuts (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$).
+
+**Initialisation.** Solve the relaxation master problem without cuts: the high-point relaxation, in which $F$ is minimised over the follower's physical constraints only, so that its feasible set does not depend on the tax. Its optimal value is the initial lower bound $\mathrm{LB}$, and its tax rate is the first proposal $\tau_0$. Set $\mathrm{UB} = +\infty$ and $k = 0$.
+
+**Iteration $k$**
+
+1. **Evaluate the follower.** Solve the follower's problem at $\tau_k$ with the optimistic tie-breaking rule (see Follower problem), obtaining $y_k$. If $F(\tau_k, y_k) < \mathrm{UB}$, update $\mathrm{UB} = F(\tau_k, y_k)$ and store $(\tau_k, y_k)$ as the incumbent.
+2. **Add a value-function cut.** Append $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$ to the master problem. The cut removes no bilevel-feasible solution, because $y_k$ is feasible for the follower at every $\tau$.
+3. **Re-solve the master.** Its optimal value is the new $\mathrm{LB}$, and its tax rate is the next proposal $\tau_{k+1}$.
+4. **Test termination.** If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop. Otherwise set $k \leftarrow k + 1$ and return to step 1.
+
+At termination, the incumbent is returned. The result is classified as optimal if $\tau_{k+1} = \tau_k$, and as $\varepsilon$-optimal otherwise, in which case the incumbent's objective lies within the relative gap of the lower bound.
 
 <details>
-<summary>Time-limit handling and additional tolerances</summary>
+<summary>Time limits, fallbacks and auxiliary stopping rule</summary>
 
-A master problem that reaches its time limit yields a valid dual bound and, if an incumbent is held, a usable tax-rate proposal, from which the procedure continues. A follower problem that reaches its time limit is passed through subproblem (P6), which searches for an improving response before the tie-breaking freeze described in "Problem formulation" is applied. The master's value-function cuts are made elastic (formulation P5-D) the first time the master problem returns no feasible point.
+- **Master time limit.** A master problem that reaches its time limit still yields a valid dual bound and a usable tax proposal.
+- **Follower time limit.** If the first stage of the follower's solve reaches its time limit, subproblem (P6) first searches for a response that improves on it, before the freeze described in Follower problem is set. If the second stage finds nothing feasible, the first-stage (or P6) response is kept.
+- **Elastic cuts.** The master's value-function cuts are made elastic (formulation P5-D) the first time the master returns no feasible point.
+- **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) iterations without a bound update.
 
 </details>
 
@@ -147,7 +155,7 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--master-time-limit` sets the master's separately) |
 | — | `--wall-clock-cap` | none | optional limit on a whole run |
 | `stagnation_limit` | — | `10` | number of iterations without a bound update before the run stops |
-| `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem formulation") |
+| `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
 | `threads`, `mip_focus` | `--threads`, `--mip-focus` | `4`, `2` | Gurobi settings |
 
 `--leader-tax-weight` sets $w$ directly, in kg CO2e per USD/t, as an alternative to `tax_weight_relative`. The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO2e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The benchmark instances use a tax range of 0–200 USD/t.
