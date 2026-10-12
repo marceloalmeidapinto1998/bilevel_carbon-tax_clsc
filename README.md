@@ -31,11 +31,11 @@ Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of eac
 
 ## Problem formulation
 
-**Leader problem.** The leader sets a carbon tax rate $\tau$ (USD/t CO$_2$e), subject to $\underline{\tau} \le \tau \le \bar{\tau}$; the benchmark instances use $\underline{\tau} = 0$ and $\bar{\tau} = 200$. Let $y$ denote the follower's response — its network design and period-by-period operating plan — and $E(y)$ the total physical emissions it induces. The leader minimises
+**Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$ (USD/t CO$_2$e) within the bounds $\tau_{\min} \le \tau \le \tau_{\max}$; the benchmark instances use $\tau_{\min} = 0$ and $\tau_{\max} = 200$. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO$_2$e) that it induces. The leader minimises
 
 $$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
-The weight $w > 0$ makes the leader choose the lowest tax among those achieving equal emissions, and sets the trade-off the regulator accepts: up to $w$ additional units of emissions for each 1 USD/t reduction in $\tau$. Throughout, $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ the minimum emissions level attainable.
+where $w$ (kg CO$_2$e per USD/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 USD/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ (dimensionless) and $E_{\text{ref}}$ (kg CO$_2$e) the minimum emissions level attainable over the follower's feasible region, that is, with no tax and no optimality condition imposed on the follower. Among the follower's optimal responses, the one most favourable to the leader is selected (optimistic approach).
 
 **Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network comprising suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport modes. Its decisions comprise:
 
