@@ -31,11 +31,11 @@ Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of eac
 
 ## Problem formulation
 
-**Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$ (USD/t CO$_2$e) within the bounds $\tau_{\min} \le \tau \le \tau_{\max}$, with $\tau_{\min} = 0$ and $\tau_{\max} = 200$. In the computations, the tax rate is expressed in USD/kg CO$_2$e with three decimal places, so that the leader's variable can be treated as an integer by applying a scale factor of $10^{3}$. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO$_2$e) that it induces. When the follower has alternative optimal responses, the one most favourable to the leader is selected (optimistic approach). The leader minimises
+**Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$ between 0 and 200 USD/t CO2e. In the computations, the tax rate is expressed in USD/kg CO2e with three decimal places, so that the leader's variable can be treated as an integer by applying a scale factor of $10^{3}$. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO2e) that it induces. When the follower has alternative optimal responses, the one most favourable to the leader is selected (optimistic approach). The leader minimises
 
 $$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
-where $w$ (kg CO$_2$e per USD/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 USD/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ (kg CO$_2$e) the minimum of $E(y)$ over all feasible network designs.
+where $w$ (kg CO2e per USD/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 USD/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ (kg CO2e) the minimum of $E(y)$ over all feasible network designs.
 
 **Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network comprising suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport modes. Its decisions comprise:
 
@@ -62,7 +62,7 @@ The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of
 
 Upon termination, the result is classified as optimal if the master re-proposes the tax rate just evaluated (Lemma 3 of Soares et al., 2021), and as epsilon-optimal otherwise.
 
-As in Soares et al. (2021, Section 5), where prices are considered with five decimal places and the upper-level variables can therefore be seen as integers through a $10^5$ scale factor, here tax rates are considered with three decimal places in USD/kg CO$_2$e (`TAX_SCALE_FACTOR` $= 10^{-3}$), that is, in whole USD per tonne. The leader's decision variable can therefore be seen as an integer variable, `tax_index` $\in \{0, 1, \dots, 200\}$ on the benchmark instances, by considering a $10^3$ scale factor. The discretisation does not change the formulation, but the bounds and optimality certificates refer to the problem restricted to this grid. It also has a role that it does not have in Soares et al.: there the price multiplies binary follower variables, whereas here $\tau$ multiplies continuous emission flows, and the integer resolution is what allows the product $\tau \cdot \beta(y)$ to be linearised exactly in the master problem.
+As in Soares et al. (2021, Section 5), where prices are considered with five decimal places and the upper-level variables can therefore be seen as integers through a $10^5$ scale factor, here tax rates are considered with three decimal places in USD/kg CO2e (`TAX_SCALE_FACTOR` $= 10^{-3}$), that is, in whole USD per tonne. The leader's decision variable can therefore be seen as an integer variable, `tax_index` $\in \{0, 1, \dots, 200\}$ on the benchmark instances, by considering a $10^3$ scale factor. The discretisation does not change the formulation, but the bounds and optimality certificates refer to the problem restricted to this grid. It also has a role that it does not have in Soares et al.: there the price multiplies binary follower variables, whereas here $\tau$ multiplies continuous emission flows, and the integer resolution is what allows the product $\tau \cdot \beta(y)$ to be linearised exactly in the master problem.
 
 <details>
 <summary>Time-limit handling and additional tolerances</summary>
@@ -150,7 +150,7 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem formulation") |
 | `threads`, `mip_focus` | `--threads`, `--mip-focus` | `4`, `2` | Gurobi settings |
 
-`--leader-tax-weight` sets $w$ directly, in kg CO$_2$e per USD/t, as an alternative to `tax_weight_relative`. The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO$_2$e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The benchmark instances use a tax range of 0–200 USD/t.
+`--leader-tax-weight` sets $w$ directly, in kg CO2e per USD/t, as an alternative to `tax_weight_relative`. The tax grid step is `TAX_SCALE_FACTOR = 1e-3` USD/kg CO2e (1 USD/t per index), set in [`src/clsc/config/tax_scale.py`](src/clsc/config/tax_scale.py). The benchmark instances use a tax range of 0–200 USD/t.
 
 ## Requirements and reproducibility
 
