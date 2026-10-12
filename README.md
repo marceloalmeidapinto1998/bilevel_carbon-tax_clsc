@@ -31,45 +31,43 @@ Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of eac
 
 ## Problem formulation
 
-**Leader problem.** The leader selects an integer tax index $x_u \in \{0, 1, \dots, \bar{x}_u\}$ (`tax_index` in the implementation), where the upper bound $\bar{x}_u$ is instance-specific ($\bar{x}_u = 200$ for the benchmark instances). The corresponding carbon tax rate is
+**Leader problem.** The leader sets a carbon tax rate $\tau$ (USD/t CO$_2$e), subject to $\underline{\tau} \le \tau \le \bar{\tau}$; the benchmark instances use $\underline{\tau} = 0$ and $\bar{\tau} = 200$. Let $y$ denote the follower's response — its network design and period-by-period operating plan — and $E(y)$ the total physical emissions it induces. The leader minimises
 
-$$\tau = \theta \, x_u,$$
+$$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
-with grid step $\theta = 10^{-3}$ USD/kg CO$_2$e (`TAX_SCALE_FACTOR`), so that each unit increase in $x_u$ raises the tax rate by 1 USD/t CO$_2$e. Let $y$ denote the follower's response — its network design and period-by-period operating plan — and let $E(y)$ denote the total physical emissions (kg CO$_2$e) it induces. The leader minimises
+where $w$ is a policy weight representing the emissions the regulator accepts in exchange for a tax rate 1 USD/t lower. Unless specified otherwise, $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ (`tax_weight_relative`) and $E_{\text{ref}}$ the minimum emissions level attainable by the cut-free relaxation master problem (Solution method); $w$ can also be supplied directly. Because $w > 0$, the lowest tax is selected among those attaining equal emissions, so the formulation requires no secondary tie-breaking rule on the leader's side.
 
-$$F(x_u, y) = E(y) + w \, x_u, \qquad w > 0,$$
-
-where $w$ is a policy weight, expressed in kg CO$_2$e per unit of $x_u$, representing the emissions the regulator accepts in exchange for a tax rate one grid step lower. Unless specified otherwise, $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ (`tax_weight_relative`) and $E_{\text{ref}}$ the minimum emissions level attainable by the cut-free relaxation master problem (Solution method). The weight $w$ can alternatively be supplied directly, in kg CO$_2$e per USD/t. Because $w > 0$, the lowest tax index is selected among those attaining equal emissions, so the formulation requires no secondary tie-breaking rule on the leader's side.
-
-**Follower problem.** For a fixed tax index $x_u$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network comprising suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport modes. Its decisions comprise:
+**Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network comprising suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport modes. Its decisions comprise:
 
 - strategic decisions: which factories and warehouses to open, their installed floor-area capacities, and which production and remanufacturing technologies to install at each factory;
 - tactical and operational decisions, per period: raw-material procurement from suppliers, production and remanufacturing volumes, warehouse inventory levels, and forward flows of final products and reverse flows of recovered products across the network's transport arcs and modes.
 
 Let $c(y)$ denote the follower's operating cost (procurement, production, remanufacturing, transport, handling and inventory), discounted over the planning horizon, and let $\beta(y)$ denote the emissions aggregate on which the follower is taxed, discounted with the same present-value weights as $c(y)$. The follower minimises
 
-$$f(x_u, y) = c(y) + \tau \cdot \beta(y).$$
+$$f(\tau, y) = c(y) + \tau \cdot \beta(y).$$
 
 The quantity $\beta(y)$ coincides with $E(y)$ only when the instance carries no interest rate; the benchmark instances are generated with a strictly positive interest rate, so in general $\beta(y) \neq E(y)$.
 
-**Tie-breaking rule.** Multiple responses $y$ may attain the minimum of $f(x_u, \cdot)$ for a given $x_u$. The follower is assumed to select, among these, the response of least physical emissions $E(y)$ — the optimistic rule. This selection is enforced by a two-stage lexicographic procedure: Stage 1 minimises $f$, yielding $f^*$; Stage 2 minimises $E$ subject to $f(x_u, y) \le f^* + \varepsilon'$, where $\varepsilon'$ (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) freezes the Stage-1 value within a numerical tolerance before re-optimisation. If Stage 1 terminates at its time limit, subproblem (P6) is solved first to search for an improving response before the freeze is applied; if Stage 2 returns no feasible point, the Stage-1 (or P6) response is retained.
+**Tie-breaking rule.** Multiple responses $y$ may attain the minimum of $f(\tau, \cdot)$ for a given $\tau$. The follower is assumed to select, among these, the response of least physical emissions $E(y)$ — the optimistic rule. This selection is enforced by a two-stage lexicographic procedure: Stage 1 minimises $f$, yielding $f^*$; Stage 2 minimises $E$ subject to $f(\tau, y) \le f^* + \varepsilon'$, where $\varepsilon'$ (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) freezes the Stage-1 value within a numerical tolerance before re-optimisation. If Stage 1 terminates at its time limit, subproblem (P6) is solved first to search for an improving response before the freeze is applied; if Stage 2 returns no feasible point, the Stage-1 (or P6) response is retained.
 
 ## Solution method
 
 The bilevel problem is solved with the Deterministic Bounding Procedure (DBP) of Soares, Alves and Henggeler Antunes (2021). The procedure maintains a lower bound and an upper bound on $F$ and terminates when their relative gap is within a specified tolerance.
 
-1. Solve the relaxation master problem — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — to obtain a lower bound on $F$ and a proposed tax index $x_u$.
-2. Solve the follower's problem at $x_u$ (see "Problem formulation") to obtain an evaluated response $y_k$, hence an upper bound on $F$.
-3. Append a value-function cut, derived from $(x_u, y_k)$, to the master problem: $f(x,y) \le f(x,y_k) + \varepsilon'$. The cut is valid at every tax index, since the follower's constraints are independent of $x_u$.
+1. Solve the relaxation master problem — the leader's objective $F$ minimised over the follower's physical constraints only, independent of the tax — to obtain a lower bound on $F$ and a proposed tax rate $\tau_k$.
+2. Solve the follower's problem at $\tau_k$ (see "Problem formulation") to obtain an evaluated response $y_k$, hence an upper bound on $F$.
+3. Append a value-function cut, derived from $y_k$, to the master problem: $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$. The cut is valid at every tax rate, since the follower's constraints are independent of $\tau$.
 4. Re-solve the master problem with the additional cut.
 5. If the relative gap $(\mathrm{UB}-\mathrm{LB}) / \max(1, |\mathrm{UB}|)$ is at most `dbp_relative_gap` (default $10^{-4}$), terminate; otherwise return to step 2 with the master's updated proposal.
 
-Upon termination, the result is classified as optimal if the master re-proposes the tax index just evaluated (Lemma 3 of Soares et al., 2021), and as epsilon-optimal otherwise.
+Upon termination, the result is classified as optimal if the master re-proposes the tax rate just evaluated (Lemma 3 of Soares et al., 2021), and as epsilon-optimal otherwise.
+
+In the implementation, tax rates are considered with three decimal places in USD/kg CO$_2$e (`TAX_SCALE_FACTOR` $= 10^{-3}$), that is, in whole USD per tonne. The leader's decision variable can therefore be seen as an integer variable, `tax_index` $\in \{0, 1, \dots, 200\}$ on the benchmark instances, by considering a $10^3$ scale factor. Unlike Soares et al. (2021), where the price multiplies binary follower variables, here $\tau$ multiplies continuous emission flows; this integer resolution is what allows the product $\tau \cdot \beta(y)$ to be linearised exactly in the master problem.
 
 <details>
 <summary>Time-limit handling and additional tolerances</summary>
 
-A master problem that reaches its time limit yields a valid dual bound and, if an incumbent is held, a usable tax-index proposal, from which the procedure continues. A follower problem that reaches its time limit is passed through subproblem (P6), which searches for an improving response before the tie-breaking freeze described in "Problem formulation" is applied. The master's value-function cuts are made elastic (formulation P5-D) the first time the master problem returns no feasible point.
+A master problem that reaches its time limit yields a valid dual bound and, if an incumbent is held, a usable tax-rate proposal, from which the procedure continues. A follower problem that reaches its time limit is passed through subproblem (P6), which searches for an improving response before the tie-breaking freeze described in "Problem formulation" is applied. The master's value-function cuts are made elastic (formulation P5-D) the first time the master problem returns no feasible point.
 
 </details>
 
