@@ -56,7 +56,7 @@ The HPR minimises $F$ over the follower's physical constraints alone and does no
 **Tolerances**
 
 - $\varepsilon$: tolerance on the relative gap.
-- $\varepsilon'$ (`epsilon_prime`, $10^{-6}$ relative to the objective value it is added to): a very small tolerance on the follower's objective, used only to keep the subproblems numerically feasible, as in Soares et al. (2021). The same value is used in the follower's second stage and in the cuts.
+- $\varepsilon'$: very small tolerance on the follower's objective, used only to keep the subproblems numerically feasible.
 - Subproblems are solved to a relative MIP gap of $10^{-4}$.
 
 **Initialisation.** Fix $w$ (see Problem) and solve the HPR without cuts. Set $\mathrm{LB}$ to the bound proven by the solver and $\tau_{0}$ to the tax rate of the HPR solution. Set $\mathrm{UB} = +\infty$ and $k = 0$.
@@ -77,9 +77,8 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 | Auxiliary stop | Neither bound changed during 10 consecutive iterations. |
 
 <details>
-<summary>Tolerance values, time limits and stopping rules</summary>
+<summary>Time limits and stopping rules</summary>
 
-- **Convergence.** Soares et al. note that with positive MIP gaps and elastic variables convergence cannot be ensured. This is why "optimal" requires the extra conditions in the table.
 - **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds a feasible point, the next tax proposal. Otherwise the cuts are made elastic. If the elastic HPR also returns no point, the run ends with the incumbent.
 - **Elastic cuts (P5-D).** The first time the HPR returns no feasible point, each cut $k$ is relaxed to $f(\tau, y) \le f(\tau, y_{k}) + \varepsilon' + D_{k}$ with $D_{k} \ge 0$, and the sum of the $D_{k}$ is penalised in the HPR objective. The relaxed HPR is always feasible. If some $D_{k} > 0$, the result cannot be classified as optimal.
 - **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^{\ast} + \varepsilon'$ of stage 2 is set. P6 minimises $D \ge 0$ subject to the follower's constraints and $f(\tau_{k}, y) \le \bar{f}\,(1 - g) + D$, where $\bar{f}$ is the best value of $f$ found by stage 1 and $g$ its relative MIP gap; $\bar{f}\,(1 - g)$ is the solver's bound on the follower's optimum, so a response with $D$ close to zero is nearly optimal. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
