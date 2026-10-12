@@ -79,12 +79,11 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 <details>
 <summary>Tolerance values, time limits and stopping rules</summary>
 
-- **Ties.** When two evaluated points tie on $F$, Soares et al. keep the latest one. Here the lower tax is kept.
 - **Convergence.** Soares et al. note that with positive MIP gaps and elastic variables convergence cannot be ensured. This is why "optimal" requires the extra conditions in the table.
-- **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds a feasible point, the next tax proposal. Otherwise the cuts are made elastic. If the elastic HPR also returns no point, the run ends with the incumbent. Soares et al. do not specify this case; it is a safeguard of this implementation.
-- **Elastic cuts.** The cuts are made elastic (formulation P5-D) the first time the HPR returns no feasible point.
+- **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds a feasible point, the next tax proposal. Otherwise the cuts are made elastic. If the elastic HPR also returns no point, the run ends with the incumbent.
+- **Elastic cuts.** The cuts are made elastic (P5-D) the first time the HPR returns no feasible point.
 - **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^{\ast} + \varepsilon'$ of stage 2 is set. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
-- **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) consecutive iterations in which neither bound changes, as in Soares et al. A change of incumbent at an unchanged $\mathrm{UB}$ does not count. The gap test of step 4 comes first, so this stop occurs only while the gap exceeds $\varepsilon$.
+- **Auxiliary stop.** The procedure also stops after 10 consecutive iterations in which neither bound changes.
 
 </details>
 
