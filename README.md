@@ -68,12 +68,12 @@ The HPR minimises $F$ over the follower's physical constraints alone and does no
 3. **Re-solve the HPR.** Set $\mathrm{LB}$ to the larger of its previous value and the bound proven by this solve. Set $\tau_{k+1}$ to the tax rate of the HPR solution.
 4. **Test termination.** If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop and classify the result. Otherwise set $k \leftarrow k + 1$ and return to step 1.
 
-The procedure returns the incumbent with $\mathrm{LB}$ and $\mathrm{UB}$. The gap is tested before the tax rates are compared. The comparison $\tau_{k+1} = \tau_{k}$ is between the new HPR proposal and the tax rate just evaluated. All outcomes hold up to the solvers' tolerances and $\varepsilon'$.
+The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 | Outcome | Condition |
 |---|---|
-| Optimal | The gap is at most $\varepsilon$ and $\tau_{k+1} = \tau_{k}$ (Lemma 3 of Soares et al., 2021). The HPR was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality. |
-| $\varepsilon$-optimal | The gap is at most $\varepsilon$, but at least one other condition above fails. |
+| Optimal | The gap is at most $\varepsilon$ and $\tau_{k+1} = \tau_{k}$. |
+| $\varepsilon$-optimal | The gap is at most $\varepsilon$, but $\tau_{k+1} \neq \tau_{k}$. |
 | Gap not closed | The run ended by the auxiliary stop, by a run limit, or by an HPR time limit without a usable point. |
 
 <details>
