@@ -14,8 +14,8 @@ This repository implements a bilevel mixed-integer model of closed-loop supply c
 ## Installation
 
 ```bash
-git clone https://github.com/marceloalmeidapinto1998/bilevel-clsc-carbon-pricing.git
-cd bilevel-clsc-carbon-pricing
+git clone https://github.com/marceloalmeidapinto1998/bilevel_carbon-tax_clsc.git
+cd bilevel_carbon-tax_clsc
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
