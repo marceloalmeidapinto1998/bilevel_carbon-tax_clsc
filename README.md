@@ -88,45 +88,37 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 ## Data
 
-The data are the instances of the test bed of Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021, Section 6.3 and Table 11), together with three larger instances added by this repository. They are organised in two sets and stored as JSON files in `data/`, one file per instance.
+The instances are those of the test bed of Tautenhain et al. (2021, Section 6.3 and Table 11), plus three larger instances added by this repository. They are stored in `data/`, one JSON file per instance.
 
-| Set | `I` | `M` | `T` | Instances | Purpose |
-|---|---|---|---|---|---|
-| Standard | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Sizes of Tautenhain et al. (2021, Table 11) |
-| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3 | Extension of this repository: one axis (items or entities) beyond the standard range |
+Each instance is named `STD_I<entities>_M<items>_T<periods>`: `I` is the number of entities, `M` the number of items (raw materials, final products and recovered products), and `T` the number of periods.
 
-The standard instances are generated with the `benchmark` command. The three escalation instances are generated explicitly with `escalation` (see "Usage").
-
-**What is published and what is not.** The standard set, the entity sizes `I17` and `I25`, and the item codes `M4` and `M8` come from Tautenhain et al. The escalation set, the entity size `I33` and the item codes `M12` and `M16` are extensions of this repository.
-
-**Naming.** Each instance is named `STD_I<entities>_M<items>_T<periods>`. Here `I` is the total number of entities, `M` is the total number of items (raw materials, final products and recovered products), and `T` is the number of periods in the planning horizon.
-
-The prefix `STD` is that of the standard instances of Tautenhain et al., which follow the patterns of the model of Mota et al. (2018). The variants `TECHC`, `RAWC`, `SUP` and `CAP` of that paper are not generated here. The escalation instances are `STD_I25_M12_T6`, `STD_I25_M16_T6` and `STD_I33_M8_T6`.
-
-**Entities.** Tautenhain et al. define the entities of the two standard sizes; retailers are the customers of that paper. The size `I33` extends the same pattern by adding warehouses.
-
-| `I` | Suppliers | Factories | Warehouses | Retailers | Airports | Seaports |
+| Set | `I` | `M` | `T` | Instances | Source | Generated with |
 |---|---|---|---|---|---|---|
-| 17 | 3 | 3 | 3 | 4 | 2 | 2 |
-| 25 | 3 | 3 | 9 | 4 | 4 | 2 |
-| 33 | 3 | 3 | 17 | 4 | 4 | 2 |
+| Standard | 17, 25 | 4, 8 | 3, 6, 12 | 12 (every combination) | Tautenhain et al. | `benchmark` |
+| Escalation | 25, 25, 33 | 12, 16, 8 | 6, 6, 6 | 3: `STD_I25_M12_T6`, `STD_I25_M16_T6`, `STD_I33_M8_T6` | This repository | `escalation` (see "Usage") |
 
-**Items.** The code `M` equals $|M_{rm}| + |M_{fp}| + |M_{rp}|$, the number of raw materials plus final products plus recovered products (Tautenhain et al., 2021, Table 11). Each final product has exactly one recovered counterpart, so $|M_{rp}| = |M_{fp}|$.
+**Entities**
 
-| `M` | Raw materials | Final products | Recovered products |
-|---|---|---|---|
-| 4 | 2 | 1 | 1 |
-| 8 | 4 | 2 | 2 |
-| 12 | 6 | 3 | 3 |
-| 16 | 8 | 4 | 4 |
+| `I` | Suppliers | Factories | Warehouses | Retailers | Airports | Seaports | Source |
+|---|---|---|---|---|---|---|---|
+| 17 | 3 | 3 | 3 | 4 | 2 | 2 | Tautenhain et al. |
+| 25 | 3 | 3 | 9 | 4 | 4 | 2 | Tautenhain et al. |
+| 33 | 3 | 3 | 17 | 4 | 4 | 2 | This repository |
 
-Tautenhain et al. give the rows `M4` and `M8`. The rows `M12` and `M16` apply the same rule, $|M_{rm}| = M/2$ and $|M_{fp}| = |M_{rp}| = M/4$.
+Retailers are the customers of Tautenhain et al.
 
-**Technologies and parameters.** Every instance, standard or escalation, specifies 3 production and 3 remanufacturing technologies.
+**Items**
 
-The parameter values follow the generator of Tautenhain et al. (2021) and its supplementary data. Departures from it are documented in [`src/clsc/generator/tautenhain_data.py`](src/clsc/generator/tautenhain_data.py).
+| `M` | Raw materials | Final products | Recovered products | Source |
+|---|---|---|---|---|
+| 4 | 2 | 1 | 1 | Tautenhain et al. |
+| 8 | 4 | 2 | 2 | Tautenhain et al. |
+| 12 | 6 | 3 | 3 | This repository |
+| 16 | 8 | 4 | 4 | This repository |
 
-In particular, the minimum installation areas are those of Tautenhain et al. (10 to 100 m² for factories and 2.5 to 25 m² for warehouses). They are below 1% of the maximum areas, so the constraint is nearly inactive, and far smaller than the 2000 and 500 m² of the case study of Mota et al. (2018).
+Each final product has one recovered counterpart. The rows `M12` and `M16` follow the same rule as `M4` and `M8`: half of `M` are raw materials, a quarter are final products and a quarter are recovered products.
+
+Every instance has 3 production and 3 remanufacturing technologies.
 
 ## Usage
 
