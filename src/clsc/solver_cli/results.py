@@ -14,7 +14,7 @@ from clsc.solvers.dbp import BilevelSolveError, SubproblemStatusError, relative_
 from .validation import OutputValidationError
 
 
-RESULT_SCHEMA_VERSION = 4
+RESULT_SCHEMA_VERSION = 5
 
 
 SUMMARY_FIELDNAMES = [

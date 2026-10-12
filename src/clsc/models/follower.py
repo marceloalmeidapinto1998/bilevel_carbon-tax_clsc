@@ -16,13 +16,13 @@ from .supply_chain import build_supply_chain_model
 
 
 @dataclass(slots=True)
-class FollowerMaster:
+class FollowerModel:
     instance: InstanceData
     artifacts: ModelArtifacts
 
 
 def solve_follower_lexicographic(
-    instance_or_master: InstanceData | FollowerMaster,
+    instance_or_model: InstanceData | FollowerModel,
     tax_index: int,
     *,
     output_flag: bool = False,
@@ -53,9 +53,9 @@ def solve_follower_lexicographic(
     The returned :class:`SolveResult` carries both per-stage MIP gaps. The ``mip_gap`` field
     reports the worst (largest) of the two so single-objective consumers see a conservative bound.
     """
-    master = _coerce_fixed_tax_follower_master(instance_or_master)
-    _set_fixed_tax_follower_expression(master, tax_index)
-    artifacts = master.artifacts
+    follower_model = _coerce_follower_model(instance_or_model)
+    _set_fixed_tax_follower_expression(follower_model, tax_index)
+    artifacts = follower_model.artifacts
     model = artifacts.model
     model.ModelSense = GRB.MINIMIZE
     apply_mip_start(model, warm_start_values)
@@ -268,8 +268,8 @@ def build_fixed_tax_model(
     )
 
 
-def build_follower_master(instance: InstanceData) -> FollowerMaster:
-    common = build_supply_chain_model(instance, model_name="fixed_tax_follower_master")
+def build_follower_model(instance: InstanceData) -> FollowerModel:
+    common = build_supply_chain_model(instance, model_name="fixed_tax_follower_model")
     artifacts = ModelArtifacts(
         model=common.model,
         cost_expr=common.cost_expr,
@@ -277,25 +277,25 @@ def build_follower_master(instance: InstanceData) -> FollowerMaster:
         tax_base_expr=common.tax_base_expr,
         follower_objective_expr=common.cost_expr,
     )
-    master = FollowerMaster(instance=instance, artifacts=artifacts)
-    _set_fixed_tax_follower_expression(master, instance.lower_tax_index)
-    return master
+    follower_model = FollowerModel(instance=instance, artifacts=artifacts)
+    _set_fixed_tax_follower_expression(follower_model, instance.lower_tax_index)
+    return follower_model
 
 
-def _coerce_fixed_tax_follower_master(
-    instance_or_master: InstanceData | FollowerMaster,
-) -> FollowerMaster:
-    if isinstance(instance_or_master, FollowerMaster):
-        return instance_or_master
-    return build_follower_master(instance_or_master)
+def _coerce_follower_model(
+    instance_or_model: InstanceData | FollowerModel,
+) -> FollowerModel:
+    if isinstance(instance_or_model, FollowerModel):
+        return instance_or_model
+    return build_follower_model(instance_or_model)
 
 
-def _set_fixed_tax_follower_expression(master: FollowerMaster, tax_index: int) -> None:
-    if tax_index not in master.instance.iter_tax_index():
+def _set_fixed_tax_follower_expression(follower_model: FollowerModel, tax_index: int) -> None:
+    if tax_index not in follower_model.instance.iter_tax_index():
         raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
-    master.artifacts.follower_objective_expr = (
-        master.artifacts.cost_expr
-        + master.instance.scale_factor * tax_index * tax_base_of(master.artifacts)
+    follower_model.artifacts.follower_objective_expr = (
+        follower_model.artifacts.cost_expr
+        + follower_model.instance.scale_factor * tax_index * tax_base_of(follower_model.artifacts)
     )
 
 

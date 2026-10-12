@@ -9,7 +9,7 @@ from dataclasses import replace
 from clsc.config.constants import INTEGER_SNAP_TOL
 from clsc.config.defaults import DEFAULT
 from clsc.models.follower import (
-    build_follower_master,
+    build_follower_model,
     solve_follower_lexicographic,
     validate_fixed_tax_solution,
 )
@@ -87,8 +87,8 @@ def rebuild_solution_with_fixed_discrete_values(*, instance: InstanceData, resul
     if optimistic is None or not optimistic.has_solution or optimistic.variable_values is None:
         return None
 
-    follower_master = build_follower_master(instance)
-    model = follower_master.artifacts.model
+    follower_model = build_follower_model(instance)
+    model = follower_model.artifacts.model
     model.update()
     for variable in model.getVars():
         if variable.VType == "C":
@@ -110,7 +110,7 @@ def rebuild_solution_with_fixed_discrete_values(*, instance: InstanceData, resul
         variable.UB = target_value
 
     return solve_follower_lexicographic(
-        follower_master,
+        follower_model,
         result.incumbent.tax_index,
         output_flag=False,
         time_limit=None,

@@ -27,7 +27,7 @@ class ModelArtifacts:
     elastic_slack_var: gp.Var | None = None
     # Continuous variable tied to tax_index_var by the single linear equality
     # ``tax_rate_var == scale_factor * tax_index_var`` (added in
-    # build_leader_master). The spatial master multiplies it by
+    # build_hpr). The spatial HPR multiplies it by
     # emissions_total_var for the one bilinear tau*E term, and cut RHSs read as
     # ``cost_v + emissions_v * tax_rate_var`` (constant times variable, linear).
     tax_rate_var: gp.Var | None = None
@@ -60,10 +60,10 @@ class SolveResult:
     # objective callers.
     lex_primary_mip_gap: float | None = None
     lex_secondary_mip_gap: float | None = None
-    # Populated only by the DBP relaxation master: the PROVEN dual bound on the leader's objective
-    # F = E + w*tax_index, in kg (the master's ObjBound). Always a valid lower bound on the
+    # Populated only by the DBP high-point relaxation: the PROVEN dual bound on the leader's objective
+    # F = E + w*tax_index, in kg (the HPR's ObjBound). Always a valid lower bound on the
     # bilevel optimum, whether or not the solve reached OPTIMAL -- which is what lets the DBP loop
-    # keep a partially solved master's bound instead of discarding it. None when Gurobi reported
+    # keep a partially solved HPR's bound instead of discarding it. None when Gurobi reported
     # no finite bound.
     leader_lower_bound: float | None = None
     # Populated only by solve_follower_lexicographic. Soares et al. (2021, Sect. 7, Difficulty

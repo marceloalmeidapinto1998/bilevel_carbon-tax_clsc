@@ -12,8 +12,8 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   f(x, y)                 cost + tax_rate * tax_base        follower's objective
   g(y) <= 0               the chain's physical constraints  build_supply_chain_model
                           -- independent of the tax
-  (P2)   HPR              leader master, no cuts yet        build_leader_master
-  (P5)   HPR + cuts       the SAME master, k cuts later     add_value_function_cut
+  (P2)   HPR              leader HPR, no cuts yet        build_hpr
+  (P5)   HPR + cuts       the SAME HPR, k cuts later     add_value_function_cut
   (P3)+(P4-eps')          follower at a fixed tax           solve_follower_lexicographic ***
   y_k                     the point that generates cut k    ValueFunctionCut
   eps                     loop stopping criterion           dbp_relative_gap
@@ -22,19 +22,20 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
                           bilevel-feasible, so it bounds    sets leader_objective_ub_
                                                             certificate (the UB on F)
   Lemma 2                 cuts remove nothing optimal       add_value_function_cut
-  Lemma 3                 master re-proposes the same       the gap-closed branch of the loop
+  Lemma 3                 HPR re-proposes the same       the gap-closed branch of the loop
                           tax => optimum
 
   Section 7-8: subproblems that cannot be solved to optimality inside their budget
-  UB_F = F (1 + gap_HPR)  the master's DUAL bound            solve_dbp_master
+  UB_F = F (1 + gap_HPR)  the HPR's DUAL bound            solve_hpr
                           (ObjBound), also when it times    (leader_lower_bound)
                           out -- the exact form of the
                           same correction
-  F <= UB_F  (Mitsos)     E + w*tax_index <= UB on the      set_leader_objective_cap
-                          master
+  F <= UB_F               NOT in this procedure as the paper has it (their cap is on the HPR
+                          side, i.e. F >= LB here). F <= UB (Mitsos 2010) is an optional
+                          extension, off by default: set_leader_objective_cap
   (P5-D)  elastic HPR     one penalised slack per cut,      enable_elastic_cuts
                           switched on the first time the
-                          master returns no point
+                          HPR returns no point
   (P4-D)  elastic P4      the tie-break finds nothing =>    solve_follower_lexicographic
                           keep the Step-2 response
   (P6)                    improve a timed-out follower      _improve_follower_value
@@ -43,13 +44,13 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
   * y has no collective name in the code, and needs none. SolveResult.variable_values is a
     SNAPSHOT of one solution of those variables (Gurobi VarName -> value, non-zeros only),
     captured after a solve and used for solution.json and the next warm start. It is filled by
-    the leader master as readily as by the follower, so it is not "y" and is not the follower's.
+    the leader HPR as readily as by the follower, so it is not "y" and is not the follower's.
 
  ** THE LEADER HAS ONE OBJECTIVE, F = E + w * tax_index, where E is total physical emissions and
     w (kg CO2e per grid index, derived from ``leader_tax_weight`` in kg per USD/t) is how much
     emissions the regulator gives up to avoid one more index of tax. w is a POLICY assumption, not
     a tolerance. One criterion is what lets this procedure be Soares et al.'s as written: a single
-    master stage, the UB_F - LB_F gap, their Step 6 and Lemma 3, with nothing added to the leader
+    HPR stage, the UB_F - LB_F gap, their Step 6 and Lemma 3, with nothing added to the leader
     side. The tax term is also what prefers the lower tax among taxes that abate the same.
 
 *** The follower's two-stage solve (minimise cost + tax * emissions, then emissions among the
@@ -58,7 +59,7 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
 
 THE BOUNDS ARE INVERTED against the paper, and this trips everyone. Soares et al.
 MAXIMISE profit, so their relaxation gives an upper bound and their feasible point a
-lower one. This leader MINIMISES, so both flip: the master gives the lower bound
+lower one. This leader MINIMISES, so both flip: the HPR gives the lower bound
 (``leader_objective_lb``) and the follower the upper one (``leader_objective_ub``). Their LB_F is
 this module's ``leader_objective_ub``. Both bound the leader's objective F; the incumbent's own
 emissions are in ``incumbent.emissions``.
@@ -78,18 +79,18 @@ import time
 from clsc.config.defaults import DEFAULT
 from clsc.config.tax_scale import TAX_SCALE_FACTOR
 from clsc.models.instance_data import InstanceData
-from clsc.models.follower import build_follower_master, solve_follower_lexicographic
+from clsc.models.follower import build_follower_model, solve_follower_lexicographic
 from clsc.models.gurobi_utils import SolveResult
-from clsc.models.master import (
+from clsc.models.hpr import (
     ValueFunctionCut,
     add_value_function_cut,
-    build_leader_master,
+    build_hpr,
     enable_elastic_cuts,
     set_emissions_cap,
-    set_leader_master_start,
+    set_hpr_start,
     set_leader_objective_cap,
     set_leader_tax_weight,
-    solve_dbp_master,
+    solve_hpr,
 )
 
 
@@ -105,7 +106,7 @@ from clsc.models.master import (
 # "terminates with the epsilon-optimal solution" (Soares et al. 2021, Step 6).
 OPTIMAL_REASON = "optimal"
 STAGNATION_REASON = "incumbent_stagnation"
-# Soares et al. (2021)'s Step 6 else-branch: the bounds have closed to eps but the master's next
+# Soares et al. (2021)'s Step 6 else-branch: the bounds have closed to eps but the HPR's next
 # proposal differs from the point just evaluated, so Lemma 3 does not apply.
 EPSILON_OPTIMAL_REASON = "epsilon_optimal"
 
@@ -154,13 +155,13 @@ class DbpIterationRecord:
     relaxation_seconds: float
     next_relaxation_tax_index: int
     next_relaxation_lower_bound: float
-    # The master's own MIP gap at this iteration and whether it stopped on its time limit instead
-    # of reaching its gap target. A partial master still yields a valid lower bound (its dual
-    # bound) and a tax proposal -- see _is_usable_partial_master. Recorded per iteration so a
-    # reader can see how much of a final gap is the master's.
+    # The HPR's own MIP gap at this iteration and whether it stopped on its time limit instead
+    # of reaching its gap target. A partial HPR still yields a valid lower bound (its dual
+    # bound) and a tax proposal -- see _is_usable_partial_hpr. Recorded per iteration so a
+    # reader can see how much of a final gap is the HPR's.
     relaxation_mip_gap: float | None = None
     relaxation_partial: bool = False
-    # Sum of the master's elastic cut slacks D_k at the point it returned (P5-D); > 0 means the
+    # Sum of the HPR's elastic cut slacks D_k at the point it returned (P5-D); > 0 means the
     # proposal violates some cut and cannot confirm optimality.
     relaxation_elastic_slack: float | None = None
     # How the follower ended this iteration: its worst stage gap, whether it stopped on its time
@@ -291,22 +292,6 @@ def _emissions_tie_tolerance(first_emissions: float, second_emissions: float) ->
     )
 
 
-def _classify_stagnation_stop(
-    *,
-    leader_objective_ub: float,
-    leader_objective_lb: float,
-    dbp_relative_gap: float | None = None,
-) -> tuple[str, bool]:
-    achieved_gap = relative_optimality_gap(leader_objective_ub=leader_objective_ub, leader_objective_lb=leader_objective_lb)
-    threshold = DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap
-    if achieved_gap <= threshold:
-        # Gap inside tolerance despite the stall. Reported exact, but NOT as plain `optimal`:
-        # the loop stopped without ever reaching Step 6, so Lemma 3 never ran. The distinct
-        # suffix keeps a gap-driven stop and a stall-driven one apart downstream.
-        return "optimal_stagnation", True
-    return STAGNATION_REASON, False
-
-
 def _with_stagnation_context(certificate: BoundCertificate) -> BoundCertificate:
     return BoundCertificate(
         value=certificate.value,
@@ -332,20 +317,20 @@ def _require_optimal_result(result: SolveResult, label: str) -> None:
         raise SubproblemStatusError(label, result)
 
 
-def _is_partial_master(result: SolveResult) -> bool:
-    """The relaxation master stopped on its time limit instead of reaching its gap target."""
+def _is_partial_hpr(result: SolveResult) -> bool:
+    """The HPR stopped on its time limit instead of reaching its gap target."""
     return result.status_name == "TIME_LIMIT"
 
 
-def _is_usable_partial_master(result: SolveResult) -> bool:
-    """A timed-out master the loop can continue from: it proved a finite dual bound AND holds a
+def _is_usable_partial_hpr(result: SolveResult) -> bool:
+    """A timed-out HPR the loop can continue from: it proved a finite dual bound AND holds a
     point whose tax can be proposed next. The bound is a valid lower bound on the bilevel optimum
-    whatever the gap (the master is a relaxation, optimal or not), which is
+    whatever the gap (the HPR is a relaxation, optimal or not), which is
     Soares et al. (2021, Sect. 7)'s treatment of an unsolved relaxation: use the solver's own
     bound, do not abandon the run. Without a point there is no next proposal; the caller then
     folds the bound in and stops, as it always did on a timeout."""
     return (
-        _is_partial_master(result)
+        _is_partial_hpr(result)
         and result.has_solution
         and result.tax_index is not None
         and result.emissions is not None
@@ -353,17 +338,17 @@ def _is_usable_partial_master(result: SolveResult) -> bool:
     )
 
 
-def _master_returned_no_point(result: SolveResult) -> bool:
-    """The master gave the loop nothing to propose: timed out without an incumbent, or
+def _hpr_returned_no_point(result: SolveResult) -> bool:
+    """The HPR gave the loop nothing to propose: timed out without an incumbent, or
     reported infeasible (which, with every cut valid and the incumbent meeting the cap, can only
     be numerical). This is Soares et al. (2021)'s Difficulty 1, the trigger for (P5-D)."""
     if result.status_name in ("INFEASIBLE", "INF_OR_UNBD"):
         return True
-    return _is_partial_master(result) and not _is_usable_partial_master(result)
+    return _is_partial_hpr(result) and not _is_usable_partial_hpr(result)
 
 
-def _require_optimal_or_usable_partial_master(result: SolveResult, label: str) -> None:
-    if _is_usable_partial_master(result):
+def _require_optimal_or_usable_partial_hpr(result: SolveResult, label: str) -> None:
+    if _is_usable_partial_hpr(result):
         return
     _require_optimal_result(result, label)
 
@@ -446,19 +431,19 @@ class _WallClockBudget:
     A cap of ``None`` disables both (the budget never expires).
     """
 
-    __slots__ = ("deadline", "per_subproblem_limit", "master_limit")
+    __slots__ = ("deadline", "per_subproblem_limit", "hpr_limit")
 
     def __init__(
         self,
         cap: float | None,
         per_subproblem_limit: float | None,
-        master_limit: float | None = None,
+        hpr_limit: float | None = None,
     ) -> None:
         self.deadline = None if cap is None else time.perf_counter() + cap
         self.per_subproblem_limit = per_subproblem_limit
-        # The relaxation master and the follower are different problems with different cost
+        # The HPR and the follower are different problems with different cost
         # profiles, so they may carry different limits. None keeps one shared limit.
-        self.master_limit = per_subproblem_limit if master_limit is None else master_limit
+        self.hpr_limit = per_subproblem_limit if hpr_limit is None else hpr_limit
 
     def remaining(self) -> float | None:
         return None if self.deadline is None else self.deadline - time.perf_counter()
@@ -467,8 +452,8 @@ class _WallClockBudget:
         remaining = self.remaining()
         return remaining is not None and remaining <= 0.0
 
-    def subproblem_time_limit(self, *, master: bool = False) -> float | None:
-        limit = self.master_limit if master else self.per_subproblem_limit
+    def subproblem_time_limit(self, *, hpr: bool = False) -> float | None:
+        limit = self.hpr_limit if hpr else self.per_subproblem_limit
         remaining = self.remaining()
         if remaining is None:
             return limit
@@ -557,7 +542,7 @@ def _gap_closed_result(
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
 ) -> BilevelSolveResult:
-    """Soares et al. (2021)'s Step 6, first branch: the gap has closed AND the master re-proposed
+    """Soares et al. (2021)'s Step 6, first branch: the gap has closed AND the HPR re-proposed
     the tax just evaluated, so by their Lemma 3 an optimal solution has been found.
     """
     return _build_bilevel_result(
@@ -598,8 +583,8 @@ def _epsilon_optimal_result(
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
 ) -> BilevelSolveResult:
-    """Soares et al. (2021)'s Step 6, else-branch: ``UB_F - LB_F <= eps`` but the master's next
-    proposal is not the point just evaluated (or the master or follower behind it was only
+    """Soares et al. (2021)'s Step 6, else-branch: ``UB_F - LB_F <= eps`` but the HPR's next
+    proposal is not the point just evaluated (or the HPR or follower behind it was only
     partially solved), so Lemma 3 does not apply: "terminate with the eps-optimal solution".
     ``exact=False``: the result is certified to eps, not proven optimal.
     """
@@ -640,22 +625,13 @@ def _stagnation_result(
     incumbent_solution: SolveResult | None,
     leader_objective_ub_certificate: BoundCertificate,
     relaxation_mip_gap: float | None,
-    effective_dbp_relative_gap: float,
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
 ) -> BilevelSolveResult:
-    """``DEFAULT.stagnation_limit`` consecutive iterations moved neither bound: give up and report
-    the best certificate in hand, classified by whether the achieved gap happens to already be
-    within tolerance despite the stall (``_classify_stagnation_stop``) -- in which case this is
-    still reported exact, just under a distinct termination_reason/certificate source so a
-    gap-driven and a stagnation-driven "relative_gap" stop stay distinguishable downstream.
-    """
-    termination_reason, gap_closed = _classify_stagnation_stop(
-        leader_objective_ub=leader_objective_ub_certificate.value,
-        leader_objective_lb=leader_objective_lb,
-        dbp_relative_gap=effective_dbp_relative_gap,
-    )
+    """Soares et al.'s auxiliary stop: ``DEFAULT.stagnation_limit`` consecutive iterations moved
+    neither bound. The gap test (Step 6) runs first in every iteration, so the gap is still open
+    here: the incumbent and both bounds are reported, with no optimality claim."""
     leader_objective_lb_certificate = _with_stagnation_context(
         BoundCertificate(
             value=leader_objective_lb,
@@ -669,8 +645,8 @@ def _stagnation_result(
     return _build_bilevel_result(
         method="dbp",
         mode="exact",
-        termination_reason=termination_reason,
-        exact=gap_closed and leader_objective_lb_certificate.exact and stagnation_upper_bound_certificate.exact,
+        termination_reason=STAGNATION_REASON,
+        exact=False,
         iterations=iteration,
         leader_objective_lb=leader_objective_lb,
         leader_objective_ub=leader_objective_ub_certificate.value,
@@ -705,32 +681,32 @@ def _solve_bilevel_dbp(
     _effective_tax_weight_sink: dict[str, float] | None = None,
     output_flag: bool = False,
     time_limit: float | None = None,
-    master_time_limit: float | None = None,
+    hpr_time_limit: float | None = None,
     wall_clock_cap: float | None = None,
     mip_gap: float | None = None,
-    master_mip_gap: float | None = None,
+    hpr_mip_gap: float | None = None,
     dbp_relative_gap: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
     seed: int | None = None,
     use_warm_start: bool = True,
-    use_emissions_cap: bool = True,
+    use_emissions_cap: bool = False,
     use_follower_improvement: bool = True,
-    use_elastic_master: bool = True,
+    use_elastic_hpr: bool = True,
     leader_tax_weight: float | None = None,
     leader_tax_weight_relative: float | None = None,
 ) -> BilevelSolveResult:
     """Soares et al. (2021)'s DBP for the carbon-tax leader ``F = E + w * tax_index``.
 
-    The loop squeezes a lower bound on F (the relaxation master's dual bound) against an upper
+    The loop squeezes a lower bound on F (the HPR's dual bound) against an upper
     bound (the least F any evaluated follower response attained) until ``UB - LB <= eps``. At
-    that point the result is **optimal** if the master re-proposes the tax just evaluated (their
+    that point the result is **optimal** if the HPR re-proposes the tax just evaluated (their
     Lemma 3) and **epsilon-optimal** otherwise -- Step 6, as written. The incumbent is the
     evaluated point with the least F, and at an exact tie the lower tax.
 
     THE LEADER'S OBJECTIVE. ``leader_tax_weight`` is ``w`` in kg of emissions per USD/t of tax;
     ``leader_tax_weight_relative`` is the same as a fraction ``q`` of the least emissions the
-    cut-free master can reach (so it means the same on every instance), and is the default
+    cut-free HPR can reach (so it means the same on every instance), and is the default
     (``DEFAULT.tax_weight_relative``). Give at most one. ``w`` states how much emissions the
     regulator gives up to avoid 1 USD/t of tax: a POLICY assumption, not a tolerance, to be
     declared and varied. ``q = 1e-4`` reads "lose 1% of the minimum emissions to avoid 100 USD/t
@@ -741,23 +717,24 @@ def _solve_bilevel_dbp(
 
     BUDGETS AND GAPS. Every ``None`` takes its value from :data:`clsc.config.defaults.DEFAULT`,
     which holds the literature-based method (see its docstring). ``time_limit`` bounds ONE follower
-    subproblem, and the master too unless ``master_time_limit`` gives it its own (``math.inf``
+    subproblem, and the HPR too unless ``hpr_time_limit`` gives it its own (``math.inf``
     removes the limit); ``wall_clock_cap`` optionally bounds the whole run (Soares et al. have
     none -- a run ends on its own stopping criteria). ``mip_gap`` is the follower's target and
-    ``master_mip_gap`` the master's. The master's gap only loosens the lower bound, whose dual
+    ``hpr_mip_gap`` the HPR's. The HPR's gap only loosens the lower bound, whose dual
     bound stays valid; the follower's gap loosens what counts as a best response.
 
     SUBPROBLEMS THAT CANNOT BE SOLVED TO OPTIMALITY (Soares et al., Sect. 7-8):
 
-    * a master that stops on its time limit keeps its dual bound as the lower bound and its
+    * an HPR that stops on its time limit keeps its dual bound as the lower bound and its
       incumbent's tax is proposed next, instead of ending the run;
-    * the first time the master returns no point at all (no incumbent, or infeasible), its cuts
-      are made elastic in place (P5-D, ``use_elastic_master``) and it is re-solved from the best
-      evaluated point, which the elastic master must accept;
+    * the first time the HPR returns no point at all (no incumbent, or infeasible), its cuts
+      are made elastic in place (P5-D, ``use_elastic_hpr``) and it is re-solved from the best
+      evaluated point, which the elastic HPR must accept;
     * a follower that stops on its time limit is improved by subproblem P6
       (``use_follower_improvement``); its best response is used, and a tie-break that finds
       nothing keeps the Step-2 response (P4-D). The result can then be epsilon-optimal at best;
-    * ``use_emissions_cap`` (ablation A5) adds ``F <= UB`` (Mitsos 2010) to the master;
+    * ``use_emissions_cap`` (optional extension, off by default; not in Soares et al.) adds
+      ``F <= UB`` (Mitsos 2010) to the HPR, valid only while the UB is a proven bilevel-feasible value;
       ``use_warm_start`` (A3) warm-starts successive follower solves;
     * the run stops after ``DEFAULT.stagnation_limit`` iterations in which neither bound moved
       (their auxiliary stop).
@@ -777,10 +754,10 @@ def _solve_bilevel_dbp(
         _coerce_instance(instance_or_path),
         output_flag=output_flag,
         time_limit=DEFAULT.time_limit if time_limit is None else time_limit,
-        master_time_limit=master_time_limit,
+        hpr_time_limit=hpr_time_limit,
         wall_clock_cap=wall_clock_cap,
         mip_gap=mip_gap,
-        master_mip_gap=DEFAULT.master_mip_gap if master_mip_gap is None else master_mip_gap,
+        hpr_mip_gap=DEFAULT.hpr_mip_gap if hpr_mip_gap is None else hpr_mip_gap,
         dbp_relative_gap=DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap,
         threads=threads,
         mip_focus=mip_focus,
@@ -788,7 +765,7 @@ def _solve_bilevel_dbp(
         use_warm_start=use_warm_start,
         use_emissions_cap=use_emissions_cap,
         use_follower_improvement=use_follower_improvement,
-        use_elastic_master=use_elastic_master,
+        use_elastic_hpr=use_elastic_hpr,
     )
     weight_usd_per_tonne = run.set_tax_weight(leader_tax_weight, leader_tax_weight_relative)
     if _effective_tax_weight_sink is not None:
@@ -809,10 +786,10 @@ class _DbpRun:
         *,
         output_flag: bool,
         time_limit: float,
-        master_time_limit: float | None,
+        hpr_time_limit: float | None,
         wall_clock_cap: float | None,
         mip_gap: float | None,
-        master_mip_gap: float,
+        hpr_mip_gap: float,
         dbp_relative_gap: float,
         threads: int | None,
         mip_focus: int | None,
@@ -820,13 +797,13 @@ class _DbpRun:
         use_warm_start: bool,
         use_emissions_cap: bool,
         use_follower_improvement: bool,
-        use_elastic_master: bool,
+        use_elastic_hpr: bool,
     ) -> None:
         self.instance = instance
         self.output_flag = output_flag
-        self.budget = _WallClockBudget(wall_clock_cap, time_limit, master_time_limit)
+        self.budget = _WallClockBudget(wall_clock_cap, time_limit, hpr_time_limit)
         self.mip_gap = mip_gap
-        self.master_mip_gap = master_mip_gap
+        self.hpr_mip_gap = hpr_mip_gap
         self.dbp_relative_gap = dbp_relative_gap
         self.threads = threads
         self.mip_focus = mip_focus
@@ -834,11 +811,11 @@ class _DbpRun:
         self.use_warm_start = use_warm_start
         self.use_emissions_cap = use_emissions_cap
         self.use_follower_improvement = use_follower_improvement
-        self.use_elastic_master = use_elastic_master
+        self.use_elastic_hpr = use_elastic_hpr
 
-        # Plain cuts to begin with; made elastic in place only if the master ever returns no point.
-        self.relaxation_master = build_leader_master(instance)
-        self.follower_master = build_follower_master(instance)
+        # Plain cuts to begin with; made elastic in place only if the HPR ever returns no point.
+        self.hpr = build_hpr(instance)
+        self.follower_model = build_follower_model(instance)
 
         self.tax_weight_per_index = 0.0
         self.scale_seconds = 0.0
@@ -851,7 +828,7 @@ class _DbpRun:
         self.previous_follower_values: dict[str, float] | None = None
         self.ub_certificate: BoundCertificate | None = None
         # The best evaluated point (the one behind the UB certificate): the MIP start the elastic
-        # master is re-solved from, because it alone is sure to meet the objective cap.
+        # HPR is re-solved from, because it alone is sure to meet the objective cap.
         self.best_ub_values: dict[str, float] | None = None
         self.best_ub_tax_index: int | None = None
         self.follower_variable_names: list[str] | None = None
@@ -859,34 +836,34 @@ class _DbpRun:
 
     # ---------------------------------------------------------------- setup
 
-    def solve_master(self) -> tuple[SolveResult, float]:
+    def solve_hpr(self) -> tuple[SolveResult, float]:
         return _solve_with_wall_time(
-            solve_dbp_master,
-            self.relaxation_master,
+            solve_hpr,
+            self.hpr,
             output_flag=self.output_flag,
-            time_limit=self.budget.subproblem_time_limit(master=True),
-            mip_gap=self.master_mip_gap,
+            time_limit=self.budget.subproblem_time_limit(hpr=True),
+            mip_gap=self.hpr_mip_gap,
             threads=self.threads,
             mip_focus=self.mip_focus,
             seed=self.seed,
         )
 
     def set_tax_weight(self, leader_tax_weight: float | None, leader_tax_weight_relative: float | None) -> float:
-        """Fix w in the master's objective and return it in kg per USD/t."""
+        """Fix w in the HPR's objective and return it in kg per USD/t."""
         usd_per_tonne_per_index = self.instance.scale_factor * 1000.0  # USD/t that one grid index is
         if leader_tax_weight_relative is not None:
-            # The weight is relative to the least emissions the cut-free master can reach, which is a
+            # The weight is relative to the least emissions the cut-free HPR can reach, which is a
             # lower bound on the leader's emissions at any tax: a scale that exists before any
-            # follower has been solved, and that is the same on every instance. The master has no
+            # follower has been solved, and that is the same on every instance. The HPR has no
             # tax term yet, so this solve returns that emissions bound.
-            scale_run, self.scale_seconds = self.solve_master()
-            _require_optimal_or_usable_partial_master(scale_run, "initial DBP relaxation (weight scale)")
+            scale_run, self.scale_seconds = self.solve_hpr()
+            _require_optimal_or_usable_partial_hpr(scale_run, "initial DBP relaxation (weight scale)")
             reference_emissions = _required_value(scale_run.emissions, "reference emissions")
             weight_usd_per_tonne = leader_tax_weight_relative * float(reference_emissions)
         else:
             weight_usd_per_tonne = float(leader_tax_weight)
         self.tax_weight_per_index = weight_usd_per_tonne * usd_per_tonne_per_index
-        set_leader_tax_weight(self.relaxation_master, self.tax_weight_per_index)
+        set_leader_tax_weight(self.hpr, self.tax_weight_per_index)
         return weight_usd_per_tonne
 
     # ---------------------------------------------------------------- results
@@ -909,9 +886,9 @@ class _DbpRun:
     # ---------------------------------------------------------------- the loop
 
     def run(self) -> BilevelSolveResult:
-        relaxation, initial_seconds = self.solve_master()
+        relaxation, initial_seconds = self.solve_hpr()
         self.initial_relaxation_seconds = initial_seconds + self.scale_seconds
-        _require_optimal_or_usable_partial_master(relaxation, "initial DBP relaxation")
+        _require_optimal_or_usable_partial_hpr(relaxation, "initial DBP relaxation")
         self.leader_objective_lb = _required_value(relaxation.emissions, "initial relaxation bound")
 
         for iteration in itertools.count(1):
@@ -928,18 +905,20 @@ class _DbpRun:
             if isinstance(evaluated, BilevelSolveResult):
                 return evaluated
             follower_response, follower_seconds, follower_time_limited, candidate = evaluated
-            incumbent_updated = self.update_incumbent(candidate, follower_response, follower_time_limited)
+            previous_ub = None if self.ub_certificate is None else self.ub_certificate.value
+            self.update_incumbent(candidate, follower_response, follower_time_limited)
+            upper_bound_updated = previous_ub is None or self.ub_certificate.value < previous_ub
             self.add_cut(candidate, follower_response, iteration)
 
-            relaxation, relaxation_seconds = self.solve_master_with_remedy()
-            if _is_partial_master(relaxation) and not _is_usable_partial_master(relaxation):
+            relaxation, relaxation_seconds = self.solve_hpr_with_remedy()
+            if _is_partial_hpr(relaxation) and not _is_usable_partial_hpr(relaxation):
                 # Timed out with nothing to propose next (no incumbent point). The dual bound it did
                 # prove is still valid, so keep it in the reported gap before stopping.
                 if relaxation.leader_lower_bound is not None:
                     self.leader_objective_lb = max(self.leader_objective_lb, relaxation.leader_lower_bound)
                 # Follower completed this iteration, so the incumbent is guaranteed set.
                 return self.time_limit_result(iteration, _timeout_reason(self.budget))
-            _require_optimal_or_usable_partial_master(relaxation, f"DBP relaxation after iteration {iteration}")
+            _require_optimal_or_usable_partial_hpr(relaxation, f"DBP relaxation after iteration {iteration}")
 
             lower_bound_updated = self.update_lower_bound(relaxation)
             self.record_iteration(
@@ -958,7 +937,7 @@ class _DbpRun:
             if stop is not None:
                 return stop
 
-            if incumbent_updated or lower_bound_updated:
+            if upper_bound_updated or lower_bound_updated:
                 self.iterations_without_bound_update = 0
             else:
                 self.iterations_without_bound_update += 1
@@ -966,7 +945,6 @@ class _DbpRun:
                 return _stagnation_result(
                     **self._result_inputs(iteration),
                     relaxation_mip_gap=relaxation.mip_gap,
-                    effective_dbp_relative_gap=self.dbp_relative_gap,
                 )
         raise AssertionError("unreachable")  # pragma: no cover - itertools.count never ends
 
@@ -979,7 +957,7 @@ class _DbpRun:
         """
         follower_response, follower_seconds = _solve_with_wall_time(
             solve_follower_lexicographic,
-            self.follower_master,
+            self.follower_model,
             tax_index=tax_index,
             output_flag=self.output_flag,
             time_limit=self.budget.subproblem_time_limit(),
@@ -1056,7 +1034,7 @@ class _DbpRun:
         # (P5-eps'): f(x, y) <= f(x, y_k) + eps', with eps' added by add_value_function_cut. Not
         # loosened by the follower's MIP gap: the cut is valid for ANY feasible y_k (Soares et
         # al.'s Lemma 2 -- the follower's constraints do not depend on x), proven best response
-        # or not, so widening it only weakens the master.
+        # or not, so widening it only weakens the HPR.
         cut = ValueFunctionCut(
             tax_index=candidate.tax_index,
             cost=candidate.cost,
@@ -1068,42 +1046,42 @@ class _DbpRun:
             tax_base=follower_response.tax_base,
             iteration=iteration,
         )
-        add_value_function_cut(self.relaxation_master, cut)
-        if self.use_emissions_cap:
+        add_value_function_cut(self.hpr, cut)
+        if self.use_emissions_cap and self.ub_certificate.exact:
             # E <= UB holds at any point with F <= UB (the tax term is non-negative), and it is
             # what lets the one-hot gadget's big-M be tightened; set_leader_objective_cap adds the
-            # tighter F <= UB (Soares et al. / Mitsos).
-            set_emissions_cap(self.relaxation_master, self.ub_certificate.value)
-            set_leader_objective_cap(self.relaxation_master, self.ub_certificate.value)
+            # tighter F <= UB (Mitsos 2010, not Soares et al.).
+            set_emissions_cap(self.hpr, self.ub_certificate.value)
+            set_leader_objective_cap(self.hpr, self.ub_certificate.value)
 
-    def solve_master_with_remedy(self) -> tuple[SolveResult, float]:
-        """Step 5 (re-solve): the master, made elastic in place the first time it returns no point."""
-        relaxation, relaxation_seconds = self.solve_master()
+    def solve_hpr_with_remedy(self) -> tuple[SolveResult, float]:
+        """Step 5 (re-solve): the HPR, made elastic in place the first time it returns no point."""
+        relaxation, relaxation_seconds = self.solve_hpr()
         if (
-            self.use_elastic_master
-            and _master_returned_no_point(relaxation)
-            and not self.relaxation_master.elastic
+            self.use_elastic_hpr
+            and _hpr_returned_no_point(relaxation)
+            and not self.hpr.elastic
             and self.best_ub_values is not None
             and self.best_ub_tax_index is not None
         ):
-            # (P5-D) as a remedy (Soares et al. 2021, Difficulty 1): the plain master returned
+            # (P5-D) as a remedy (Soares et al. 2021, Difficulty 1): the plain HPR returned
             # no point, so make its cuts elastic and re-solve from the best evaluated point,
-            # which the elastic master is bound to accept. Its time counts toward this
+            # which the elastic HPR is bound to accept. Its time counts toward this
             # iteration's relaxation_seconds.
-            enable_elastic_cuts(self.relaxation_master)
+            enable_elastic_cuts(self.hpr)
             if self.follower_variable_names is None:
                 self.follower_variable_names = [
-                    variable.VarName for variable in self.follower_master.artifacts.model.getVars()
+                    variable.VarName for variable in self.follower_model.artifacts.model.getVars()
                 ]
-            set_leader_master_start(
-                self.relaxation_master, self.best_ub_values, self.follower_variable_names, self.best_ub_tax_index,
+            set_hpr_start(
+                self.hpr, self.best_ub_values, self.follower_variable_names, self.best_ub_tax_index,
             )
-            relaxation, elastic_retry_seconds = self.solve_master()
+            relaxation, elastic_retry_seconds = self.solve_hpr()
             relaxation_seconds += elastic_retry_seconds
         return relaxation, relaxation_seconds
 
     def update_lower_bound(self, relaxation: SolveResult) -> bool:
-        # The master only ever GAINS constraints, so its optimum cannot fall -- but the value
+        # The HPR only ever GAINS constraints, so its optimum cannot fall -- but the value
         # read off it is ObjBound at mip_gap, which oscillates within that gap (measured: a
         # 15 kg drop between consecutive iterations on STD_I17_M4_T3). Each iteration's value is
         # individually a valid bound, so their maximum is too, and keeping it makes the
@@ -1141,7 +1119,7 @@ class _DbpRun:
                 next_relaxation_tax_index=_required_value(relaxation.tax_index, "next relaxation tax_index"),
                 next_relaxation_lower_bound=self.leader_objective_lb,
                 relaxation_mip_gap=relaxation.mip_gap,
-                relaxation_partial=_is_partial_master(relaxation),
+                relaxation_partial=_is_partial_hpr(relaxation),
                 relaxation_elastic_slack=relaxation.slack_value,
                 follower_mip_gap=follower_response.mip_gap,
                 follower_time_limited=follower_time_limited,
@@ -1159,9 +1137,9 @@ class _DbpRun:
         )
 
     def step6(self, relaxation: SolveResult, tax_index: int, iteration: int) -> BilevelSolveResult | None:
-        """Step 6: once the gap has closed the result is at least epsilon-optimal; if the master
+        """Step 6: once the gap has closed the result is at least epsilon-optimal; if the HPR
         re-proposes the tax just evaluated, Lemma 3 makes it optimal. The lemma needs a proper
-        master solution (not a timed-out incumbent, not an elastic point) and a proven best
+        HPR solution (not a timed-out incumbent, not an elastic point) and a proven best
         response behind the upper bound. Returns None while the gap is open."""
         gap = relative_optimality_gap(
             leader_objective_ub=self.ub_certificate.value,
@@ -1173,7 +1151,7 @@ class _DbpRun:
         elastic_active = relaxation.slack_value is not None and relaxation.slack_value > 1e-6
         next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
         if (
-            not _is_partial_master(relaxation)
+            not _is_partial_hpr(relaxation)
             and not elastic_active
             and self.ub_certificate.exact
             and next_tax_index == tax_index

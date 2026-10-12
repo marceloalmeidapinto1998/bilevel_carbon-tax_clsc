@@ -56,33 +56,33 @@ The HPR minimises $F$ over the follower's physical constraints only, without req
 **Parameters**
 
 - $\varepsilon$ (`dbp_relative_gap`, default $10^{-4}$): optimality tolerance on the relative gap.
-- $\varepsilon'$: tolerance on the follower's objective. In the follower's second stage it is `lex_epsilon_prime` ($10^{-6}$ relative, floored at an absolute $10^{-7}$); in the cuts it is `dbp_cut_epsilon` ($10^{-5}$ absolute), or `dbp_cut_epsilon_relative` ($10^{-7}$) times the cut's cost if larger.
-- Subproblems are solved to Gurobi's default relative MIP gap, $10^{-4}$ (`mip_gap` for the follower, `master_mip_gap` for the HPR). Subproblems that reach their time limit are handled as described below.
+- $\varepsilon'$: a very small tolerance on the follower's objective, added only to keep the subproblems numerically feasible, as in Soares et al. (2021). It is set separately for the follower's second stage (`lex_epsilon_prime`, $10^{-6}$ relative, floored at an absolute $10^{-7}$) and for the cuts (`dbp_cut_epsilon`, $10^{-5}$ absolute, or `dbp_cut_epsilon_relative`, $10^{-7}$, times the cut's cost if larger).
+- Subproblems are solved to Gurobi's default relative MIP gap, $10^{-4}$ (`mip_gap` for the follower, `hpr_mip_gap` for the HPR). Subproblems that reach their time limit are handled as described below.
 
-**Initialisation.** The weight $w$ is fixed beforehand (see Problem). Solve the HPR without cuts. Its optimal value is the initial lower bound $\mathrm{LB}$, and its tax rate is the first proposal $\tau_0$. Set $\mathrm{UB} = +\infty$ and $k = 0$.
+**Initialisation.** The weight $w$ is fixed beforehand (see Problem). Solve the HPR without cuts. Its value (the bound proven by the solver) is the initial lower bound $\mathrm{LB}$, and its tax rate is the first proposal $\tau_0$. Set $\mathrm{UB} = +\infty$ and $k = 0$.
 
 **Iteration** ($k = 0, 1, \dots$)
 
 1. **Evaluate the follower.** Solve the follower's problem at $\tau_k$ with the optimistic rule, obtaining $y_k$: stage 1 minimises $f$, giving $f^*$; stage 2 minimises $E$ subject to $f \le f^* + \varepsilon'$. If $F(\tau_k, y_k) < \mathrm{UB}$, set $\mathrm{UB} = F(\tau_k, y_k)$. The incumbent is the evaluated pair with the least $F$, ties being broken towards the lower tax.
-2. **Add a value-function cut.** Append $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$ to the HPR. If $(\tau, y^*)$ is bilevel-feasible, $y^*$ minimises $f(\tau, \cdot)$ over the follower's feasible set, which contains $y_k$; hence $f(\tau, y^*) \le f(\tau, y_k)$ and the cut removes no bilevel-feasible point (Lemma 2 of Soares et al., 2021). The HPR also receives $F \le \mathrm{UB}$ and $E \le \mathrm{UB}$, which remove only points that cannot improve on the incumbent.
-3. **Re-solve the HPR.** The new $\mathrm{LB}$ is the larger of the previous $\mathrm{LB}$ and the HPR's optimal value, and the HPR's tax rate is the next proposal $\tau_{k+1}$.
-4. **Test termination.** If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop. Otherwise set $k \leftarrow k + 1$ and return to step 1.
+2. **Add a value-function cut.** Append $f(\tau, y) \le f(\tau, y_k) + \varepsilon'$ to the HPR. The follower's constraints do not contain $\tau$, so $y_k$ is feasible for every $\tau$. If $(\tau, y^*)$ is bilevel-feasible, $y^*$ minimises $f(\tau, \cdot)$ over the follower's feasible set, which contains $y_k$; hence $f(\tau, y^*) \le f(\tau, y_k)$ and the cut removes no bilevel-feasible point (Lemma 2 of Soares et al., 2021). Only feasibility of $y_k$ is needed, not optimality.
+3. **Re-solve the HPR.** The new $\mathrm{LB}$ is the larger of the previous $\mathrm{LB}$ and the bound proven by the HPR solve, which can oscillate within the solver's MIP gap. The HPR's tax rate is the next proposal $\tau_{k+1}$.
+4. **Test termination**, after the re-solve of step 3. If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop and classify the result below; otherwise set $k \leftarrow k + 1$ and return to step 1.
 
-At termination, the incumbent is returned together with $\mathrm{LB}$ and $\mathrm{UB}$, and the result is classified as follows.
+At termination, the incumbent is returned together with $\mathrm{LB}$ and $\mathrm{UB}$. The gap is tested first; the comparison $\tau_{k+1} = \tau_k$ is with the tax rate just evaluated, not with the incumbent's. Soares et al. keep the latest point when two evaluated points tie on $F$; here the lower tax is kept. "Optimal" holds up to the optimality tolerances of the solvers and $\varepsilon'$: Soares et al. note that with positive MIP gaps and elastic variables convergence cannot be ensured.
 
-| Outcome | Condition | `result_class` |
-|---|---|---|
-| Optimal | Gap $\le \varepsilon$ and $\tau_{k+1} = \tau_k$ (Lemma 3 of Soares et al., 2021); the HPR was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality | `optimal` |
-| $\varepsilon$-optimal | Gap $\le \varepsilon$, but at least one condition above fails | `epsilon_optimal` |
-| Gap not closed | Run ended by the auxiliary stop or by a run limit (`incumbent_stagnation`, `incumbent_time_limit`, `incumbent_wall_clock_cap`) | `bounded` |
+| Outcome | Condition |
+|---|---|
+| Optimal | Gap $\le \varepsilon$ and $\tau_{k+1} = \tau_k$ (Lemma 3 of Soares et al., 2021); the HPR was solved to optimality without elastic slack, and the follower response attaining $\mathrm{UB}$ was solved to optimality |
+| $\varepsilon$-optimal | Gap $\le \varepsilon$, but at least one condition above fails |
+| Gap not closed | Run ended by the auxiliary stop or by a run limit |
 
 <details>
 <summary>Time limits, fallbacks and auxiliary stopping rule</summary>
 
-- **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds an incumbent point, the next tax proposal. Otherwise the cuts are made elastic (below) and, failing that, the run ends with the incumbent.
+- **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds an incumbent point, the next tax proposal. Otherwise the cuts are made elastic (below). If the elastic HPR also returns no point, the run ends with the incumbent; Soares et al. do not specify this case, so it is a safeguard of this implementation.
 - **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem (P6) first searches for a better response, before the freeze $f \le f^* + \varepsilon'$ of stage 2 is set. If stage 2 finds nothing feasible, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
 - **Elastic cuts.** The value-function cuts of the HPR are made elastic (formulation P5-D) the first time it returns no feasible point.
-- **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) consecutive iterations in which neither bound changes. The gap test of step 4 is applied first, so this stop occurs only while the gap exceeds $\varepsilon$.
+- **Auxiliary stop.** The procedure also stops after `stagnation_limit` (default 10) consecutive iterations in which neither bound changes, as in Soares et al. (a change of incumbent at an unchanged upper bound does not count). The gap test of step 4 is applied first, so this stop occurs only while the gap exceeds $\varepsilon$.
 - **Run limit.** `--wall-clock-cap` optionally bounds the whole run; when it is exhausted, the incumbent is returned with the last lower bound.
 
 </details>
@@ -123,7 +123,15 @@ Each instance writes to `results/runs/<dataset>/<instance>/dbp/`:
 | `dbp_trace.csv` | one row per DBP iteration: proposed tax, bounds, subproblem times |
 | `manifest.json` | configuration used: tolerances, time limits, tax weight, flags |
 
-`clsc-solve --help` lists every option.
+The result class in `summary.json` follows the outcome table of the method section. It is an extension of this repository; Soares et al. define no such classes.
+
+| `result_class` | Outcome | Termination reasons |
+|---|---|---|
+| `optimal` | Optimal | `optimal` |
+| `epsilon_optimal` | $\varepsilon$-optimal | `epsilon_optimal` |
+| `bounded` | Gap not closed | `incumbent_stagnation`, `incumbent_time_limit`, `incumbent_wall_clock_cap` |
+
+`clsc-solve --help` lists every option. `--emissions-cap` adds the optional cut $F \le \mathrm{UB}$ (Mitsos, 2010) to the HPR; it is off by default because it is not part of Soares et al.'s procedure.
 
 <!-- TODO: add an example `summary.json` (or excerpt) once a representative, citable run is agreed on. No example output was provided in the source material for this rewrite. -->
 
@@ -159,8 +167,8 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 |---|---|---|---|
 | `dbp_relative_gap` | `--dbp-relative-gap` | `1e-4` | DBP stopping tolerance on the relative gap of $F$ (Soares et al., 2021) |
 | `mip_gap` | `--mip-gap` | `1e-4` | Gurobi MIP gap for the follower (solver default; the follower is solved to optimality) |
-| `master_mip_gap` | `--master-mip-gap` | `1e-4` | Gurobi MIP gap for the HPR |
-| `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--master-time-limit` sets the HPR's separately) |
+| `hpr_mip_gap` | `--hpr-mip-gap` | `1e-4` | Gurobi MIP gap for the HPR |
+| `time_limit` | `--time-limit` | `600` s | time limit per MILP subproblem (`--hpr-time-limit` sets the HPR's separately) |
 | — | `--wall-clock-cap` | none | optional limit on a whole run |
 | `stagnation_limit` | — | `10` | number of iterations without a bound update before the run stops |
 | `tax_weight_relative` | `--leader-tax-weight-relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
@@ -191,7 +199,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 │   │   ├── instance_data.py   #     load and validate an instance
 │   │   ├── supply_chain.py    #     supply-chain MILP shared by follower and HPR
 │   │   ├── follower.py        #     follower model and its two-stage optimistic solve
-│   │   ├── master.py          #     DBP high-point relaxation
+│   │   ├── hpr.py             #     DBP high-point relaxation
 │   │   └── gurobi_utils.py    #     solve wrapper and result types
 │   ├── solvers/dbp.py         #   the Deterministic Bounding Procedure
 │   └── solver_cli/            #   batch solver CLI (clsc-solve): parsing, output files, revalidation

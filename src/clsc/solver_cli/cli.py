@@ -63,8 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--time-limit",
         type=float,
         help=(
-            "Gurobi time limit in seconds for ONE follower subproblem, and for the master too "
-            "unless --master-time-limit is given (default: clsc.config.defaults.DEFAULT.time_limit, "
+            "Gurobi time limit in seconds for ONE follower subproblem, and for the HPR too "
+            "unless --hpr-time-limit is given (default: clsc.config.defaults.DEFAULT.time_limit, "
             "600 s). Pass inf to remove it."
         ),
     )
@@ -84,16 +84,16 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         help=(
             "Like --leader-tax-weight, but w = this fraction q of the least emissions the cut-free "
-            "master can reach, per USD/t of tax -- the same meaning on every instance. q = 1e-4 "
+            "HPR can reach, per USD/t of tax -- the same meaning on every instance. q = 1e-4 "
             "reads 'lose 1%% of the minimum emissions to avoid 100 USD/t of tax'. The run resolves "
             "the tax to about eps / q USD/t (eps = --dbp-relative-gap)."
         ),
     )
     parser.add_argument(
-        "--master-time-limit",
+        "--hpr-time-limit",
         type=float,
         help=(
-            "Gurobi time limit in seconds for ONE relaxation-master solve (default: the same "
+            "Gurobi time limit in seconds for ONE HPR solve (default: the same "
             "as --time-limit)."
         ),
     )
@@ -117,12 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--master-mip-gap",
+        "--hpr-mip-gap",
         type=float,
         help=(
-            "Gurobi MIPGap target for the DBP relaxation master only (default: "
-            "clsc.config.defaults.DEFAULT.master_mip_gap, 1e-4). The master's gap only loosens the lower bound -- its dual "
-            "bound stays valid -- so it can be looser than the follower's. A master that "
+            "Gurobi MIPGap target for the DBP high-point relaxation only (default: "
+            "clsc.config.defaults.DEFAULT.hpr_mip_gap, 1e-4). The HPR's gap only loosens the lower bound -- its dual "
+            "bound stays valid -- so it can be looser than the follower's. An HPR that "
             "stops on its time limit still contributes its dual bound and a tax proposal."
         ),
     )
@@ -182,10 +182,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ablation A3: disable warm starts between successive follower solves.",
     )
     parser.add_argument(
-        "--no-emissions-cap",
+        "--emissions-cap",
         dest="use_emissions_cap",
-        action="store_false",
-        help="Ablation A5: disable the incumbent objective-upper-bound cut in the relaxation master.",
+        action="store_true",
+        help=(
+            "Optional extension (not in Soares et al. 2021): add the incumbent objective upper "
+            "bound F <= UB (Mitsos 2010) to the HPR, while the UB is a proven value."
+        ),
     )
     parser.add_argument(
         "--no-follower-improvement",
@@ -194,17 +197,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable Soares et al. (2021)'s subproblem (P6) for a follower that stops on its time limit.",
     )
     parser.add_argument(
-        "--no-elastic-master",
-        dest="use_elastic_master",
+        "--no-elastic-hpr",
+        dest="use_elastic_hpr",
         action="store_false",
         help=(
             "Disable the elastic-cut remedy (Soares et al. 2021's P5-D): by default, the first time "
-            "the relaxation master returns no point its cuts are made elastic and it is re-solved."
+            "the HPR returns no point its cuts are made elastic and it is re-solved."
         ),
     )
     parser.set_defaults(
-        use_warm_start=True, use_emissions_cap=True,
-        use_follower_improvement=True, use_elastic_master=True,
+        use_warm_start=True, use_emissions_cap=False,
+        use_follower_improvement=True, use_elastic_hpr=True,
     )
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
     parser.add_argument(
@@ -315,12 +318,12 @@ def main() -> int:
                     instance,
                     output_flag=args.solver_output,
                     time_limit=args.time_limit,
-                    master_time_limit=args.master_time_limit,
+                    hpr_time_limit=args.hpr_time_limit,
                     leader_tax_weight=args.leader_tax_weight,
                     leader_tax_weight_relative=args.leader_tax_weight_relative,
                     wall_clock_cap=args.wall_clock_cap,
                     mip_gap=args.mip_gap,
-                    master_mip_gap=args.master_mip_gap,
+                    hpr_mip_gap=args.hpr_mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
                     threads=args.threads,
                     mip_focus=args.mip_focus,
@@ -328,7 +331,7 @@ def main() -> int:
                     use_warm_start=args.use_warm_start,
                     use_emissions_cap=args.use_emissions_cap,
                     use_follower_improvement=args.use_follower_improvement,
-                    use_elastic_master=args.use_elastic_master,
+                    use_elastic_hpr=args.use_elastic_hpr,
                 )
             else:
                 raise ValueError(f"Unsupported solver method {args.method!r}")
@@ -496,7 +499,7 @@ def build_manifest(
     tolerance_config: dict[str, object] = {
         "eps": DEFAULT.eps,
         "mip_gap": DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap,
-        "master_mip_gap": DEFAULT.master_mip_gap if args.master_mip_gap is None else args.master_mip_gap,
+        "hpr_mip_gap": DEFAULT.hpr_mip_gap if args.hpr_mip_gap is None else args.hpr_mip_gap,
         "dbp_relative_gap": DEFAULT.dbp_relative_gap if args.dbp_relative_gap is None else args.dbp_relative_gap,
         "lex_epsilon_prime": DEFAULT.lex_epsilon_prime,
         "dbp_cut_epsilon": DEFAULT.dbp_cut_epsilon,
@@ -511,10 +514,10 @@ def build_manifest(
         "method": args.method,
         "mode": args.dbp_mode,
         "time_limit": DEFAULT.time_limit if args.time_limit is None else args.time_limit,
-        "master_time_limit": (
+        "hpr_time_limit": (
             (DEFAULT.time_limit if args.time_limit is None else args.time_limit)
-            if args.master_time_limit is None
-            else args.master_time_limit
+            if args.hpr_time_limit is None
+            else args.hpr_time_limit
         ),
         "leader_tax_weight": args.leader_tax_weight,
         "leader_tax_weight_relative": args.leader_tax_weight_relative,
@@ -525,7 +528,7 @@ def build_manifest(
         "use_warm_start": bool(args.use_warm_start),
         "use_emissions_cap": bool(args.use_emissions_cap),
         "use_follower_improvement": bool(args.use_follower_improvement),
-        "use_elastic_master": bool(args.use_elastic_master),
+        "use_elastic_hpr": bool(args.use_elastic_hpr),
         "fail_fast": bool(args.fail_fast),
     }
     if args.method == "dbp":

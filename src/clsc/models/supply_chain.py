@@ -1,4 +1,4 @@
-"""The supply-chain MILP shared by the follower and the leader master: its variables,
+"""The supply-chain MILP shared by the follower and the leader HPR: its variables,
 constraint blocks (C1)-(C10), and the cost and emission expressions.
 """
 from __future__ import annotations
