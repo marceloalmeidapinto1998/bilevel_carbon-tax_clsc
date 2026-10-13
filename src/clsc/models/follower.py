@@ -5,6 +5,7 @@ treatment of a follower that stops on its time limit.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import logging
 
 import gurobipy as gp
 from gurobipy import GRB
@@ -13,6 +14,8 @@ from clsc.config.defaults import DEFAULT
 from .instance_data import InstanceData
 from .gurobi_utils import ModelArtifacts, SolveResult, apply_mip_start, optimize_model, tax_base_of
 from .supply_chain import build_supply_chain_model
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -136,8 +139,8 @@ def solve_follower_lexicographic(
     try:
         model.remove(freeze)
         model.update()
-    except gp.GurobiError:
-        pass
+    except gp.GurobiError as error:
+        logger.warning("could not remove the tie-break freeze constraint: %s", error)
 
     stage2_fallback = not stage2.has_solution
     chosen = reference if stage2_fallback else stage2

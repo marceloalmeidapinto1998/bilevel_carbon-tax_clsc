@@ -158,11 +158,16 @@ A run on one instance writes to `results/runs/base/<instance>/dbp/`. A run on a 
 | `summary.json`, `summary.csv` | result class, termination reason, tax (EUR/t), cost, emissions, bounds, signed gap, final tax change, validation status |
 | `result.json` | full result: bounds with certificates, follower stage gaps, timings |
 | `solution.json` | the incumbent's variable values |
-| `dbp_trace.csv` | one row per DBP iteration: proposed tax, bounds, subproblem times |
+| `dbp_trace.csv` | one row per DBP iteration: proposed tax, bounds, subproblem times. Written as the run goes, so a run that is killed or still running leaves its trace |
+| `run.log` | the log of the run: the tax weight, one line per iteration (taxes, bounds, gap, subproblem times, elapsed time) and how the run ended. The same lines go to the standard error |
 | `manifest.json` | configuration used: tolerances, time limits, tax weight, flags |
 
 `validation_status` is `validated` when the saved solution, re-evaluated at the certified point without re-optimising it, satisfies every constraint and bound, is integral where required, reproduces the reported cost, emissions and follower objective, and attains the upper bound ($E + w\,\tau = \mathrm{UB}$). Otherwise it is `failed`: the result files are kept, a warning is printed and the exit code is 1. The follower's optimality is not re-checked here; it is certified by the follower's solves inside the DBP.
 
+
+### Bounding a run
+
+A run has no limit on its total time unless one is given, as in Soares et al., whose run ends on its stopping criteria. `--run-time-limit SECONDS` and `--max-iterations N` bound it: when one is reached the run ends with the incumbent and both bounds, as `bounded` with the termination reason `incumbent_time_limit` or `incumbent_iteration_limit`, with no optimality claim. The time budget is checked between subproblems and caps each subproblem's time limit at what remains of it. A follower solve has up to three stages, so the budget can be overrun by up to three subproblem limits. If the budget is spent before the first follower evaluation there is no incumbent and the instance is reported as failed.
 
 ### Generating instances
 

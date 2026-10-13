@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import logging
 from pathlib import Path
 import shutil
 import sys
@@ -19,6 +20,7 @@ from .results import (
     RESULT_SCHEMA_VERSION,
     SUMMARY_FIELDNAMES,
     TRACE_FIELDNAMES,
+    append_dbp_trace_row,
     build_dbp_trace_rows,
     build_failure_result_payload,
     build_failure_summary_record,
@@ -124,6 +126,22 @@ def build_parser() -> argparse.ArgumentParser:
             "result to be classified optimal rather than epsilon-optimal (Lemma 3; default: "
             "clsc.config.defaults.DEFAULT.tax_tolerance)."
         ),
+    )
+    parser.add_argument(
+        "--run-time-limit",
+        type=float,
+        help=(
+            "Seconds: a budget for the whole solve of each instance (default: none, as in Soares et "
+            "al., whose run ends on its stopping criteria). When it is reached the run ends with the "
+            "incumbent and both bounds, as bounded / incumbent_time_limit. It is checked between "
+            "subproblems and caps each subproblem's time limit at what remains of it, but a follower "
+            "solve has up to three stages, so the budget can be overrun by up to three subproblem limits."
+        ),
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        help="Stop each instance after this many DBP iterations, as bounded / incumbent_iteration_limit (default: none).",
     )
     parser.add_argument(
         "--cut-slack",
@@ -237,6 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stderr)
     try:
         args.method, args.dbp_mode = canonicalize_solver_method(args.method)
     except ValueError as error:
@@ -289,6 +308,13 @@ def main() -> int:
         instance_results_dir = run_root / relative_instance_dir
         instance_results_dir.mkdir(parents=True, exist_ok=True)
 
+        # The trace is appended to as the run goes, and the log of every iteration is kept beside it.
+        trace_path = instance_results_dir / "dbp_trace.csv"
+        trace_path.unlink(missing_ok=True)
+        run_log = logging.FileHandler(instance_results_dir / "run.log", mode="w", encoding="utf-8")
+        run_log.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        logging.getLogger("clsc").addHandler(run_log)
+
         started_at = time.perf_counter()
         instance: InstanceData | None = None
         try:
@@ -306,6 +332,9 @@ def main() -> int:
                     dbp_relative_gap=args.dbp_relative_gap,
                     tax_tolerance=args.tax_tolerance,
                     cut_slack=args.cut_slack,
+                    run_time_limit=args.run_time_limit,
+                    max_iterations=args.max_iterations,
+                    on_iteration=lambda record, path=trace_path: append_dbp_trace_row(path, record),
                     threads=args.threads,
                     mip_focus=args.mip_focus,
                     seed=args.seed,
@@ -405,6 +434,9 @@ def main() -> int:
 
             if args.fail_fast:
                 break
+        finally:
+            logging.getLogger("clsc").removeHandler(run_log)
+            run_log.close()
 
     write_json(run_root / "summary.json", summary_records)
     write_csv(run_root / "summary.csv", SUMMARY_FIELDNAMES, summary_records)
@@ -490,6 +522,8 @@ def build_manifest(
         "epsilon_prime": DEFAULT.epsilon_prime,
         "tax_tolerance": DEFAULT.tax_tolerance if args.tax_tolerance is None else args.tax_tolerance,
         "cut_slack": DEFAULT.cut_slack if args.cut_slack is None else args.cut_slack,
+        "run_time_limit": args.run_time_limit,
+        "max_iterations": args.max_iterations,
         "stagnation_limit": DEFAULT.stagnation_limit,
         "elastic_penalty_mult": DEFAULT.elastic_penalty_mult,
         "threads": DEFAULT.threads if args.threads is None else args.threads,

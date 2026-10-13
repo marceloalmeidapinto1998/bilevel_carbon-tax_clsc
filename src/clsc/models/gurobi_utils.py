@@ -4,6 +4,7 @@ helpers that read a solution back.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import math
 
 import gurobipy as gp
@@ -11,6 +12,8 @@ from gurobipy import GRB
 
 from clsc.config.constants import BOUND_SNAP_TOL, INTEGER_SNAP_TOL
 from clsc.config.defaults import DEFAULT
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -234,10 +237,14 @@ def _model_float_attribute(model: gp.Model, attribute: str) -> float | None:
 def _compute_iis_summary(model: gp.Model) -> tuple[tuple[str, ...], tuple[str, ...]]:
     try:
         model.computeIIS()
-    except gp.GurobiError:
+    except gp.GurobiError as error:
+        logger.warning("computeIIS failed (%s): the IIS is reported empty", error)
         return (), ()
 
-    iis_constraints = tuple(sorted(constraint.ConstrName for constraint in model.getConstrs() if constraint.IISConstr))
+    iis_constraints = tuple(sorted(
+        (*(constraint.ConstrName for constraint in model.getConstrs() if constraint.IISConstr),
+         *(constraint.QCName for constraint in model.getQConstrs() if constraint.IISQConstr))
+    ))
     iis_variable_bounds = tuple(
         sorted(
             entry

@@ -8,6 +8,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import traceback
 
 from clsc.models.instance_data import InstanceData, InstanceValidationError
 from clsc.solvers.dbp import BilevelSolveError, SubproblemStatusError, relative_optimality_gap
@@ -241,6 +242,17 @@ def build_phase_summary(result) -> dict[str, object]:
     }
 
 
+def append_dbp_trace_row(path: Path, record) -> None:
+    """Append one iteration's row to the trace file as soon as the iteration ends, so a run that is
+    killed or still going leaves its trace behind. The header is written with the first row."""
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=TRACE_FIELDNAMES)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(build_dbp_trace_row(record))
+
+
 def build_dbp_trace_rows(result) -> list[dict[str, object]]:
     return [build_dbp_trace_row(record) for record in result.iteration_records]
 
@@ -398,6 +410,7 @@ def extract_failure_diagnostics(error: Exception) -> dict[str, object]:
         "iis_constraint_count": 0,
         "iis_constraints": [],
         "iis_variable_bounds": [],
+        "traceback": "".join(traceback.format_exception(error)),
     }
 
     if isinstance(error, InstanceValidationError):

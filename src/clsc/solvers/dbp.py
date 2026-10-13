@@ -70,8 +70,10 @@ theirs multiplied binaries and linearised exactly.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 import itertools
+import logging
 import math
 from pathlib import Path
 import time
@@ -94,6 +96,8 @@ from clsc.models.hpr import (
 )
 
 
+logger = logging.getLogger(__name__)
+
 # TERMINATION REASONS. The first word is the STATUS of the result -- what you have -- and the
 # rest is why the run stopped there. Sorting a results column by this groups by strength of
 # claim:
@@ -110,6 +114,8 @@ STAGNATION_REASON = "incumbent_stagnation"
 # The lower bound crossed the upper bound by more than the stopping tolerance: one of the two is
 # not a bound, so no optimality claim is made.
 BOUND_INVERSION_REASON = "bound_inversion"
+# The iteration cap (``max_iterations``) ended the run.
+ITERATION_LIMIT_REASON = "incumbent_iteration_limit"
 # Soares et al. (2021)'s Step 6 else-branch: the bounds have closed to eps but the HPR's next
 # proposal differs from the point just evaluated, so Lemma 3 does not apply.
 EPSILON_OPTIMAL_REASON = "epsilon_optimal"
@@ -671,6 +677,9 @@ def _solve_bilevel_dbp(
     use_elastic_hpr: bool = True,
     tax_tolerance: float | None = None,
     cut_slack: float | None = None,
+    run_time_limit: float | None = None,
+    max_iterations: int | None = None,
+    on_iteration: Callable[[DbpIterationRecord], None] | None = None,
     leader_tax_weight: float | None = None,
     leader_tax_weight_relative: float | None = None,
 ) -> BilevelSolveResult:
@@ -724,6 +733,16 @@ def _solve_bilevel_dbp(
     side of every value-function cut. Both take their defaults from ``DEFAULT``; the CLI records
     them in the manifest, because ``tax_tolerance`` alone decides ``optimal`` against
     ``epsilon_optimal``.
+
+    ``run_time_limit`` (seconds) and ``max_iterations`` bound the whole run, which Soares et al.
+    leave to the stopping criteria; neither is set by default. When one is reached the run ends with
+    the incumbent and both bounds (``incumbent_time_limit`` or ``incumbent_iteration_limit``), with
+    no optimality claim. The budget is checked between subproblems and caps the time limit of each
+    subproblem at what remains of it, but a follower solve runs up to three stages (the best-response
+    solve, P6 and the tie-break), each with that limit, so the run can overrun the budget by up to
+    three subproblem limits. ``on_iteration`` is called with each iteration's record as soon as the
+    iteration ends, so a caller can write the trace while the run is still going; every iteration is
+    also logged at INFO on the ``clsc.solvers.dbp`` logger.
     """
     if leader_tax_weight is not None and leader_tax_weight_relative is not None:
         raise ValueError("give either leader_tax_weight or leader_tax_weight_relative, not both")
@@ -734,6 +753,10 @@ def _solve_bilevel_dbp(
             "the leader's tax weight must be positive: with w = 0 the leader has no criterion "
             "to choose among taxes that abate the same"
         )
+    if run_time_limit is not None and run_time_limit <= 0.0:
+        raise ValueError("run_time_limit must be positive")
+    if max_iterations is not None and max_iterations < 1:
+        raise ValueError("max_iterations must be at least 1")
     run = _DbpRun(
         _coerce_instance(instance_or_path),
         output_flag=output_flag,
@@ -750,11 +773,20 @@ def _solve_bilevel_dbp(
         use_elastic_hpr=use_elastic_hpr,
         tax_tolerance=DEFAULT.tax_tolerance if tax_tolerance is None else tax_tolerance,
         cut_slack=DEFAULT.cut_slack if cut_slack is None else cut_slack,
+        run_time_limit=run_time_limit,
+        max_iterations=max_iterations,
+        on_iteration=on_iteration,
     )
     weight_kg_per_eur_t = run.set_tax_weight(leader_tax_weight, leader_tax_weight_relative)
     if _effective_tax_weight_sink is not None:
         _effective_tax_weight_sink["kg_per_eur_t"] = weight_kg_per_eur_t
-    return run.run()
+    result = run.run()
+    logger.info(
+        "finished: %s after %d iterations | LB %.2f UB %.2f | tax %.4f EUR/t | %.0f s",
+        result.termination_reason, result.iterations, result.leader_objective_lb, result.leader_objective_ub,
+        result.incumbent.tax, run.elapsed_seconds(),
+    )
+    return result
 
 
 class _DbpRun:
@@ -782,6 +814,9 @@ class _DbpRun:
         use_elastic_hpr: bool,
         tax_tolerance: float,
         cut_slack: float,
+        run_time_limit: float | None,
+        max_iterations: int | None,
+        on_iteration: Callable[[DbpIterationRecord], None] | None,
     ) -> None:
         self.instance = instance
         self.output_flag = output_flag
@@ -796,6 +831,10 @@ class _DbpRun:
         self.use_follower_improvement = use_follower_improvement
         self.use_elastic_hpr = use_elastic_hpr
         self.tax_tolerance = tax_tolerance
+        self.max_iterations = max_iterations
+        self.on_iteration = on_iteration
+        self.started_at = time.perf_counter()
+        self.deadline = None if run_time_limit is None else self.started_at + run_time_limit
 
         # Plain cuts to begin with; made elastic in place only if the HPR ever returns no point.
         self.hpr = build_hpr(instance)
@@ -819,6 +858,22 @@ class _DbpRun:
         self.follower_variable_names: list[str] | None = None
         self.iterations_without_bound_update = 0
 
+    # ---------------------------------------------------------------- run budget
+
+    def elapsed_seconds(self) -> float:
+        return time.perf_counter() - self.started_at
+
+    def budget_exhausted(self) -> bool:
+        return self.deadline is not None and time.perf_counter() >= self.deadline
+
+    def subproblem_limit(self, *, hpr: bool = False) -> float | None:
+        """The per-subproblem time limit, capped at what remains of the run budget."""
+        limit = self.budget.subproblem_time_limit(hpr=hpr)
+        if self.deadline is None:
+            return limit
+        remaining = max(self.deadline - time.perf_counter(), 0.001)
+        return remaining if limit is None else min(limit, remaining)
+
     # ---------------------------------------------------------------- setup
 
     def solve_hpr(self) -> tuple[SolveResult, float]:
@@ -826,7 +881,7 @@ class _DbpRun:
             solve_hpr,
             self.hpr,
             output_flag=self.output_flag,
-            time_limit=self.budget.subproblem_time_limit(hpr=True),
+            time_limit=self.subproblem_limit(hpr=True),
             mip_gap=self.mip_gap,
             threads=self.threads,
             mip_focus=self.mip_focus,
@@ -847,6 +902,7 @@ class _DbpRun:
         else:
             weight_kg_per_eur_t = float(leader_tax_weight)
         self.tax_weight_per_eur_t = weight_kg_per_eur_t
+        logger.info("leader's tax weight w = %.4f kg CO2e per EUR/t", weight_kg_per_eur_t)
         set_leader_tax_weight(self.hpr, self.tax_weight_per_eur_t)
         return weight_kg_per_eur_t
 
@@ -876,6 +932,13 @@ class _DbpRun:
         self.leader_objective_lb = _required_value(relaxation.emissions, "initial relaxation bound")
 
         for iteration in itertools.count(1):
+            if self.budget_exhausted():
+                if self.incumbent is None:
+                    raise BilevelSolveError(
+                        "the run time limit was reached before the first follower evaluation, so there is no incumbent"
+                    )
+                logger.info("run time limit reached after %d iterations", iteration - 1)
+                return self.time_limit_result(iteration - 1, "incumbent_time_limit")
             current_relaxation_lower_bound = self.leader_objective_lb
             tax = _required_value(relaxation.tax, "relaxation tax")
 
@@ -926,6 +989,14 @@ class _DbpRun:
                     **self._result_inputs(iteration),
                     relaxation_mip_gap=relaxation.mip_gap,
                 )
+            if self.max_iterations is not None and iteration >= self.max_iterations:
+                logger.info("iteration limit of %d reached", self.max_iterations)
+                return _bounded_result(
+                    termination_reason=ITERATION_LIMIT_REASON,
+                    context="iteration_limit",
+                    **self._result_inputs(iteration),
+                    relaxation_mip_gap=relaxation.mip_gap,
+                )
         raise AssertionError("unreachable")  # pragma: no cover - itertools.count never ends
 
     # ---------------------------------------------------------------- one step each
@@ -940,7 +1011,7 @@ class _DbpRun:
             self.follower_model,
             tax=tax,
             output_flag=self.output_flag,
-            time_limit=self.budget.subproblem_time_limit(),
+            time_limit=self.subproblem_limit(),
             capture_solution=True,
             warm_start_values=self.previous_follower_values if self.use_warm_start else None,
             mip_gap=self.mip_gap,
@@ -1083,29 +1154,41 @@ class _DbpRun:
         relaxation: SolveResult,
         relaxation_seconds: float,
     ) -> None:
-        self.iteration_records.append(
-            DbpIterationRecord(
-                iteration=iteration,
-                relaxation_tax=tax,
-                relaxation_lower_bound=current_relaxation_lower_bound,
-                follower_seconds=follower_seconds,
-                follower_objective=candidate.follower_objective,
-                optimistic_seconds=0.0,
-                optimistic_cost=candidate.cost,
-                optimistic_emissions=candidate.emissions,
-                leader_objective_ub=self.ub_certificate.value,
-                relaxation_seconds=relaxation_seconds,
-                next_relaxation_tax=_required_value(relaxation.tax, "next relaxation tax"),
-                next_relaxation_lower_bound=self.leader_objective_lb,
-                relaxation_mip_gap=relaxation.mip_gap,
-                relaxation_partial=_is_partial_hpr(relaxation),
-                relaxation_elastic_slack=relaxation.slack_value,
-                follower_mip_gap=follower_response.mip_gap,
-                follower_time_limited=follower_time_limited,
-                follower_improved=follower_response.follower_improved,
-                follower_stage2_fallback=follower_response.follower_stage2_fallback,
-            )
+        record = DbpIterationRecord(
+            iteration=iteration,
+            relaxation_tax=tax,
+            relaxation_lower_bound=current_relaxation_lower_bound,
+            follower_seconds=follower_seconds,
+            follower_objective=candidate.follower_objective,
+            optimistic_seconds=0.0,
+            optimistic_cost=candidate.cost,
+            optimistic_emissions=candidate.emissions,
+            leader_objective_ub=self.ub_certificate.value,
+            relaxation_seconds=relaxation_seconds,
+            next_relaxation_tax=_required_value(relaxation.tax, "next relaxation tax"),
+            next_relaxation_lower_bound=self.leader_objective_lb,
+            relaxation_mip_gap=relaxation.mip_gap,
+            relaxation_partial=_is_partial_hpr(relaxation),
+            relaxation_elastic_slack=relaxation.slack_value,
+            follower_mip_gap=follower_response.mip_gap,
+            follower_time_limited=follower_time_limited,
+            follower_improved=follower_response.follower_improved,
+            follower_stage2_fallback=follower_response.follower_stage2_fallback,
         )
+        self.iteration_records.append(record)
+        gap = relative_optimality_gap(
+            leader_objective_ub=record.leader_objective_ub, leader_objective_lb=record.next_relaxation_lower_bound,
+        )
+        logger.info(
+            "iteration %d: tax %.4f -> %.4f EUR/t | LB %.2f UB %.2f gap %.2e | follower %.1f s%s, HPR %.1f s%s | elapsed %.0f s",
+            iteration, record.relaxation_tax, record.next_relaxation_tax,
+            record.next_relaxation_lower_bound, record.leader_objective_ub, gap,
+            record.follower_seconds, " (time limit)" if record.follower_time_limited else "",
+            record.relaxation_seconds, " (time limit)" if record.relaxation_partial else "",
+            self.elapsed_seconds(),
+        )
+        if self.on_iteration is not None:
+            self.on_iteration(record)
         self.iteration_timings.append(
             DbpIterationTiming(
                 iteration=iteration,
