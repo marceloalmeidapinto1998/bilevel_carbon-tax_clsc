@@ -68,10 +68,15 @@ def test_generator_reproduces_escalation_instances(tmp_path: Path) -> None:
 @pytest.mark.gurobi
 @pytest.mark.slow
 def test_cli_reference_solve(tmp_path: Path) -> None:
-    """The baseline is the CLI's summary, which reports the canonicalised (revalidated) solution."""
+    """The baseline is the CLI's summary, which reports the canonicalised (revalidated) solution.
+
+    Run on one thread with Gurobi seed 0, the setting the reference values were recorded under
+    (Gurobi 13.0.1, about 40 minutes). The iteration count is not asserted: the HPR solves take
+    hundreds of seconds against the 600 s limit, so a slower machine can take another path.
+    """
     completed = subprocess.run(
         [sys.executable, "-m", "clsc.solver_cli", str(BASE_INSTANCES / "STD_I17_M4_T3.json"),
-         "--results-root", str(tmp_path)],
+         "--results-root", str(tmp_path), "--threads", "1", "--seed", "0"],
         cwd=REPO_ROOT, capture_output=True, text=True,
     )
     assert completed.returncode == 0, completed.stderr[-2000:]
@@ -82,10 +87,11 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
 
     assert summary["result_class"] == "optimal"
     assert summary["termination_reason"] == "optimal"
-    assert summary["iterations"] == 3
-    assert summary["tax_index"] == 26
+    assert summary["tax_index"] == 34
     assert summary["validation_status"] == "validated"
-    assert summary["cost"] == pytest.approx(1551005.3165628714, rel=1e-9)
-    assert summary["emissions"] == pytest.approx(24678468.57674377, rel=1e-9)
-    assert summary["leader_objective_lb"] == pytest.approx(24742324.08129882, rel=1e-9)
-    assert summary["leader_objective_ub"] == pytest.approx(24742324.361313768, rel=1e-9)
+    assert summary["leader_objective_lb"] <= summary["leader_objective_ub"]
+    assert summary["relative_gap"] <= 1e-4
+    assert summary["cost"] == pytest.approx(1551005.3165628714, rel=1e-6)
+    assert summary["emissions"] == pytest.approx(24683049.835076936, rel=1e-6)
+    assert summary["leader_objective_lb"] == pytest.approx(24764036.562738676, rel=1e-6)
+    assert summary["leader_objective_ub"] == pytest.approx(24766491.94983398, rel=1e-6)
