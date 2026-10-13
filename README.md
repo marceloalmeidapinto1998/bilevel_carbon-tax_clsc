@@ -27,7 +27,7 @@ This command installs the `clsc` package together with two console scripts, `cls
 clsc-solve data/STD_I17_M4_T3.json --results-root results/runs
 ```
 
-Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of each output file, and further command-line options, are described in "Usage".
+A run on one instance writes to `results/runs/base/<instance>/dbp/`. The contents of each output file, and further command-line options, are described in "Usage".
 
 ## Problem
 
@@ -35,7 +35,7 @@ Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of eac
 
 $$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
-where $w$ (kg CO2e per EUR/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 EUR/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ (kg CO2e) the minimum of $E(y)$ over all feasible network designs.
+where $w$ (kg CO2e per EUR/t) is a policy weight. Since $w > 0$, the lowest tax is selected among those attaining equal emissions, and the regulator accepts $w$ additional units of emissions for each 1 EUR/t reduction in $\tau$. The weight is set as $w = q \, E_{\text{ref}}$, with $q = 10^{-4}$ and $E_{\text{ref}}$ (kg CO2e) the lower bound on $E(y)$ that the solver proves for the HPR without cuts, which is the minimum of $E(y)$ over all feasible network designs when that solve reaches optimality.
 
 **Follower problem.** For a fixed tax rate $\tau$, the follower solves a mixed-integer linear program over a multi-period, multi-product closed-loop network of suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport. Its decisions are of two kinds:
 
@@ -78,6 +78,8 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 | Optimal | The gap is at most $\varepsilon$ and $\lvert\tau_{k+1} - \tau_{k}\rvert \le \delta$. |
 | $\varepsilon$-optimal | The gap is at most $\varepsilon$, but $\lvert\tau_{k+1} - \tau_{k}\rvert > \delta$. |
 | Auxiliary stop | Neither bound changed during 10 consecutive iterations. |
+
+The follower's response changes at break points, taxes at which the follower is indifferent between two responses and the optimistic rule picks the one with fewer emissions. On `STD_I17_M4_T3` the optimal tax lies at such a break point, between 33.91 and 33.95 EUR/t, where the emissions drop by 0.33%. Because the tie-break accepts responses up to $\varepsilon'$ above the follower's optimum, the reported tax can lie slightly below the exact break point, by roughly the tolerance $\varepsilon'$ divided by the change in the taxed emissions across the break (about 0.03 EUR/t here, an estimate).
 
 <details>
 <summary>Time limits and stopping rules</summary>
@@ -144,11 +146,11 @@ clsc-solve data --results-root results/runs
 clsc-solve data/STD_I17_M4_T3.json --leader-tax-weight-relative 1e-5
 ```
 
-Each instance writes to `results/runs/<dataset>/<instance>/dbp/`:
+A run on one instance writes to `results/runs/base/<instance>/dbp/`. A run on a folder writes to `results/runs/base/<run_id>/`, with one subfolder per instance holding the per-instance files and, at the run root, one `summary.*` and one `manifest.json` for the whole run. If an instance fails, its folder also holds `diagnostics.json`.
 
 | File | Content |
 |---|---|
-| `summary.json`, `summary.csv` | result class, termination reason, tax, cost, emissions, bounds, gap, validation status |
+| `summary.json`, `summary.csv` | result class, termination reason, tax (EUR/t), cost, emissions, bounds, gap, validation status |
 | `result.json` | full result: bounds with certificates, follower stage gaps, timings |
 | `solution.json` | the incumbent's variable values |
 | `dbp_trace.csv` | one row per DBP iteration: proposed tax, bounds, subproblem times |
@@ -177,7 +179,7 @@ python -m pytest                  # all regression tests
 python -m pytest -m "not slow"    # skip the solver test
 ```
 
-[`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a default solve of `STD_I17_M4_T3` reproduces its reference summary. The tests require a Gurobi licence and are skipped without one.
+[`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a solve of `STD_I17_M4_T3` with one thread and Gurobi seed 0 reproduces its reference summary (about five minutes). The tests are skipped when no Gurobi licence is found; a size-limited licence is not enough (see "Requirements and reproducibility").
 
 ## Configuration
 
@@ -188,20 +190,22 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | `dbp_relative_gap` | `1e-4` | DBP stopping tolerance on the relative gap of $F$ |
 | `mip_gap` | `1e-4` | Gurobi MIP gap for every MILP subproblem, the follower's and the HPR's |
 | `time_limit` | `600` s | time limit per MILP subproblem |
+| `epsilon_prime` | `1e-6` | $\varepsilon'$, relative to the follower's objective: tolerance of the follower's tie-break |
+| `tax_tolerance` | `1e-3` EUR/t | $\delta$: how close the HPR's next tax must be to the evaluated tax for the result to be classified optimal |
 | `stagnation_limit` | `10` | number of iterations without a bound update before the run stops |
 | `tax_weight_relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
 | `threads`, `mip_focus` | `4`, `2` | Gurobi settings |
 
 ## Requirements and reproducibility
 
-- Python ≥ 3.12.
-- [Gurobi](https://www.gurobi.com/) 13 with a valid licence (`gurobipy>=13,<14`). The licence is required both to solve instances and to generate them, as the generator checks each instance's feasibility with Gurobi.
+- Python ≥ 3.12. Tested with Python 3.14.4 only.
+- [Gurobi](https://www.gurobi.com/) 13 with a full licence (`gurobipy>=13,<14`); the size-limited licence bundled with `gurobipy` allows 2000 variables and constraints, and these models are larger. The licence is required to solve instances and to generate the `benchmark` and `escalation` instances, whose feasibility is checked with Gurobi. `clsc-generate instance` does not use Gurobi.
 - PyYAML, required only when reading or writing YAML instance files.
 - pytest, for the test suite (`dev` extra).
 
 Instance generation is deterministic given a seed (see "Usage"). The DBP solve is deterministic given a fixed Gurobi `Seed` and thread count, subject to Gurobi's own run-to-run variability under multithreading.
 
-<!-- TODO: report expected runtime and hardware specification for the instances (e.g. "STD_I17_M4_T3 solves in N minutes on M threads on <CPU>"). Not available in the source material for this rewrite. -->
+**Reference run.** On a laptop (11th Gen Intel Core i7-1185G7, 4 cores and 8 threads, 15.7 GB RAM, Windows 11) with Python 3.14.4 and Gurobi 13.0.1 under an academic licence, `clsc-solve data/STD_I17_M4_T3.json --threads 1 --seed 0` ends `optimal` in 4 iterations and 295 s, at a tax of 33.93 EUR/t. Runtimes of the other instances have not been recorded yet.
 
 ## Project structure
 
@@ -210,7 +214,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 ├── data/                      # the 15 instances (JSON)
 ├── src/clsc/                  # the Python package
 │   ├── config/                #   method defaults and shared constants
-│   ├── generator/              #   instance generator (CLI: clsc-generate)
+│   ├── generator/             #   instance generator (CLI: clsc-generate)
 │   ├── models/                #   instance loading and the Gurobi models
 │   │   ├── instance_data.py   #     load and validate an instance
 │   │   ├── supply_chain.py    #     supply-chain MILP shared by follower and HPR
