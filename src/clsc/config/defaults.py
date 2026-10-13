@@ -11,12 +11,11 @@ class ToleranceConfig:
     values come from the literature rather than from calibration on these instances.
 
     ``dbp_relative_gap`` (eps = 1e-4) is the DBP's own stopping tolerance, Soares et al. (2021)'s
-    eps. ``mip_gap`` (1e-4) is the follower's MIP gap, the solver default, so that the follower is
-    solved to optimality as Soares et al. do: their Lemma 1 needs a proven best response, and a
-    response accepted at a looser gap is not one, so the run could not be reported as optimal.
-    ``hpr_mip_gap`` (1e-4) is the HPR's, likewise the
-    solver default, which is what Soares et al. ran their relaxation at: a percentage target on the
-    HPR would freeze the lower bound at its first dual bound, since the HPR would stop as
+    eps. ``mip_gap`` (1e-4) is the MIP gap of every MILP subproblem, the follower's and the HPR's,
+    the solver default. At the follower it is what Soares et al. do: their Lemma 1 needs a proven
+    best response, and a response accepted at a looser gap is not one, so the run could not be
+    reported as optimal. At the HPR it is what they ran their relaxation at: a percentage target
+    on the HPR would freeze the lower bound at its first dual bound, since the HPR would stop as
     soon as its incumbent sat within that percentage of the bound. ``time_limit`` (600 s) bounds
     each MILP subproblem, as in Soares et al., who bound the subproblems and not the run.
     ``stagnation_limit`` (10) is their auxiliary stop: the run ends after that many iterations in
@@ -47,7 +46,6 @@ class ToleranceConfig:
     eps: float = 1e-7
     dbp_relative_gap: float = 1e-4
     mip_gap: float = 1e-4
-    hpr_mip_gap: float = 1e-4
     time_limit: float = 600.0
     stagnation_limit: int = 10
     tax_weight_relative: float = 1e-4

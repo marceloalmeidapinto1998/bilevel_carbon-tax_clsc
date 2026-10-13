@@ -186,8 +186,7 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | Parameter | Default | Meaning |
 |---|---|---|
 | `dbp_relative_gap` | `1e-4` | DBP stopping tolerance on the relative gap of $F$ |
-| `mip_gap` | `1e-4` | Gurobi MIP gap for the follower |
-| `hpr_mip_gap` | `1e-4` | Gurobi MIP gap for the HPR |
+| `mip_gap` | `1e-4` | Gurobi MIP gap for every MILP subproblem, the follower's and the HPR's |
 | `time_limit` | `600` s | time limit per MILP subproblem |
 | `stagnation_limit` | `10` | number of iterations without a bound update before the run stops |
 | `tax_weight_relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |

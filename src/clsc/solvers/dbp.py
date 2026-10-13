@@ -643,7 +643,6 @@ def _solve_bilevel_dbp(
     time_limit: float | None = None,
     hpr_time_limit: float | None = None,
     mip_gap: float | None = None,
-    hpr_mip_gap: float | None = None,
     dbp_relative_gap: float | None = None,
     threads: int | None = None,
     mip_focus: int | None = None,
@@ -678,9 +677,9 @@ def _solve_bilevel_dbp(
     which holds the literature-based method (see its docstring). ``time_limit`` bounds ONE follower
     subproblem, and the HPR too unless ``hpr_time_limit`` gives it its own (``math.inf``
     removes the limit). Soares et al. have no limit on the whole run: it ends on its own
-    stopping criteria. ``mip_gap`` is the follower's target and
-    ``hpr_mip_gap`` the HPR's. The HPR's gap only loosens the lower bound, whose dual
-    bound stays valid; the follower's gap loosens what counts as a best response.
+    stopping criteria. ``mip_gap`` is the MIP gap target of every subproblem. At the HPR it
+    only loosens the lower bound, whose dual bound stays valid; at the follower it loosens what
+    counts as a best response.
 
     SUBPROBLEMS THAT CANNOT BE SOLVED TO OPTIMALITY (Soares et al., Sect. 7-8):
 
@@ -715,7 +714,6 @@ def _solve_bilevel_dbp(
         time_limit=DEFAULT.time_limit if time_limit is None else time_limit,
         hpr_time_limit=hpr_time_limit,
         mip_gap=mip_gap,
-        hpr_mip_gap=DEFAULT.hpr_mip_gap if hpr_mip_gap is None else hpr_mip_gap,
         dbp_relative_gap=DEFAULT.dbp_relative_gap if dbp_relative_gap is None else dbp_relative_gap,
         threads=threads,
         mip_focus=mip_focus,
@@ -746,7 +744,6 @@ class _DbpRun:
         time_limit: float,
         hpr_time_limit: float | None,
         mip_gap: float | None,
-        hpr_mip_gap: float,
         dbp_relative_gap: float,
         threads: int | None,
         mip_focus: int | None,
@@ -760,7 +757,6 @@ class _DbpRun:
         self.output_flag = output_flag
         self.budget = _TimeLimits(time_limit, hpr_time_limit)
         self.mip_gap = mip_gap
-        self.hpr_mip_gap = hpr_mip_gap
         self.dbp_relative_gap = dbp_relative_gap
         self.threads = threads
         self.mip_focus = mip_focus
@@ -799,7 +795,7 @@ class _DbpRun:
             self.hpr,
             output_flag=self.output_flag,
             time_limit=self.budget.subproblem_time_limit(hpr=True),
-            mip_gap=self.hpr_mip_gap,
+            mip_gap=self.mip_gap,
             threads=self.threads,
             mip_focus=self.mip_focus,
             seed=self.seed,

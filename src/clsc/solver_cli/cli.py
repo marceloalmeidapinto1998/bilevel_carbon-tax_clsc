@@ -101,18 +101,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--mip-gap",
         type=float,
         help=(
-            "Gurobi MIPGap target for every follower sub-solve "
-            "(default: clsc.config.defaults.DEFAULT.mip_gap, 1e-4)."
-        ),
-    )
-    parser.add_argument(
-        "--hpr-mip-gap",
-        type=float,
-        help=(
-            "Gurobi MIPGap target for the DBP high-point relaxation only (default: "
-            "clsc.config.defaults.DEFAULT.hpr_mip_gap, 1e-4). The HPR's gap only loosens the lower bound -- its dual "
-            "bound stays valid -- so it can be looser than the follower's. An HPR that "
-            "stops on its time limit still contributes its dual bound and a tax proposal."
+            "Gurobi MIPGap target for every sub-solve, the follower's and the high-point "
+            "relaxation's (default: clsc.config.defaults.DEFAULT.mip_gap, 1e-4). At the HPR "
+            "it only loosens the lower bound, whose dual bound stays valid; at the follower it "
+            "loosens what counts as a best response."
         ),
     )
     parser.add_argument(
@@ -294,7 +286,6 @@ def main() -> int:
                     leader_tax_weight=args.leader_tax_weight,
                     leader_tax_weight_relative=args.leader_tax_weight_relative,
                     mip_gap=args.mip_gap,
-                    hpr_mip_gap=args.hpr_mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
                     threads=args.threads,
                     mip_focus=args.mip_focus,
@@ -470,7 +461,6 @@ def build_manifest(
     tolerance_config: dict[str, object] = {
         "eps": DEFAULT.eps,
         "mip_gap": DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap,
-        "hpr_mip_gap": DEFAULT.hpr_mip_gap if args.hpr_mip_gap is None else args.hpr_mip_gap,
         "dbp_relative_gap": DEFAULT.dbp_relative_gap if args.dbp_relative_gap is None else args.dbp_relative_gap,
         "epsilon_prime": DEFAULT.epsilon_prime,
         "stagnation_limit": DEFAULT.stagnation_limit,
