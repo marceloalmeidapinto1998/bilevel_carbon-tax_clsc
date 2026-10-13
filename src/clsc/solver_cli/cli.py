@@ -14,7 +14,7 @@ import time
 from clsc.config.defaults import DEFAULT
 from clsc.models.instance_data import InstanceData
 from clsc.solvers.dbp import solve_bilevel_dbp
-from .validation import canonicalize_result_solution, validate_result_solution
+from .validation import validate_result_solution
 from .results import (
     RESULT_SCHEMA_VERSION,
     SUMMARY_FIELDNAMES,
@@ -114,6 +114,23 @@ def build_parser() -> argparse.ArgumentParser:
             "Override the DBP loop's own relative-gap stopping criterion "
             "(default: clsc.config.defaults.DEFAULT.dbp_relative_gap). This is the "
             "outer algorithm's stopping tolerance, not a Gurobi parameter."
+        ),
+    )
+    parser.add_argument(
+        "--tax-tolerance",
+        type=float,
+        help=(
+            "EUR/t: how close the HPR's next tax must be to the tax just evaluated for the "
+            "result to be classified optimal rather than epsilon-optimal (Lemma 3; default: "
+            "clsc.config.defaults.DEFAULT.tax_tolerance)."
+        ),
+    )
+    parser.add_argument(
+        "--cut-slack",
+        type=float,
+        help=(
+            "EUR: slack on the right-hand side of every value-function cut (default: "
+            "clsc.config.defaults.DEFAULT.cut_slack, 0)."
         ),
     )
     parser.add_argument(
@@ -287,6 +304,8 @@ def main() -> int:
                     leader_tax_weight_relative=args.leader_tax_weight_relative,
                     mip_gap=args.mip_gap,
                     dbp_relative_gap=args.dbp_relative_gap,
+                    tax_tolerance=args.tax_tolerance,
+                    cut_slack=args.cut_slack,
                     threads=args.threads,
                     mip_focus=args.mip_focus,
                     seed=args.seed,
@@ -297,10 +316,16 @@ def main() -> int:
                 )
             else:
                 raise ValueError(f"Unsupported solver method {args.method!r}")
-            result = canonicalize_result_solution(instance=instance, result=result)
             dbp_solve_seconds = round(time.perf_counter() - solve_started_at, 6)
             validation_started_at = time.perf_counter()
             solution_validation = validate_result_solution(instance=instance, result=result)
+            if solution_validation["status"] != "validated":
+                # The result is kept and written; the run is reported as failed through its exit code.
+                failed_instances += 1
+                print(
+                    f"WARNING: validation of {instance.name} failed: {solution_validation['failed_checks']}",
+                    file=sys.stderr,
+                )
             oracle_validation = None
             validation_seconds = round(time.perf_counter() - validation_started_at, 6)
             solve_seconds = round(time.perf_counter() - started_at, 6)
@@ -463,6 +488,8 @@ def build_manifest(
         "mip_gap": DEFAULT.mip_gap if args.mip_gap is None else args.mip_gap,
         "dbp_relative_gap": DEFAULT.dbp_relative_gap if args.dbp_relative_gap is None else args.dbp_relative_gap,
         "epsilon_prime": DEFAULT.epsilon_prime,
+        "tax_tolerance": DEFAULT.tax_tolerance if args.tax_tolerance is None else args.tax_tolerance,
+        "cut_slack": DEFAULT.cut_slack if args.cut_slack is None else args.cut_slack,
         "stagnation_limit": DEFAULT.stagnation_limit,
         "elastic_penalty_mult": DEFAULT.elastic_penalty_mult,
         "threads": DEFAULT.threads if args.threads is None else args.threads,

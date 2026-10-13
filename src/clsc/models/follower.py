@@ -11,7 +11,7 @@ from gurobipy import GRB
 
 from clsc.config.defaults import DEFAULT
 from .instance_data import InstanceData
-from .gurobi_utils import ModelArtifacts, SolveResult, apply_mip_start, normalize_solution_value, optimize_model, tax_base_of
+from .gurobi_utils import ModelArtifacts, SolveResult, apply_mip_start, optimize_model, tax_base_of
 from .supply_chain import build_supply_chain_model
 
 
@@ -298,50 +298,4 @@ def _set_fixed_tax_follower_expression(follower_model: FollowerModel, tax: float
     follower_model.artifacts.follower_objective_expr = (
         follower_model.artifacts.cost_expr
         + follower_model.instance.tax_rate(tax) * tax_base_of(follower_model.artifacts)
-    )
-
-
-def validate_fixed_tax_solution(
-    instance: InstanceData,
-    *,
-    tax: float,
-    variable_values: dict[str, float],
-) -> SolveResult:
-    artifacts = build_fixed_tax_model(instance, tax=tax)
-    model = artifacts.model
-    model.update()
-    for variable in model.getVars():
-        target_value = float(variable_values.get(variable.VarName, 0.0))
-        variable_lb = float(variable.LB)
-        variable_ub = float(variable.UB)
-        target_value = normalize_solution_value(
-            variable,
-            target_value,
-            lower_bound=variable_lb,
-            upper_bound=variable_ub,
-        )
-        if (
-            target_value < variable_lb - DEFAULT.eps
-            or target_value > variable_ub + DEFAULT.eps
-        ):
-            raise ValueError(
-                f"Saved solution value {target_value} for {variable.VarName} violates [{variable_lb}, {variable_ub}]",
-            )
-        if variable.VType == GRB.CONTINUOUS:
-            # Warm-start continuous variables rather than pinning LB=UB.
-            # Fixing all continuous variables to saved float values simultaneously
-            # can make the LP infeasible due to accumulated floating-point residuals
-            # in mass-balance/BOM constraints even when the solution is numerically
-            # correct. Integer variables are still pinned exactly; Gurobi then
-            # re-solves the LP, which is always feasible for a valid integer structure.
-            variable.Start = target_value
-        else:
-            variable.LB = target_value
-            variable.UB = target_value
-    return optimize_model(
-        artifacts,
-        tax=tax,
-        output_flag=False,
-        time_limit=None,
-        capture_solution=False,
     )

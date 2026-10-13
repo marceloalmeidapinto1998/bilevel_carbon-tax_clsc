@@ -101,11 +101,15 @@ from clsc.models.hpr import (
 #   optimal_*          optimal. Gap closed AND Lemma 3 confirmed it.
 #   epsilon_optimal    within dbp_relative_gap; Lemma 3 does not apply.
 #   incumbent_*        the best point found; the gap did NOT close.
+#   bound_inversion    LB above UB by more than the tolerance; no claim.
 #
 # The wording follows the reference: "terminates with the optimal solution(s)" /
 # "terminates with the epsilon-optimal solution" (Soares et al. 2021, Step 6).
 OPTIMAL_REASON = "optimal"
 STAGNATION_REASON = "incumbent_stagnation"
+# The lower bound crossed the upper bound by more than the stopping tolerance: one of the two is
+# not a bound, so no optimality claim is made.
+BOUND_INVERSION_REASON = "bound_inversion"
 # Soares et al. (2021)'s Step 6 else-branch: the bounds have closed to eps but the HPR's next
 # proposal differs from the point just evaluated, so Lemma 3 does not apply.
 EPSILON_OPTIMAL_REASON = "epsilon_optimal"
@@ -206,6 +210,10 @@ class BilevelSolveResult:
     # named ``leader_objective_lb`` / ``leader_objective_ub`` are bounds on F, not on emissions
     # alone; the incumbent's own emissions are in ``incumbent``.
     leader_tax_weight: float = 0.0
+    # |tax_{k+1} - tax_k| at the iteration where the gap closed: how far the HPR's next tax was
+    # from the one just evaluated (Lemma 3 asks for zero; ``tax_tolerance`` is the tolerance).
+    # None when the run did not stop on the gap test.
+    final_tax_change: float | None = None
 
 
 class BilevelSolveError(RuntimeError):
@@ -241,8 +249,14 @@ def relative_optimality_gap(
     leader_objective_ub: float,
     leader_objective_lb: float,
 ) -> float:
-    gap = max(0.0, leader_objective_ub - leader_objective_lb)
-    return gap / max(1.0, abs(leader_objective_ub))
+    """The relative gap (UB - LB) / max(1, |UB|), with its sign.
+
+    A negative gap means the lower bound has crossed the upper bound. The two bounds belong to
+    slightly different problems (the cuts carry no eps', the follower's tie-break does), so a
+    small inversion is consistent with the tolerances; one larger than the stopping tolerance
+    is reported as ``bound_inversion`` (see ``_DbpRun.step6``) instead of being hidden.
+    """
+    return (leader_objective_ub - leader_objective_lb) / max(1.0, abs(leader_objective_ub))
 
 
 def _coerce_instance(instance_or_path: InstanceData | str | Path) -> InstanceData:
@@ -288,13 +302,13 @@ def _emissions_tie_tolerance(first_emissions: float, second_emissions: float) ->
     )
 
 
-def _with_stagnation_context(certificate: BoundCertificate) -> BoundCertificate:
+def _with_context(certificate: BoundCertificate, suffix: str) -> BoundCertificate:
     return BoundCertificate(
         value=certificate.value,
         exact=certificate.exact,
         mip_gap=certificate.mip_gap,
         slack=certificate.slack,
-        source=f"{certificate.source}_stagnation_limit",
+        source=f"{certificate.source}_{suffix}",
     )
 
 
@@ -577,8 +591,10 @@ def _epsilon_optimal_result(
     )
 
 
-def _stagnation_result(
+def _bounded_result(
     *,
+    termination_reason: str,
+    context: str,
     iteration: int,
     leader_objective_lb: float,
     incumbent: IncumbentSolution,
@@ -589,29 +605,31 @@ def _stagnation_result(
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
 ) -> BilevelSolveResult:
-    """Soares et al.'s auxiliary stop: ``DEFAULT.stagnation_limit`` consecutive iterations moved
-    neither bound. The gap test (Step 6) runs first in every iteration, so the gap is still open
-    here: the incumbent and both bounds are reported, with no optimality claim."""
-    leader_objective_lb_certificate = _with_stagnation_context(
+    """A run that ends without an optimality claim, with the incumbent and both bounds: Soares et
+    al.'s auxiliary stop (``DEFAULT.stagnation_limit`` consecutive iterations moved neither bound;
+    the gap test of Step 6 runs first in every iteration, so the gap is still open), or a lower
+    bound that crossed the upper bound (``bound_inversion``). ``context`` tags the certificates."""
+    leader_objective_lb_certificate = _with_context(
         BoundCertificate(
             value=leader_objective_lb,
             exact=True,
             mip_gap=relaxation_mip_gap,
             slack=0.0,
             source="relaxation",
-        )
+        ),
+        context,
     )
-    stagnation_upper_bound_certificate = _with_stagnation_context(leader_objective_ub_certificate)
+    bounded_upper_bound_certificate = _with_context(leader_objective_ub_certificate, context)
     return _build_bilevel_result(
         method="dbp",
         mode="exact",
-        termination_reason=STAGNATION_REASON,
+        termination_reason=termination_reason,
         exact=False,
         iterations=iteration,
         leader_objective_lb=leader_objective_lb,
         leader_objective_ub=leader_objective_ub_certificate.value,
         leader_objective_lb_certificate=leader_objective_lb_certificate,
-        leader_objective_ub_certificate=stagnation_upper_bound_certificate,
+        leader_objective_ub_certificate=bounded_upper_bound_certificate,
         incumbent=incumbent,
         iteration_records=tuple(iteration_records),
         dbp_timing=_build_dbp_timing_summary(
@@ -651,6 +669,8 @@ def _solve_bilevel_dbp(
     use_emissions_cap: bool = False,
     use_follower_improvement: bool = True,
     use_elastic_hpr: bool = True,
+    tax_tolerance: float | None = None,
+    cut_slack: float | None = None,
     leader_tax_weight: float | None = None,
     leader_tax_weight_relative: float | None = None,
 ) -> BilevelSolveResult:
@@ -698,6 +718,12 @@ def _solve_bilevel_dbp(
       (their auxiliary stop).
 
     ``seed`` sets the Gurobi ``Seed`` on every sub-solve (MIP performance-variability probes).
+
+    ``tax_tolerance`` (EUR/t) is how close the HPR's next tax must be to the tax just evaluated for
+    the result to be classified optimal (Lemma 3); ``cut_slack`` (EUR) is the slack on the right-hand
+    side of every value-function cut. Both take their defaults from ``DEFAULT``; the CLI records
+    them in the manifest, because ``tax_tolerance`` alone decides ``optimal`` against
+    ``epsilon_optimal``.
     """
     if leader_tax_weight is not None and leader_tax_weight_relative is not None:
         raise ValueError("give either leader_tax_weight or leader_tax_weight_relative, not both")
@@ -722,6 +748,8 @@ def _solve_bilevel_dbp(
         use_emissions_cap=use_emissions_cap,
         use_follower_improvement=use_follower_improvement,
         use_elastic_hpr=use_elastic_hpr,
+        tax_tolerance=DEFAULT.tax_tolerance if tax_tolerance is None else tax_tolerance,
+        cut_slack=DEFAULT.cut_slack if cut_slack is None else cut_slack,
     )
     weight_kg_per_eur_t = run.set_tax_weight(leader_tax_weight, leader_tax_weight_relative)
     if _effective_tax_weight_sink is not None:
@@ -752,6 +780,8 @@ class _DbpRun:
         use_emissions_cap: bool,
         use_follower_improvement: bool,
         use_elastic_hpr: bool,
+        tax_tolerance: float,
+        cut_slack: float,
     ) -> None:
         self.instance = instance
         self.output_flag = output_flag
@@ -765,9 +795,11 @@ class _DbpRun:
         self.use_emissions_cap = use_emissions_cap
         self.use_follower_improvement = use_follower_improvement
         self.use_elastic_hpr = use_elastic_hpr
+        self.tax_tolerance = tax_tolerance
 
         # Plain cuts to begin with; made elastic in place only if the HPR ever returns no point.
         self.hpr = build_hpr(instance)
+        self.hpr.cut_slack = cut_slack
         self.follower_model = build_follower_model(instance)
 
         self.tax_weight_per_eur_t = 0.0
@@ -888,7 +920,9 @@ class _DbpRun:
             else:
                 self.iterations_without_bound_update += 1
             if self.iterations_without_bound_update >= DEFAULT.stagnation_limit:
-                return _stagnation_result(
+                return _bounded_result(
+                    termination_reason=STAGNATION_REASON,
+                    context="stagnation_limit",
                     **self._result_inputs(iteration),
                     relaxation_mip_gap=relaxation.mip_gap,
                 )
@@ -1083,23 +1117,36 @@ class _DbpRun:
 
     def step6(self, relaxation: SolveResult, tax: float, iteration: int) -> BilevelSolveResult | None:
         """Step 6: once the gap has closed the result is at least epsilon-optimal; if the HPR
-        re-proposes the tax just evaluated, Lemma 3 makes it optimal. The lemma needs a proper
-        HPR solution (not a timed-out incumbent, not an elastic point) and a proven best
-        response behind the upper bound. Returns None while the gap is open."""
+        re-proposes the tax just evaluated (to within ``tax_tolerance``, the tax being
+        continuous), Lemma 3 makes it optimal. The lemma needs a proper HPR solution (not a
+        timed-out incumbent, not an elastic point) and a proven best response behind the upper
+        bound. A lower bound above the upper bound by more than the stopping tolerance is no
+        closed gap: one of the two is not a bound, and the run ends as ``bound_inversion``.
+        Returns None while the gap is open."""
         gap = relative_optimality_gap(
             leader_objective_ub=self.ub_certificate.value,
             leader_objective_lb=self.leader_objective_lb,
         )
         if gap > self.dbp_relative_gap:
             return None
+        if gap < -self.dbp_relative_gap:
+            return _bounded_result(
+                termination_reason=BOUND_INVERSION_REASON,
+                context="bound_inversion",
+                **self._result_inputs(iteration),
+                relaxation_mip_gap=relaxation.mip_gap,
+            )
         # The penalty is in tonnes per EUR of violation, so anything above round-off is a real one.
         elastic_active = relaxation.slack_value is not None and relaxation.slack_value > 1e-6
         next_tax = _required_value(relaxation.tax, "next relaxation tax")
+        tax_change = abs(next_tax - tax)
         if (
             not _is_partial_hpr(relaxation)
             and not elastic_active
             and self.ub_certificate.exact
-            and abs(next_tax - tax) <= DEFAULT.tax_tolerance
+            and tax_change <= self.tax_tolerance
         ):
-            return _gap_closed_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)
-        return _epsilon_optimal_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)
+            result = _gap_closed_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)
+        else:
+            result = _epsilon_optimal_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)
+        return replace(result, final_tax_change=tax_change)

@@ -47,6 +47,9 @@ class HighPointRelaxation:
     # capacity, in every period.
     emissions_upper_bound: float = 0.0
     applied_cut_iterations: set[int] = field(default_factory=set)
+    # Slack added to the right-hand side of every cut: f(tax, y) <= f(tax, y_k) + cut_slack, in EUR.
+    # Set by the DBP from its parameter (DEFAULT.cut_slack).
+    cut_slack: float = 0.0
     emissions_cap_constraint: gp.Constr | None = None
     emissions_cap: float | None = None
     # (P5-D): every value-function cut carries its own elastic slack D_k, penalised in the
@@ -247,7 +250,7 @@ def add_value_function_cut(hpr: HighPointRelaxation, cut: ValueFunctionCut) -> N
     right_hand_side = (
         cut.cost
         + (cut_tax_base / KG_PER_TONNE) * tax
-        + DEFAULT.cut_slack
+        + hpr.cut_slack
     )
     if hpr.elastic and hpr.elastic_total_constraint is not None:
         # (P5-D): this cut's own slack D_k, summed into the penalised total.

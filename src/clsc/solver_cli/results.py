@@ -14,7 +14,9 @@ from clsc.solvers.dbp import BilevelSolveError, SubproblemStatusError, relative_
 from .validation import OutputValidationError
 
 
-RESULT_SCHEMA_VERSION = 5
+# 6: the tax is continuous (tax, tax_rate, *_tax replace the integer tax index), the relative gap is
+# signed, the validation record changed, and final_tax_change was added.
+RESULT_SCHEMA_VERSION = 6
 
 
 SUMMARY_FIELDNAMES = [
@@ -34,6 +36,7 @@ SUMMARY_FIELDNAMES = [
     "leader_objective_lb",
     "leader_objective_ub",
     "relative_gap",
+    "final_tax_change",
     "validation_status",
     "failure_stage",
     "error_type",
@@ -70,7 +73,8 @@ def classify_result(result) -> str:
 
     ``optimal``          gap <= dbp_relative_gap with every certificate in hand (``exact``).
     ``epsilon_optimal``  gap <= dbp_relative_gap, but the tax or a bound is not certified.
-    ``bounded``          the gap did not close: the result is the interval [LB, UB] and the
+    ``bounded``          the gap did not close (or the bounds crossed by more than the tolerance,
+                         ``bound_inversion``): the result is the interval [LB, UB] and the
                          incumbent that attains UB -- "optimal or nearly optimal" at best, with
                          convergence not guaranteed under positive subproblem gaps.
     """
@@ -111,6 +115,8 @@ def build_summary_record(
             leader_objective_ub=result.leader_objective_ub,
             leader_objective_lb=result.leader_objective_lb,
         ),
+        # |tax_{k+1} - tax_k| (EUR/t) where the gap closed; Lemma 3 asks for 0 up to tax_tolerance.
+        "final_tax_change": result.final_tax_change,
         "validation_status": solution_validation["status"],
         "failure_stage": None,
         "error_type": None,
@@ -156,6 +162,7 @@ def build_instance_result_payload(
             "exact": result.exact,
             "termination_reason": result.termination_reason,
             "iterations": result.iterations,
+            "final_tax_change": result.final_tax_change,
         },
         "phase_summary": build_phase_summary(result),
         "leader": {
@@ -320,6 +327,7 @@ def build_failure_summary_record(
         "follower_objective": None,
         "leader_objective_lb": None,
         "leader_objective_ub": None,
+        "final_tax_change": None,
         "relative_gap": None,
         "validation_status": "failed",
         "failure_stage": diagnostics["failure_stage"],

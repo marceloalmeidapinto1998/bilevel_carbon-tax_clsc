@@ -1,161 +1,157 @@
-"""Revalidation of a solved bilevel result: rebuild the follower at the incumbent's fixed
-discrete decisions and check that the saved solution is feasible and attains the reported
-objective.
+"""Independent check of a solved bilevel result's incumbent.
+
+The saved solution is re-evaluated at the point the DBP certified, tax and variable values as
+they are, in a freshly built follower model. Nothing is re-optimised and nothing is overwritten:
+the result keeps the numbers the DBP bounded, and this module only reports whether the saved
+solution reproduces them. It checks that the solution
+
+* satisfies every constraint and variable bound of the follower's feasible set,
+* is integral where the model asks for integers,
+* has the cost, the emissions and the follower objective the DBP reported, and
+* attains the upper bound on the leader's objective: E + w * tax = UB.
+
+It does NOT re-check that the response is optimal for the follower. That is certified by the
+follower's solves inside the DBP (two stages, to the stage gaps recorded in the result); repeating
+a solve here would only repeat the DBP's own computation.
 """
 from __future__ import annotations
 
-from dataclasses import replace
+import gurobipy as gp
+from gurobipy import GRB
 
 from clsc.config.constants import INTEGER_SNAP_TOL
-from clsc.config.defaults import DEFAULT
-from clsc.models.follower import (
-    build_follower_model,
-    solve_follower_lexicographic,
-    validate_fixed_tax_solution,
-)
+from clsc.models.follower import build_fixed_tax_model
 from clsc.models.instance_data import InstanceData
 
 
-DBP_SOLVER_METHODS = {
-    "dbp",
-}
-
-
 class OutputValidationError(RuntimeError):
-    """Raised when a saved incumbent cannot be revalidated from solution data."""
+    """Raised when a saved incumbent cannot be revalidated because its solution data is missing."""
 
 
-def canonicalize_result_solution(*, instance: InstanceData, result):
-    optimistic = result.incumbent_solution
-    if optimistic is None or not optimistic.has_solution or optimistic.variable_values is None:
-        return result
-
-    recomputed = validate_fixed_tax_solution(
-        instance,
-        tax=result.incumbent.tax,
-        variable_values=optimistic.variable_values,
-    )
-    if (
-        (not recomputed.has_solution or recomputed.status_name != "OPTIMAL")
-        and result.method in DBP_SOLVER_METHODS
-    ):
-        repaired = rebuild_solution_with_fixed_discrete_values(
-            instance=instance,
-            result=result,
-        )
-        if repaired is not None and repaired.has_solution and repaired.status_name == "OPTIMAL":
-            result = replace(
-                result,
-                incumbent=replace(
-                    result.incumbent,
-                    cost=float(repaired.cost),
-                    emissions=float(repaired.emissions),
-                    follower_objective=float(repaired.follower_objective),
-                ),
-                incumbent_solution=repaired,
-            )
-            optimistic = repaired
-            recomputed = validate_fixed_tax_solution(
-                instance,
-                tax=result.incumbent.tax,
-                variable_values=optimistic.variable_values or {},
-            )
-    if not recomputed.has_solution or recomputed.status_name != "OPTIMAL":
-        return result
-
-    canonical_incumbent = replace(
-        result.incumbent,
-        cost=float(recomputed.cost),
-        emissions=float(recomputed.emissions),
-        follower_objective=float(recomputed.follower_objective),
-    )
-    canonical_optimistic = replace(
-        optimistic,
-        cost=float(recomputed.cost),
-        emissions=float(recomputed.emissions),
-        follower_objective=float(recomputed.follower_objective),
-    )
-    return replace(
-        result,
-        incumbent=canonical_incumbent,
-        incumbent_solution=canonical_optimistic,
-    )
+# Relative to max(1, |bound|): the solver's own feasibility tolerance is 1e-6 on scaled rows, and the
+# saved values are the solver's, clamped to their bounds and snapped to integers.
+FEASIBILITY_TOLERANCE = 1e-6
+# Both sides of these comparisons come from the same expressions evaluated at the same values.
+OBJECTIVE_TOLERANCE = 1e-8
+# E + w * tax against UB: the incumbent is chosen with a tie tolerance (relative 1e-7, see
+# dbp._emissions_tie_tolerance) that the upper bound's strict comparison does not have.
+LEADER_OBJECTIVE_TOLERANCE = 1e-6
 
 
-def rebuild_solution_with_fixed_discrete_values(*, instance: InstanceData, result):
-    optimistic = result.incumbent_solution
-    if optimistic is None or not optimistic.has_solution or optimistic.variable_values is None:
-        return None
+def _evaluate(expression: gp.LinExpr, values: dict[str, float]) -> float:
+    total = expression.getConstant()
+    for index in range(expression.size()):
+        total += expression.getCoeff(index) * values.get(expression.getVar(index).VarName, 0.0)
+    return float(total)
 
-    follower_model = build_follower_model(instance)
-    model = follower_model.artifacts.model
-    model.update()
-    for variable in model.getVars():
-        if variable.VType == "C":
-            continue
-        target_value = float(optimistic.variable_values.get(variable.VarName, 0.0))
-        variable_lb = float(variable.LB)
-        variable_ub = float(variable.UB)
-        if abs(target_value - round(target_value)) <= INTEGER_SNAP_TOL:
-            target_value = float(round(target_value))
-        if target_value < variable_lb - DEFAULT.eps or target_value > variable_ub + DEFAULT.eps:
-            raise ValueError(
-                f"Saved solution value {target_value} for {variable.VarName} violates [{variable_lb}, {variable_ub}]",
-            )
-        if target_value < variable_lb:
-            target_value = variable_lb
-        if target_value > variable_ub:
-            target_value = variable_ub
-        variable.LB = target_value
-        variable.UB = target_value
 
-    return solve_follower_lexicographic(
-        follower_model,
-        result.incumbent.tax,
-        output_flag=False,
-        time_limit=None,
-        capture_solution=True,
-        warm_start_values=optimistic.variable_values,
-        mip_gap=DEFAULT.eps,
-    )
+def _relative_difference(value: float, reference: float) -> float:
+    return abs(value - reference) / max(1.0, abs(reference))
 
 
 def validate_result_solution(*, instance: InstanceData, result) -> dict[str, object]:
-    optimistic = result.incumbent_solution
-    if optimistic is None or not optimistic.has_solution:
+    """Re-evaluate the saved incumbent and report ``status`` ``validated`` or ``failed``.
+
+    Raises :class:`OutputValidationError` only when the solution data is missing.
+    """
+    saved = result.incumbent_solution
+    if saved is None or not saved.has_solution:
         raise OutputValidationError(f"Missing cached optimistic incumbent solution for {instance.name}")
-    if optimistic.variable_values is None:
+    if saved.variable_values is None:
         raise OutputValidationError(f"Cached optimistic incumbent solution for {instance.name} has no variable values")
 
-    recomputed = validate_fixed_tax_solution(
-        instance,
-        tax=result.incumbent.tax,
-        variable_values=optimistic.variable_values,
-    )
-    if not recomputed.has_solution or recomputed.status_name != "OPTIMAL":
-        raise OutputValidationError(
-            f"Saved incumbent for {instance.name} could not be revalidated (status={recomputed.status_name})",
-        )
+    incumbent = result.incumbent
+    artifacts = build_fixed_tax_model(instance, tax=incumbent.tax)
+    model = artifacts.model
+    model.update()
+    values = {variable.VarName: float(saved.variable_values.get(variable.VarName, 0.0)) for variable in model.getVars()}
+    unknown = sorted(set(saved.variable_values) - set(values))
 
-    deltas = {
-        "cost": float(recomputed.cost) - float(result.incumbent.cost),
-        "emissions": float(recomputed.emissions) - float(result.incumbent.emissions),
-        "follower_objective": float(recomputed.follower_objective) - float(result.incumbent.follower_objective),
+    worst_row, worst_row_violation = None, 0.0
+    for constraint in model.getConstrs():
+        activity = _evaluate(model.getRow(constraint), values)
+        right_hand_side = constraint.RHS
+        if constraint.Sense == GRB.LESS_EQUAL:
+            violation = activity - right_hand_side
+        elif constraint.Sense == GRB.GREATER_EQUAL:
+            violation = right_hand_side - activity
+        else:
+            violation = abs(activity - right_hand_side)
+        scaled = max(0.0, violation) / max(1.0, abs(right_hand_side))
+        if scaled > worst_row_violation:
+            worst_row, worst_row_violation = constraint.ConstrName, scaled
+
+    worst_bound, worst_bound_violation = None, 0.0
+    worst_integer, worst_integer_gap = None, 0.0
+    for variable in model.getVars():
+        value = values[variable.VarName]
+        for bound, violation in ((variable.LB, variable.LB - value), (variable.UB, value - variable.UB)):
+            if abs(bound) >= 1e20:
+                continue
+            scaled = max(0.0, violation) / max(1.0, abs(bound))
+            if scaled > worst_bound_violation:
+                worst_bound, worst_bound_violation = variable.VarName, scaled
+        if variable.VType != GRB.CONTINUOUS:
+            gap = abs(value - round(value))
+            if gap > worst_integer_gap:
+                worst_integer, worst_integer_gap = variable.VarName, gap
+
+    cost = _evaluate(artifacts.cost_expr, values)
+    emissions = _evaluate(artifacts.emissions_expr, values)
+    follower_objective = _evaluate(artifacts.follower_objective_expr, values)
+    objective_differences = {
+        "cost": _relative_difference(cost, incumbent.cost),
+        "emissions": _relative_difference(emissions, incumbent.emissions),
+        "follower_objective": _relative_difference(follower_objective, incumbent.follower_objective),
     }
-    max_abs_delta = max(abs(value) for value in deltas.values())
-    if max_abs_delta > DEFAULT.eps:
-        raise OutputValidationError(
-            f"Saved incumbent metrics for {instance.name} are inconsistent with the recomputed fixed solution: {deltas}",
-        )
+    leader_objective = emissions + result.leader_tax_weight * incumbent.tax
+    leader_difference = _relative_difference(leader_objective, result.leader_objective_ub)
 
-    return {
-        "status": "validated",
-        "tolerance": DEFAULT.eps,
-        "recomputed": {
-            "cost": recomputed.cost,
-            "emissions": recomputed.emissions,
-            "follower_objective": recomputed.follower_objective,
+    checks = {
+        "constraints": {
+            "max_scaled_violation": worst_row_violation,
+            "worst_constraint": worst_row,
+            "ok": worst_row_violation <= FEASIBILITY_TOLERANCE and not unknown,
         },
-        "deltas": deltas,
-        "max_abs_delta": max_abs_delta,
+        "bounds": {
+            "max_scaled_violation": worst_bound_violation,
+            "worst_variable": worst_bound,
+            "ok": worst_bound_violation <= FEASIBILITY_TOLERANCE,
+        },
+        "integrality": {
+            "max_distance_to_integer": worst_integer_gap,
+            "worst_variable": worst_integer,
+            "ok": worst_integer_gap <= INTEGER_SNAP_TOL,
+        },
+        "objectives": {
+            "recomputed": {"cost": cost, "emissions": emissions, "follower_objective": follower_objective},
+            "reported": {
+                "cost": incumbent.cost,
+                "emissions": incumbent.emissions,
+                "follower_objective": incumbent.follower_objective,
+            },
+            "relative_differences": objective_differences,
+            "ok": max(objective_differences.values()) <= OBJECTIVE_TOLERANCE,
+        },
+        "leader_objective": {
+            "emissions_plus_weighted_tax": leader_objective,
+            "upper_bound": result.leader_objective_ub,
+            "relative_difference": leader_difference,
+            "ok": leader_difference <= LEADER_OBJECTIVE_TOLERANCE,
+        },
+    }
+    failed_checks = [name for name, check in checks.items() if not check["ok"]]
+    return {
+        "status": "validated" if not failed_checks else "failed",
+        "method": "the saved solution re-evaluated at the certified point; no re-optimisation",
+        "not_checked": "optimality of the response for the follower (certified by the DBP's follower solves)",
+        "tolerances": {
+            "feasibility": FEASIBILITY_TOLERANCE,
+            "integrality": INTEGER_SNAP_TOL,
+            "objective": OBJECTIVE_TOLERANCE,
+            "leader_objective": LEADER_OBJECTIVE_TOLERANCE,
+        },
+        "unknown_variables": unknown,
+        "failed_checks": failed_checks,
+        "checks": checks,
     }

@@ -53,6 +53,8 @@ All monetary quantities are in EUR. Emissions are the climate-change category of
 
 The bilevel problem is solved with the DBP of Soares et al. (2021). The procedure alternates between two computations. The high-point relaxation (HPR) gives a lower bound $\mathrm{LB}$ on the leader's objective $F$. The evaluation of the follower gives an upper bound $\mathrm{UB}$. It stops when the relative gap between the bounds is at most $\varepsilon$.
 
+**The problem that is solved.** The follower is taken to accept any response whose objective is within $\varepsilon'$ of its best, on top of the MIP gap to which its problem is solved (the $\varepsilon'$-optimistic problem, as in Soares et al. and Mitsos). The evaluation of the follower, and so $\mathrm{UB}$, refers to that problem. The cuts carry no $\varepsilon'$, so $\mathrm{LB}$ bounds the exact optimistic problem. The two bounds therefore belong to slightly different problems. The gap is reported with its sign, and a lower bound above the upper bound by more than $\varepsilon$ ends the run as `bound_inversion`.
+
 The HPR minimises $F$ over the follower's physical constraints alone and does not require the follower's response to be optimal. These constraints do not contain $\tau$. Every follower response is therefore feasible at every tax rate, and every evaluated response yields a cut that is valid for the whole problem. The follower's objective $f(\tau, y) = c(y) + \tau\,\beta(y)$ contains the product of two continuous quantities, so the HPR is a non-convex bilinear program; Gurobi solves it by spatial branch-and-bound (`NonConvex=2`).
 
 **Tolerances**
@@ -75,11 +77,14 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 | Outcome | Condition |
 |---|---|
-| Optimal | The gap is at most $\varepsilon$ and $\lvert\tau_{k+1} - \tau_{k}\rvert \le \delta$. |
-| $\varepsilon$-optimal | The gap is at most $\varepsilon$, but $\lvert\tau_{k+1} - \tau_{k}\rvert > \delta$. |
+| Optimal | The gap is at most $\varepsilon$ and $\lvert\tau_{k+1} - \tau_{k}\rvert \le \delta$; the last HPR did not stop on its time limit and has no active elastic slack; the follower's response behind $\mathrm{UB}$ was solved within its time limit. |
+| $\varepsilon$-optimal | The gap is at most $\varepsilon$, but one of the conditions above fails. |
+| Bound inversion | $\mathrm{LB}$ exceeds $\mathrm{UB}$ by more than $\varepsilon$ (relative): one of them is not a bound. |
 | Auxiliary stop | Neither bound changed during 10 consecutive iterations. |
 
-The follower's response changes at break points, taxes at which the follower is indifferent between two responses and the optimistic rule picks the one with fewer emissions. On `STD_I17_M4_T3` the optimal tax lies at such a break point, between 33.91 and 33.95 EUR/t, where the emissions drop by 0.33%. Because the tie-break accepts responses up to $\varepsilon'$ above the follower's optimum, the reported tax can lie slightly below the exact break point, by roughly the tolerance $\varepsilon'$ divided by the change in the taxed emissions across the break (about 0.03 EUR/t here, an estimate).
+In the summary files the outcomes appear as the result classes `optimal`, `epsilon_optimal` and `bounded` (the last for every run that does not end on the gap test), with the termination reason alongside (`optimal`, `epsilon_optimal`, `bound_inversion`, `incumbent_stagnation`, `incumbent_time_limit`). `final_tax_change` records $\lvert\tau_{k+1} - \tau_{k}\rvert$ where the gap closed.
+
+The follower's response changes at break points, taxes at which the follower is indifferent between two responses and the optimistic rule picks the one with fewer emissions. On `STD_I17_M4_T3` the optimal tax lies at such a break point, between 33.91 and 33.95 EUR/t, where the emissions drop by 0.33%. The tie-break accepts responses up to $\varepsilon'$ above the follower's best, so the reported tax can lie slightly below the exact break point. This repository does not certify the tax as an interval; $\lvert\tau_{k+1} - \tau_{k}\rvert$ is reported (`final_tax_change`) so that the distance between the evaluated tax and the HPR's proposal is visible.
 
 <details>
 <summary>Time limits and stopping rules</summary>
@@ -150,11 +155,13 @@ A run on one instance writes to `results/runs/base/<instance>/dbp/`. A run on a 
 
 | File | Content |
 |---|---|
-| `summary.json`, `summary.csv` | result class, termination reason, tax (EUR/t), cost, emissions, bounds, gap, validation status |
+| `summary.json`, `summary.csv` | result class, termination reason, tax (EUR/t), cost, emissions, bounds, signed gap, final tax change, validation status |
 | `result.json` | full result: bounds with certificates, follower stage gaps, timings |
 | `solution.json` | the incumbent's variable values |
 | `dbp_trace.csv` | one row per DBP iteration: proposed tax, bounds, subproblem times |
 | `manifest.json` | configuration used: tolerances, time limits, tax weight, flags |
+
+`validation_status` is `validated` when the saved solution, re-evaluated at the certified point without re-optimising it, satisfies every constraint and bound, is integral where required, reproduces the reported cost, emissions and follower objective, and attains the upper bound ($E + w\,\tau = \mathrm{UB}$). Otherwise it is `failed`: the result files are kept, a warning is printed and the exit code is 1. The follower's optimality is not re-checked here; it is certified by the follower's solves inside the DBP.
 
 
 ### Generating instances
@@ -179,7 +186,7 @@ python -m pytest                  # all regression tests
 python -m pytest -m "not slow"    # skip the solver test
 ```
 
-[`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a solve of `STD_I17_M4_T3` with one thread and Gurobi seed 0 reproduces its reference summary (about five minutes). The tests are skipped when no Gurobi licence is found; a size-limited licence is not enough (see "Requirements and reproducibility").
+[`tests/test_certificates.py`](tests/test_certificates.py) checks the signed gap, the result classes, the validation of the saved solution, and, on a tiny generated instance, that the DBP's bounds enclose the best value of a sweep of the tax (about 25 seconds; the gap and class tests need no licence). [`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a solve of `STD_I17_M4_T3` with one thread and Gurobi seed 0 reproduces its reference summary (about five minutes). The tests are skipped when no Gurobi licence is found; a size-limited licence is not enough (see "Requirements and reproducibility").
 
 ## Configuration
 
@@ -191,7 +198,8 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 | `mip_gap` | `1e-4` | Gurobi MIP gap for every MILP subproblem, the follower's and the HPR's |
 | `time_limit` | `600` s | time limit per MILP subproblem |
 | `epsilon_prime` | `1e-6` | $\varepsilon'$, relative to the follower's objective: tolerance of the follower's tie-break |
-| `tax_tolerance` | `1e-3` EUR/t | $\delta$: how close the HPR's next tax must be to the evaluated tax for the result to be classified optimal |
+| `tax_tolerance` | `1e-3` EUR/t | $\delta$: how close the HPR's next tax must be to the evaluated tax for the result to be classified optimal (`--tax-tolerance`) |
+| `cut_slack` | `0` EUR | slack on the right-hand side of every value-function cut (`--cut-slack`) |
 | `stagnation_limit` | `10` | number of iterations without a bound update before the run stops |
 | `tax_weight_relative` | `1e-4` | $q$ in $w = q \cdot E_{\text{ref}}$ (see "Problem") |
 | `threads`, `mip_focus` | `4`, `2` | Gurobi settings |

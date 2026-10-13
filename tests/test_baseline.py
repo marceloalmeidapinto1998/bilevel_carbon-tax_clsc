@@ -7,6 +7,7 @@ skipped without one. Run with ``python -m pytest``; ``-m "not slow"`` skips the 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -68,7 +69,7 @@ def test_generator_reproduces_escalation_instances(tmp_path: Path) -> None:
 @pytest.mark.gurobi
 @pytest.mark.slow
 def test_cli_reference_solve(tmp_path: Path) -> None:
-    """The baseline is the CLI's summary, which reports the canonicalised (revalidated) solution.
+    """The baseline is the CLI's summary: the DBP's own incumbent, validated against the saved solution.
 
     Run on one thread with Gurobi seed 0, the setting the reference values were recorded under
     (Gurobi 13.0.1, about 5 minutes). The iteration count is not asserted: it depends on the solver's
@@ -78,6 +79,7 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
         [sys.executable, "-m", "clsc.solver_cli", str(BASE_INSTANCES / "STD_I17_M4_T3.json"),
          "--results-root", str(tmp_path), "--threads", "1", "--seed", "0"],
         cwd=REPO_ROOT, capture_output=True, text=True,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
     )
     assert completed.returncode == 0, completed.stderr[-2000:]
     summaries = list(tmp_path.glob("**/summary.json"))
@@ -87,11 +89,17 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
 
     assert summary["result_class"] == "optimal"
     assert summary["termination_reason"] == "optimal"
-    assert summary["tax"] == pytest.approx(33.9286, abs=0.1)
+    assert summary["tax"] == pytest.approx(33.9286, abs=0.01)
     assert summary["validation_status"] == "validated"
     assert summary["leader_objective_lb"] <= summary["leader_objective_ub"]
     assert summary["relative_gap"] <= 1e-4
-    assert summary["cost"] == pytest.approx(1551005.3165628714, rel=1e-6)
-    assert summary["emissions"] == pytest.approx(24683049.835076936, rel=1e-6)
+    assert summary["final_tax_change"] <= 1e-3
+    assert 0.0 <= summary["tax"] <= 200.0
+    # The incumbent attains the upper bound: E + w * tax = UB.
+    assert summary["emissions"] + summary["leader_tax_weight"] * summary["tax"] == pytest.approx(
+        summary["leader_objective_ub"], rel=1e-9,
+    )
+    assert summary["cost"] == pytest.approx(1551005.3756630884, rel=1e-6)
+    assert summary["emissions"] == pytest.approx(24683049.8245415, rel=1e-6)
     assert summary["leader_objective_lb"] == pytest.approx(24764694.80956364, rel=1e-6)
     assert summary["leader_objective_ub"] == pytest.approx(24766317.208076447, rel=1e-6)
