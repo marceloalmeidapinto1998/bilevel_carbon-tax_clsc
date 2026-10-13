@@ -35,8 +35,9 @@ WAREHOUSE_AREA_MAX_RANGE = (4000.0, 4750.0)
 # lbeawmin = 2.5, ubeawmin = 25), consistent with the minimum areas of their illustrative example
 # (factory 57, warehouses 7 and 16). Mota et al.'s case study uses minima of 2000 and 500 m^2. The
 # Tautenhain minima are under 1% of the maxima, so the constraint is nearly inactive and opening a
-# facility is much cheaper than with Mota's minima. Kept as published; a sensitivity check against
-# Mota's minima is left for when the results are final.
+# facility is much cheaper than with Mota's minima. Kept as published. The sensitivity check against
+# Mota's minima belongs to the planned sensitivity block, together with the scaling of the emission
+# factors.
 FACTORY_AREA_MIN_RANGE = (10.0, 100.0)
 WAREHOUSE_AREA_MIN_RANGE = (2.5, 25.0)
 SUPPLIER_MIN_FRACTION_RANGE = (0.00001, 0.0001)
@@ -65,9 +66,9 @@ DISTANCE_RANGE = (10.0, 750.0)
 # sources price facility installation exclusively as sqmc_i * YC_i. The range
 # is Mota et al. (2018) Table 8, "Construction cost, sqmc_i", whose ten
 # countries span Bulgaria 270 to Germany 661 per m^2. Every monetary parameter
-# in this module is in EUR, the currency of Tautenhain et al.'s data; Mota's
-# Table 8, a European case study whose labour column is the EUR/h range used
-# below, is read in the same currency.
+# in this module is in EUR, the currency of Tautenhain et al.'s data and of Mota's
+# Table 3. Mota's Table 8 itself carries no unit in its header; its construction and
+# labour columns are read as EUR (labour as EUR per hour, which is an assumption).
 #
 # We follow Mota's per-square-metre rates and NOT Tautenhain et al.'s
 # generator, which draws
@@ -193,7 +194,10 @@ ASSET_LIFE_YEARS = {"facility": 20.0, "technology": 8.0, "vehicle": 5.0}
 # correction -- but it restructures the capital/operating balance the carbon
 # tax acts on.
 # ---------------------------------------------------------------------------
-LABOUR_COST_RANGE = (3.5, 30.4)          # lc_i, EUR per hour
+# lc_i, EUR per hour: Tautenhain et al.'s generator range (supplementary Table 5, U[3.5, 30.4]).
+# Mota et al.'s Table 8 lists 3.7 (Bulgaria) to 37.2 (Belgium) for its ten countries, so the two
+# ranges differ.
+LABOUR_COST_RANGE = (3.5, 30.4)
 FIXED_WORKERS_FACTORY_RANGE = (1, 2)     # wi_i, factories
 FIXED_WORKERS_WAREHOUSE_RANGE = (1, 2)   # wi_i, warehouses
 WORKERS_PER_SQM = 0.01                   # wpsq_i, workers per m^2
