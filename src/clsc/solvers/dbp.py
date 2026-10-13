@@ -5,10 +5,10 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
 
   Their notation          Here                              Built / solved by
   ---------------------------------------------------------------------------
-  x^u                     tax_index (integer)               the leader's choice
+  x^u                     tax (EUR/t, continuous)     the leader's choice
   y                       the whole supply chain            the model's own variables,
                                                             built in build_supply_chain_model *
-  F(x, y)                 E + w * tax_index                 the leader's single objective **
+  F(x, y)                 E + w * tax                 the leader's single objective **
   f(x, y)                 cost + tax_rate * tax_base        follower's objective
   g(y) <= 0               the chain's physical constraints  build_supply_chain_model
                           -- independent of the tax
@@ -46,9 +46,9 @@ CORRESPONDENCE WITH Soares, Alves & Henggeler Antunes (2021), EJOR 291, 52-66
     captured after a solve and used for solution.json and the next warm start. It is filled by
     the leader HPR as readily as by the follower, so it is not "y" and is not the follower's.
 
- ** THE LEADER HAS ONE OBJECTIVE, F = E + w * tax_index, where E is total physical emissions and
-    w (kg CO2e per grid index, derived from ``leader_tax_weight`` in kg per EUR/t) is how much
-    emissions the regulator gives up to avoid one more index of tax. w is a POLICY assumption, not
+ ** THE LEADER HAS ONE OBJECTIVE, F = E + w * tax, where E is total physical emissions and
+    w (kg CO2e per EUR/t, from ``leader_tax_weight``) is how much
+    emissions the regulator gives up to avoid one more EUR/t of tax. w is a POLICY assumption, not
     a tolerance. One criterion is what lets this procedure be Soares et al.'s as written: a single
     HPR stage, the UB_F - LB_F gap, their Step 6 and Lemma 3, with nothing added to the leader
     side. The tax term is also what prefers the lower tax among taxes that abate the same.
@@ -64,9 +64,9 @@ lower one. This leader MINIMISES, so both flip: the HPR gives the lower bound
 this module's ``leader_objective_ub``. Both bound the leader's objective F; the incumbent's own
 emissions are in ``incumbent.emissions``.
 
-WHAT THIS ADDS to the reference procedure: the exact one-hot linearisation of
-tax_rate * emissions -- needed because this tax multiplies continuous flows, where theirs
-multiplied binaries.
+WHAT THIS ADDS to the reference procedure: the bilinear product tax * emissions in the HPR, solved
+by Gurobi's spatial branch-and-bound -- needed because this tax multiplies continuous flows, where
+theirs multiplied binaries and linearised exactly.
 """
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ from pathlib import Path
 import time
 
 from clsc.config.defaults import DEFAULT
-from clsc.config.tax_scale import TAX_SCALE_FACTOR
+from clsc.config.constants import KG_PER_TONNE
 from clsc.models.instance_data import InstanceData
 from clsc.models.follower import build_follower_model, solve_follower_lexicographic
 from clsc.models.gurobi_utils import SolveResult
@@ -117,19 +117,15 @@ EPSILON_OPTIMAL_REASON = "epsilon_optimal"
 
 @dataclass(frozen=True, slots=True)
 class IncumbentSolution:
-    tax_index: int
+    tax: float  # EUR per tonne of CO2e
     cost: float
     emissions: float
     follower_objective: float
-    # Grid step used to convert tax_index -> rate; the solving instance's own
-    # scale_factor (see InstanceData.scale_factor), so a finer grid reports the
-    # correct rate. Defaults to the module constant for legacy callers/tests.
-    scale_factor: float = TAX_SCALE_FACTOR
 
     @property
     def tax_rate(self) -> float:
-        """Real carbon tax rate (EUR/kg CO2e) for this solution's ``tax_index``."""
-        return self.scale_factor * self.tax_index
+        """Carbon tax rate (EUR/kg CO2e) for this solution's ``tax``."""
+        return self.tax / KG_PER_TONNE
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +140,7 @@ class BoundCertificate:
 @dataclass(frozen=True, slots=True)
 class DbpIterationRecord:
     iteration: int
-    relaxation_tax_index: int
+    relaxation_tax: float
     relaxation_lower_bound: float
     follower_seconds: float
     follower_objective: float
@@ -153,7 +149,7 @@ class DbpIterationRecord:
     optimistic_emissions: float
     leader_objective_ub: float
     relaxation_seconds: float
-    next_relaxation_tax_index: int
+    next_relaxation_tax: float
     next_relaxation_lower_bound: float
     # The HPR's own MIP gap at this iteration and whether it stopped on its time limit instead
     # of reaching its gap target. A partial HPR still yields a valid lower bound (its dual
@@ -258,20 +254,20 @@ def _coerce_instance(instance_or_path: InstanceData | str | Path) -> InstanceDat
 def _is_better_scalar(
     candidate: IncumbentSolution,
     incumbent: IncumbentSolution | None,
-    tax_weight_per_index: float,
+    tax_weight_per_eur_t: float,
 ) -> bool:
-    """Incumbent comparator for the single-objective leader: the lower ``E + w * tax_index``,
+    """Incumbent comparator for the single-objective leader: the lower ``E + w * tax``,
     and at an exact tie (to numerical noise) the lower tax. The tax term is what prefers the
     lower tax within a plateau of equal emissions, so no second criterion is needed."""
     if incumbent is None:
         return True
-    candidate_value = candidate.emissions + tax_weight_per_index * candidate.tax_index
-    incumbent_value = incumbent.emissions + tax_weight_per_index * incumbent.tax_index
+    candidate_value = candidate.emissions + tax_weight_per_eur_t * candidate.tax
+    incumbent_value = incumbent.emissions + tax_weight_per_eur_t * incumbent.tax
     tolerance = _emissions_tie_tolerance(candidate_value, incumbent_value)
     if candidate_value < incumbent_value - tolerance:
         return True
     if math.isclose(candidate_value, incumbent_value, abs_tol=tolerance):
-        return candidate.tax_index < incumbent.tax_index
+        return candidate.tax < incumbent.tax
     return False
 
 
@@ -332,7 +328,7 @@ def _is_usable_partial_hpr(result: SolveResult) -> bool:
     return (
         _is_partial_hpr(result)
         and result.has_solution
-        and result.tax_index is not None
+        and result.tax is not None
         and result.emissions is not None
         and result.leader_lower_bound is not None
     )
@@ -627,7 +623,7 @@ def _stagnation_result(
 
 
 # ---------------------------------------------------------------------------
-# DBP solver (single-objective leader, F = E + w * tax_index)
+# DBP solver (single-objective leader, F = E + w * tax)
 # ---------------------------------------------------------------------------
 
 def solve_bilevel_dbp(instance_or_path: InstanceData | str | Path, **kwargs) -> BilevelSolveResult:
@@ -659,7 +655,7 @@ def _solve_bilevel_dbp(
     leader_tax_weight: float | None = None,
     leader_tax_weight_relative: float | None = None,
 ) -> BilevelSolveResult:
-    """Soares et al. (2021)'s DBP for the carbon-tax leader ``F = E + w * tax_index``.
+    """Soares et al. (2021)'s DBP for the carbon-tax leader ``F = E + w * tax``.
 
     The loop squeezes a lower bound on F (the HPR's dual bound) against an upper
     bound (the least F any evaluated follower response attained) until ``UB - LB <= eps``. At
@@ -778,7 +774,7 @@ class _DbpRun:
         self.hpr = build_hpr(instance)
         self.follower_model = build_follower_model(instance)
 
-        self.tax_weight_per_index = 0.0
+        self.tax_weight_per_eur_t = 0.0
         self.scale_seconds = 0.0
         self.initial_relaxation_seconds = 0.0
         self.iteration_records: list[DbpIterationRecord] = []
@@ -791,7 +787,7 @@ class _DbpRun:
         # The best evaluated point (the one behind the UB certificate): the MIP start the elastic
         # HPR is re-solved from, because it alone is sure to meet the objective cap.
         self.best_ub_values: dict[str, float] | None = None
-        self.best_ub_tax_index: int | None = None
+        self.best_ub_tax: float | None = None
         self.follower_variable_names: list[str] | None = None
         self.iterations_without_bound_update = 0
 
@@ -811,7 +807,6 @@ class _DbpRun:
 
     def set_tax_weight(self, leader_tax_weight: float | None, leader_tax_weight_relative: float | None) -> float:
         """Fix w in the HPR's objective and return it in kg per EUR/t."""
-        eur_per_tonne_per_index = self.instance.scale_factor * 1000.0  # EUR/t that one grid index is
         if leader_tax_weight_relative is not None:
             # The weight is relative to the least emissions the cut-free HPR can reach, which is a
             # lower bound on the leader's emissions at any tax: a scale that exists before any
@@ -823,8 +818,8 @@ class _DbpRun:
             weight_kg_per_eur_t = leader_tax_weight_relative * float(reference_emissions)
         else:
             weight_kg_per_eur_t = float(leader_tax_weight)
-        self.tax_weight_per_index = weight_kg_per_eur_t * eur_per_tonne_per_index
-        set_leader_tax_weight(self.hpr, self.tax_weight_per_index)
+        self.tax_weight_per_eur_t = weight_kg_per_eur_t
+        set_leader_tax_weight(self.hpr, self.tax_weight_per_eur_t)
         return weight_kg_per_eur_t
 
     # ---------------------------------------------------------------- results
@@ -854,9 +849,9 @@ class _DbpRun:
 
         for iteration in itertools.count(1):
             current_relaxation_lower_bound = self.leader_objective_lb
-            tax_index = _required_value(relaxation.tax_index, "relaxation tax_index")
+            tax = _required_value(relaxation.tax, "relaxation tax")
 
-            evaluated = self.evaluate_follower(tax_index, iteration)
+            evaluated = self.evaluate_follower(tax, iteration)
             if isinstance(evaluated, BilevelSolveResult):
                 return evaluated
             follower_response, follower_seconds, follower_time_limited, candidate = evaluated
@@ -878,7 +873,7 @@ class _DbpRun:
             lower_bound_updated = self.update_lower_bound(relaxation)
             self.record_iteration(
                 iteration=iteration,
-                tax_index=tax_index,
+                tax=tax,
                 current_relaxation_lower_bound=current_relaxation_lower_bound,
                 follower_response=follower_response,
                 follower_seconds=follower_seconds,
@@ -888,7 +883,7 @@ class _DbpRun:
                 relaxation_seconds=relaxation_seconds,
             )
 
-            stop = self.step6(relaxation, tax_index, iteration)
+            stop = self.step6(relaxation, tax, iteration)
             if stop is not None:
                 return stop
 
@@ -905,15 +900,15 @@ class _DbpRun:
 
     # ---------------------------------------------------------------- one step each
 
-    def evaluate_follower(self, tax_index: int, iteration: int):
-        """Steps 2-3: the follower's optimistic response at ``tax_index``.
+    def evaluate_follower(self, tax: float, iteration: int):
+        """Steps 2-3: the follower's optimistic response at ``tax``.
 
         Returns (response, seconds, time_limited, candidate), or the result to stop with.
         """
         follower_response, follower_seconds = _solve_with_wall_time(
             solve_follower_lexicographic,
             self.follower_model,
-            tax_index=tax_index,
+            tax=tax,
             output_flag=self.output_flag,
             time_limit=self.budget.subproblem_time_limit(),
             capture_solution=True,
@@ -937,25 +932,24 @@ class _DbpRun:
                 ))
                 return self.time_limit_result(len(self.iteration_records), "incumbent_time_limit")
             raise SubproblemStatusError(
-                f"follower solve at tax_index={tax_index}", follower_response,
+                f"follower solve at tax={tax}", follower_response,
             )
         if not follower_response.has_solution or follower_response.status_name not in ("OPTIMAL", "TIME_LIMIT"):
             raise SubproblemStatusError(
-                f"follower solve at tax_index={tax_index}", follower_response,
+                f"follower solve at tax={tax}", follower_response,
             )
         follower_time_limited = follower_response.status_name != "OPTIMAL"
         if follower_response.variable_values is not None:
             self.previous_follower_values = follower_response.variable_values
 
         candidate = IncumbentSolution(
-            tax_index=tax_index,
+            tax=tax,
             cost=_required_value(follower_response.cost, "follower cost"),
             emissions=_required_value(follower_response.emissions, "follower emissions"),
             follower_objective=_required_value(
                 follower_response.follower_objective,
                 "follower objective",
             ),
-            scale_factor=self.instance.scale_factor,
         )
         return follower_response, follower_seconds, follower_time_limited, candidate
 
@@ -963,9 +957,9 @@ class _DbpRun:
         self, candidate: IncumbentSolution, follower_response: SolveResult, follower_time_limited: bool,
     ) -> bool:
         """Step 4: the upper bound. The incumbent IS the point that attains it: the least
-        F = E + w * tax_index evaluated, and at an exact tie the lower tax."""
-        candidate_value = candidate.emissions + self.tax_weight_per_index * candidate.tax_index
-        incumbent_updated = _is_better_scalar(candidate, self.incumbent, self.tax_weight_per_index)
+        F = E + w * tax evaluated, and at an exact tie the lower tax."""
+        candidate_value = candidate.emissions + self.tax_weight_per_eur_t * candidate.tax
+        incumbent_updated = _is_better_scalar(candidate, self.incumbent, self.tax_weight_per_eur_t)
         if incumbent_updated:
             self.incumbent = candidate
             self.incumbent_solution = follower_response
@@ -981,17 +975,17 @@ class _DbpRun:
                 source="follower" if not follower_time_limited else "follower_time_limited",
             )
             self.best_ub_values = follower_response.variable_values
-            self.best_ub_tax_index = candidate.tax_index
+            self.best_ub_tax = candidate.tax
         return incumbent_updated
 
     def add_cut(self, candidate: IncumbentSolution, follower_response: SolveResult, iteration: int) -> None:
         """Step 5: add the evaluated point's value-function cut, and the objective caps."""
-        # (P5-eps'): f(x, y) <= f(x, y_k) + eps', with eps' added by add_value_function_cut. Not
+        # (P5): f(x, y) <= f(x, y_k) + cut_slack (0), added by add_value_function_cut. Not
         # loosened by the follower's MIP gap: the cut is valid for ANY feasible y_k (Soares et
         # al.'s Lemma 2 -- the follower's constraints do not depend on x), proven best response
         # or not, so widening it only weakens the HPR.
         cut = ValueFunctionCut(
-            tax_index=candidate.tax_index,
+            tax=candidate.tax,
             cost=candidate.cost,
             emissions=candidate.emissions,
             # The cut's tau-coefficient must be the quantity the follower was
@@ -1004,8 +998,8 @@ class _DbpRun:
         add_value_function_cut(self.hpr, cut)
         if self.use_emissions_cap and self.ub_certificate.exact:
             # E <= UB holds at any point with F <= UB (the tax term is non-negative), and it is
-            # what lets the one-hot gadget's big-M be tightened; set_leader_objective_cap adds the
-            # tighter F <= UB (Mitsos 2010, not Soares et al.).
+            # what tightens the bounds of the bilinear product's operands; set_leader_objective_cap
+            # adds the tighter F <= UB (Mitsos 2010, not Soares et al.).
             set_emissions_cap(self.hpr, self.ub_certificate.value)
             set_leader_objective_cap(self.hpr, self.ub_certificate.value)
 
@@ -1017,7 +1011,7 @@ class _DbpRun:
             and _hpr_returned_no_point(relaxation)
             and not self.hpr.elastic
             and self.best_ub_values is not None
-            and self.best_ub_tax_index is not None
+            and self.best_ub_tax is not None
         ):
             # (P5-D) as a remedy (Soares et al. 2021, Difficulty 1): the plain HPR returned
             # no point, so make its cuts elastic and re-solve from the best evaluated point,
@@ -1029,7 +1023,7 @@ class _DbpRun:
                     variable.VarName for variable in self.follower_model.artifacts.model.getVars()
                 ]
             set_hpr_start(
-                self.hpr, self.best_ub_values, self.follower_variable_names, self.best_ub_tax_index,
+                self.hpr, self.best_ub_values, self.follower_variable_names, self.best_ub_tax,
             )
             relaxation, elastic_retry_seconds = self.solve_hpr()
             relaxation_seconds += elastic_retry_seconds
@@ -1050,7 +1044,7 @@ class _DbpRun:
         self,
         *,
         iteration: int,
-        tax_index: int,
+        tax: float,
         current_relaxation_lower_bound: float,
         follower_response: SolveResult,
         follower_seconds: float,
@@ -1062,7 +1056,7 @@ class _DbpRun:
         self.iteration_records.append(
             DbpIterationRecord(
                 iteration=iteration,
-                relaxation_tax_index=tax_index,
+                relaxation_tax=tax,
                 relaxation_lower_bound=current_relaxation_lower_bound,
                 follower_seconds=follower_seconds,
                 follower_objective=candidate.follower_objective,
@@ -1071,7 +1065,7 @@ class _DbpRun:
                 optimistic_emissions=candidate.emissions,
                 leader_objective_ub=self.ub_certificate.value,
                 relaxation_seconds=relaxation_seconds,
-                next_relaxation_tax_index=_required_value(relaxation.tax_index, "next relaxation tax_index"),
+                next_relaxation_tax=_required_value(relaxation.tax, "next relaxation tax"),
                 next_relaxation_lower_bound=self.leader_objective_lb,
                 relaxation_mip_gap=relaxation.mip_gap,
                 relaxation_partial=_is_partial_hpr(relaxation),
@@ -1091,7 +1085,7 @@ class _DbpRun:
             )
         )
 
-    def step6(self, relaxation: SolveResult, tax_index: int, iteration: int) -> BilevelSolveResult | None:
+    def step6(self, relaxation: SolveResult, tax: float, iteration: int) -> BilevelSolveResult | None:
         """Step 6: once the gap has closed the result is at least epsilon-optimal; if the HPR
         re-proposes the tax just evaluated, Lemma 3 makes it optimal. The lemma needs a proper
         HPR solution (not a timed-out incumbent, not an elastic point) and a proven best
@@ -1104,12 +1098,12 @@ class _DbpRun:
             return None
         # The penalty is in tonnes per EUR of violation, so anything above round-off is a real one.
         elastic_active = relaxation.slack_value is not None and relaxation.slack_value > 1e-6
-        next_tax_index = _required_value(relaxation.tax_index, "next relaxation tax_index")
+        next_tax = _required_value(relaxation.tax, "next relaxation tax")
         if (
             not _is_partial_hpr(relaxation)
             and not elastic_active
             and self.ub_certificate.exact
-            and next_tax_index == tax_index
+            and abs(next_tax - tax) <= DEFAULT.tax_tolerance
         ):
             return _gap_closed_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)
         return _epsilon_optimal_result(**self._result_inputs(iteration), relaxation_mip_gap=relaxation.mip_gap)

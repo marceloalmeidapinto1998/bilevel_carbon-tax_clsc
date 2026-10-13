@@ -32,7 +32,7 @@ def canonicalize_result_solution(*, instance: InstanceData, result):
 
     recomputed = validate_fixed_tax_solution(
         instance,
-        tax_index=result.incumbent.tax_index,
+        tax=result.incumbent.tax,
         variable_values=optimistic.variable_values,
     )
     if (
@@ -57,7 +57,7 @@ def canonicalize_result_solution(*, instance: InstanceData, result):
             optimistic = repaired
             recomputed = validate_fixed_tax_solution(
                 instance,
-                tax_index=result.incumbent.tax_index,
+                tax=result.incumbent.tax,
                 variable_values=optimistic.variable_values or {},
             )
     if not recomputed.has_solution or recomputed.status_name != "OPTIMAL":
@@ -111,7 +111,7 @@ def rebuild_solution_with_fixed_discrete_values(*, instance: InstanceData, resul
 
     return solve_follower_lexicographic(
         follower_model,
-        result.incumbent.tax_index,
+        result.incumbent.tax,
         output_flag=False,
         time_limit=None,
         capture_solution=True,
@@ -129,7 +129,7 @@ def validate_result_solution(*, instance: InstanceData, result) -> dict[str, obj
 
     recomputed = validate_fixed_tax_solution(
         instance,
-        tax_index=result.incumbent.tax_index,
+        tax=result.incumbent.tax,
         variable_values=optimistic.variable_values,
     )
     if not recomputed.has_solution or recomputed.status_name != "OPTIMAL":

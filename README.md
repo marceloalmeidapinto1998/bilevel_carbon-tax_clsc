@@ -31,7 +31,7 @@ Each run writes to `results/runs/<dataset>/<instance>/dbp/`. The contents of eac
 
 ## Problem
 
-**Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$ between 0 and 200 EUR/t CO2e. In the computations, the tax rate is expressed in EUR/kg CO2e with three decimal places, so that the leader's variable can be treated as an integer by applying a scale factor of $10^{3}$. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO2e) that it induces. When the follower has alternative optimal responses, the one most favourable to the leader is selected (optimistic approach). The leader minimises
+**Leader problem.** The leader is the regulator, who sets a carbon tax rate $\tau$, a continuous variable between 0 and 200 EUR/t CO2e. The follower is the closed-loop supply chain operator. Let $y$ denote its response, comprising the network design and the period-by-period operating plan, and $E(y)$ the total physical emissions (kg CO2e) that it induces. When the follower has alternative optimal responses, the one most favourable to the leader is selected (optimistic approach). The leader minimises
 
 $$F(\tau, y) = E(y) + w \, \tau, \qquad w > 0,$$
 
@@ -53,20 +53,21 @@ All monetary quantities are in EUR. Emissions are the climate-change category of
 
 The bilevel problem is solved with the DBP of Soares et al. (2021). The procedure alternates between two computations. The high-point relaxation (HPR) gives a lower bound $\mathrm{LB}$ on the leader's objective $F$. The evaluation of the follower gives an upper bound $\mathrm{UB}$. It stops when the relative gap between the bounds is at most $\varepsilon$.
 
-The HPR minimises $F$ over the follower's physical constraints alone and does not require the follower's response to be optimal. These constraints do not contain $\tau$. Every follower response is therefore feasible at every tax rate, and every evaluated response yields a cut that is valid for the whole problem.
+The HPR minimises $F$ over the follower's physical constraints alone and does not require the follower's response to be optimal. These constraints do not contain $\tau$. Every follower response is therefore feasible at every tax rate, and every evaluated response yields a cut that is valid for the whole problem. The follower's objective $f(\tau, y) = c(y) + \tau\,\beta(y)$ contains the product of two continuous quantities, so the HPR is a non-convex bilinear program; Gurobi solves it by spatial branch-and-bound (`NonConvex=2`).
 
 **Tolerances**
 
 - $\varepsilon$: tolerance on the relative gap.
-- $\varepsilon'$: very small tolerance on the follower's objective, used only to keep the subproblems numerically feasible.
+- $\varepsilon'$: very small tolerance on the follower's objective, used only in the follower's tie-break $f \le f^{\ast} + \varepsilon'$.
 - Subproblems are solved to a relative MIP gap of $10^{-4}$.
+- $\delta$: tolerance on the tax, 0.001 EUR/t. The tax is continuous, so the HPR re-proposes the tax just evaluated only up to $\delta$.
 
 **Initialisation.** Fix $w$ (see Problem) and solve the HPR without cuts. Set $\mathrm{LB}$ to the bound proven by the solver and $\tau_{0}$ to the tax rate of the HPR solution. Set $\mathrm{UB} = +\infty$ and $k = 0$.
 
 **Iteration** ($k = 0, 1, \dots$)
 
 1. **Evaluate the follower.** Solve the follower's problem at $\tau_{k}$ with the optimistic rule. Stage 1 minimises $f$ and gives $f^{\ast}$. Stage 2 minimises $E$ subject to $f \le f^{\ast} + \varepsilon'$ and gives $y_{k}$. If $F(\tau_{k}, y_{k}) < \mathrm{UB}$, set $\mathrm{UB} = F(\tau_{k}, y_{k})$. The incumbent is the evaluated pair of least $F$; ties go to the lower tax.
-2. **Add a cut.** Add $f(\tau, y) \le f(\tau, y_{k}) + \varepsilon'$ to the HPR. The point $y_{k}$ is feasible for every $\tau$. If $(\tau, y^{\ast})$ is bilevel-feasible, $y^{\ast}$ minimises $f(\tau, \cdot)$, so $f(\tau, y^{\ast}) \le f(\tau, y_{k})$. The cut therefore removes no bilevel-feasible point.
+2. **Add a cut.** Add $f(\tau, y) \le f(\tau, y_{k})$ to the HPR. The point $y_{k}$ is feasible for every $\tau$. If $(\tau, y^{\ast})$ is bilevel-feasible, $y^{\ast}$ minimises $f(\tau, \cdot)$, so $f(\tau, y^{\ast}) \le f(\tau, y_{k})$. The cut therefore removes no bilevel-feasible point. It carries no $\varepsilon'$: $y_{k}$ already lies up to $\varepsilon'$ above $f^{\ast}$, and a second $\varepsilon'$ in the cut would let the HPR propose a tax at which a lower-emission response lies outside the follower's tie-break set, so the follower never returns it and the run stalls.
 3. **Re-solve the HPR.** Set $\mathrm{LB}$ to the larger of its previous value and the bound proven by this solve. Set $\tau_{k+1}$ to the tax rate of the HPR solution.
 4. **Test termination.** If $(\mathrm{UB} - \mathrm{LB}) / \max(1, |\mathrm{UB}|) \le \varepsilon$, stop and classify the result. Otherwise set $k \leftarrow k + 1$ and return to step 1.
 
@@ -74,15 +75,15 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 
 | Outcome | Condition |
 |---|---|
-| Optimal | The gap is at most $\varepsilon$ and $\tau_{k+1} = \tau_{k}$. |
-| $\varepsilon$-optimal | The gap is at most $\varepsilon$, but $\tau_{k+1} \neq \tau_{k}$. |
+| Optimal | The gap is at most $\varepsilon$ and $\lvert\tau_{k+1} - \tau_{k}\rvert \le \delta$. |
+| $\varepsilon$-optimal | The gap is at most $\varepsilon$, but $\lvert\tau_{k+1} - \tau_{k}\rvert > \delta$. |
 | Auxiliary stop | Neither bound changed during 10 consecutive iterations. |
 
 <details>
 <summary>Time limits and stopping rules</summary>
 
 - **HPR time limit.** An HPR that reaches its time limit still yields a valid lower bound (its dual bound) and, if it holds a feasible point, the next tax proposal. Otherwise the cuts are made elastic. If the elastic HPR also returns no point, the run ends with the incumbent.
-- **Elastic cuts (P5-D).** The first time the HPR returns no feasible point, each cut $k$ is relaxed to $f(\tau, y) \le f(\tau, y_{k}) + \varepsilon' + D_{k}$ with $D_{k} \ge 0$, and the sum of the $D_{k}$ is penalised in the HPR objective. The relaxed HPR is always feasible. If some $D_{k} > 0$, the result cannot be classified as optimal.
+- **Elastic cuts (P5-D).** The first time the HPR returns no feasible point, each cut $k$ is relaxed to $f(\tau, y) \le f(\tau, y_{k}) + D_{k}$ with $D_{k} \ge 0$, and the sum of the $D_{k}$ is penalised in the HPR objective. The relaxed HPR is always feasible. If some $D_{k} > 0$, the result cannot be classified as optimal.
 - **Follower time limit.** If stage 1 reaches its time limit with a positive gap, subproblem P6 first searches for a better response, before the constraint $f \le f^{\ast} + \varepsilon'$ of stage 2 is set. P6 minimises $D \ge 0$ subject to the follower's constraints and $f(\tau_{k}, y) \le \bar{f}\,(1 - g) + D$, where $\bar{f}$ is the best value of $f$ found by stage 1 and $g$ its relative MIP gap; $\bar{f}\,(1 - g)$ is the solver's bound on the follower's optimum, so a response with $D$ close to zero is nearly optimal. If stage 2 finds no feasible point, the stage-1 (or P6) response is kept. Such a response is not proven optimal, so the result is at most $\varepsilon$-optimal.
 - **Auxiliary stop.** The procedure also stops after 10 consecutive iterations in which neither bound changes.
 
@@ -209,7 +210,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 .
 ├── data/                      # the 15 instances (JSON)
 ├── src/clsc/                  # the Python package
-│   ├── config/                #   method defaults, shared constants, tax-grid step
+│   ├── config/                #   method defaults and shared constants
 │   ├── generator/              #   instance generator (CLI: clsc-generate)
 │   ├── models/                #   instance loading and the Gurobi models
 │   │   ├── instance_data.py   #     load and validate an instance

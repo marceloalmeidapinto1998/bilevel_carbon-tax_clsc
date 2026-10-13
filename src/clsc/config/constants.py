@@ -11,3 +11,7 @@ WEEKS_PER_YEAR = 52.0
 # clamped onto it.
 INTEGER_SNAP_TOL = max(DEFAULT.eps, 1e-5)
 BOUND_SNAP_TOL = max(DEFAULT.eps, 1e-6)
+
+# The tax is a decision in EUR per tonne of CO2e; emissions are in kg. The tax rate per kg is
+# therefore tax / KG_PER_TONNE, and the HPR works in tonnes (kg / KG_PER_TONNE).
+KG_PER_TONNE = 1000.0

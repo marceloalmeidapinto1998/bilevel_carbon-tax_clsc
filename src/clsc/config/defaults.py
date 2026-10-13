@@ -29,11 +29,17 @@ class ToleranceConfig:
     to be declared and varied. The DBP resolves the tax to about ``dbp_relative_gap / q`` EUR/t
     (1 EUR/t at these values).
 
-    ``epsilon_prime`` is Soares et al.'s single eps', used both in the follower's optimistic
-    tie-break, ``f <= f* + eps'``, and in the HPR's cuts, ``f <= f(y_k) + eps'``. It is a relative
+    ``epsilon_prime`` is Soares et al.'s eps', used in the follower's optimistic tie-break,
+    ``f <= f* + eps'``. The HPR's cuts, ``f <= f(y_k) + cut_slack``, carry no eps' of their own:
+    y_k already sits up to eps' above f*, and a second eps' would let the HPR propose a tax where
+    a lower-emission response lies outside the follower's tie-break set, so that the follower
+    never returns it and the run stalls (measured with a continuous tax, which the HPR can place
+    arbitrarily close to a break point of the follower's response). It is a relative
     fraction of the value it is added to (their eps' = 1e-5 sits on objectives of a few euros,
     i.e. ~1e-6 relative), floored at the absolute ``eps``. ``eps`` is the absolute
-    numerical floor used where a tolerance is needed near zero. ``elastic_penalty_mult`` sizes
+    numerical floor used where a tolerance is needed near zero. ``tax_tolerance`` (EUR/t) is how
+    close the HPR's next tax must be to the tax just evaluated for Lemma 3 to be applied: the tax
+    is continuous, so the HPR re-proposes it only to within the solver's tolerances. ``elastic_penalty_mult`` sizes
     the penalty on the HPR's elastic cut slacks (see build_hpr).
     """
 
@@ -46,6 +52,8 @@ class ToleranceConfig:
     stagnation_limit: int = 10
     tax_weight_relative: float = 1e-4
     epsilon_prime: float = 1e-6
+    tax_tolerance: float = 1e-3
+    cut_slack: float = 0.0  # kept explicit, see above
     elastic_penalty_mult: float = 10.0
 
     # ----- Gurobi pass-through -----

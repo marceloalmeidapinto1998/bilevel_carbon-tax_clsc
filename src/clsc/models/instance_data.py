@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from clsc.config.defaults import DEFAULT
-from clsc.config.tax_scale import TAX_SCALE_FACTOR
+from clsc.config.constants import KG_PER_TONNE
 
-# TAX_SCALE_FACTOR: EUR/kg CO2e per integer tax_index step: tax_rate = TAX_SCALE_FACTOR * tax_index.
-# The one carbon-tax resolution in the project (clsc.config.tax_scale.TAX_SCALE_FACTOR),
-# re-exported under this name since it is part of this module's public API (imported elsewhere
-# as clsc.models.instance_data.TAX_SCALE_FACTOR).
 # Fallback for instances generated before 2026-08-11, which carry no
 # product_rotation_per_period. Those were built reading Mota's 4.5 turns/year
 # as a per-period count, and must keep it so archived runs stay reproducible.
@@ -93,21 +88,8 @@ REQUIRED_PARAMETER_KEYS = (
     "e_ship_m",
     "underline_tax_rate",
     "overline_tax_rate",
-    "underline_tax_index",
-    "overline_tax_index",
     "d_i_j",
 )
-# Legacy parameter keys accepted on load (mapped to their current name by
-# _normalize_tax_index_parameter_keys before REQUIRED_PARAMETER_KEYS is
-# checked), so instance files generated before the hat_tau -> tax_index
-# rename keep loading unchanged. New instances are written with the current
-# names only -- see clsc.generator.instance_builder.
-_LEGACY_PARAMETER_KEY_ALIASES = {
-    "underline_tax_index": "underline_hat_tau",
-    "overline_tax_index": "overline_hat_tau",
-}
-
-
 class InstanceValidationError(ValueError):
     """Raised when an instance file does not match the expected schema."""
 
@@ -119,14 +101,6 @@ class InstanceData:
     sets: dict[str, Any]
     parameters: dict[str, Any]
     source_path: Path | None = None
-    # Optional grid-resolution override (theta, EUR/kg CO2e per integer tax_index step). When None
-    # the tax resolution is read from the stored parameters (the project's one grid, TAX_SCALE_FACTOR,
-    # index {0..200}); when set, the index bounds and scale_factor are DERIVED from it over the same
-    # real tau range, without touching `parameters`. Set only via with_tax_grid_step(); a caller
-    # deliberately probing a different resolution (e.g. the retired coarse grid, as a robustness
-    # check) rather than something any current base instance needs at rest.
-    tax_grid_step: float | None = None
-
     @classmethod
     def from_file(cls, path: str | Path) -> "InstanceData":
         source_path = Path(path)
@@ -147,7 +121,6 @@ class InstanceData:
         sets = _normalize_sets(payload["sets"])
         parameters = dict(payload["parameters"])
         metadata = dict(payload["metadata"])
-        _normalize_tax_index_parameter_keys(parameters)
         _apply_parameter_defaults(parameters, sets)
         _apply_metadata_defaults(metadata)
 
@@ -170,15 +143,10 @@ class InstanceData:
         if missing_parameters:
             raise InstanceValidationError(f"Missing parameter keys: {missing_parameters}")
 
-        lower_index = self.lower_tax_index
-        upper_index = self.upper_tax_index
-        if lower_index > upper_index:
-            raise InstanceValidationError("underline_tax_index cannot exceed overline_tax_index")
-
-        if _tax_rate_to_tax_index(self.parameters["underline_tax_rate"]) != lower_index:
-            raise InstanceValidationError("underline_tax_rate and underline_tax_index are inconsistent")
-        if _tax_rate_to_tax_index(self.parameters["overline_tax_rate"]) != upper_index:
-            raise InstanceValidationError("overline_tax_rate and overline_tax_index are inconsistent")
+        if self.lower_tax > self.upper_tax:
+            raise InstanceValidationError("underline_tax_rate cannot exceed overline_tax_rate")
+        if self.lower_tax < 0.0:
+            raise InstanceValidationError("underline_tax_rate must be nonnegative")
 
         expected_all_nodes = tuple(self.sets["S"] + self.sets["F"] + self.sets["W"] + self.sets["R"] + self.sets["AIR"] + self.sets["PORT"])
         if tuple(self.sets["I"]) != expected_all_nodes:
@@ -219,72 +187,14 @@ class InstanceData:
         _validate_capacity_feasibility(self.sets, self.parameters)
 
     @property
-    def lower_tax_index(self) -> int:
-        if self.tax_grid_step is not None:
-            return round(float(self.parameters["underline_tax_rate"]) / self.tax_grid_step)
-        return int(self.parameters["underline_tax_index"])
+    def lower_tax(self) -> float:
+        """Lowest tax the leader may set, EUR per tonne of CO2e."""
+        return float(self.parameters["underline_tax_rate"]) * KG_PER_TONNE
 
     @property
-    def upper_tax_index(self) -> int:
-        if self.tax_grid_step is not None:
-            return round(float(self.parameters["overline_tax_rate"]) / self.tax_grid_step)
-        return int(self.parameters["overline_tax_index"])
-
-    def iter_tax_index(self) -> range:
-        return range(self.lower_tax_index, self.upper_tax_index + 1)
-
-    @property
-    def scale_factor(self) -> float:
-        """EUR/kg CO2e per integer tax_index step. When a resolution override is in
-        effect (see :meth:`with_tax_grid_step`) the override step is returned
-        directly, exactly. Otherwise it is DERIVED from this instance's own stored
-        grid (``overline_tax_rate``/``overline_tax_index``) rather than the module
-        constant, so a base instance (overline_tax_rate=0.2, overline_tax_index=400)
-        yields 0.2/400 = 5e-4 = the module TAX_SCALE_FACTOR and existing behaviour is
-        unchanged. Falls back to the module constant for a degenerate single-point
-        grid."""
-        if self.tax_grid_step is not None:
-            return self.tax_grid_step
-        span_index = self.upper_tax_index - self.lower_tax_index
-        if span_index <= 0:
-            return TAX_SCALE_FACTOR
-        span_rate = float(self.parameters["overline_tax_rate"]) - float(self.parameters["underline_tax_rate"])
-        return span_rate / span_index
-
-    def with_tax_grid_step(self, scale_factor: float) -> "InstanceData":
-        """Return a NEW instance whose carbon-tax resolution is refined to resolution
-        ``scale_factor`` (theta, EUR/kg CO2e per integer tax_index step), while
-        PRESERVING the real tax range ``[underline_tax_rate, overline_tax_rate]``.
-
-        This is the immutable, first-class replacement for mutating the stored
-        ``*_tax_index`` parameters in place. The refined index bounds are DERIVED
-        (``round(tau / theta)``) from the step rather than stored, so overline_tax_rate
-        = 0.2 with theta = 0.001 exposes ``upper_tax_index = 200`` (index
-        {0..200}, 1 EUR/t over the same 0-200 EUR/t span). ``parameters`` and
-        the on-disk file are untouched. Every base instance is generated directly
-        at the project's one grid (``TAX_SCALE_FACTOR``), so calling this
-        with that same step is a no-op; it exists for the rare deliberate probe
-        at a different resolution (e.g. a coarser robustness check), not as a
-        load-bearing rescale in the normal path.
-
-        No re-validation is run: ``validate()``'s tau/index consistency check
-        assumes the stored step and is only meaningful for the grid as loaded;
-        the refined view is a derived projection of an already-validated
-        instance, so re-validating it would spuriously reject a widened index.
-        """
-        if scale_factor <= 0.0:
-            raise ValueError(f"tax resolution step must be positive, got {scale_factor}")
-        underline_tax_rate = float(self.parameters["underline_tax_rate"])
-        overline_tax_rate = float(self.parameters["overline_tax_rate"])
-        lower_index = round(underline_tax_rate / scale_factor)
-        upper_index = round(overline_tax_rate / scale_factor)
-        if upper_index <= lower_index:
-            raise ValueError(
-                f"tax resolution step {scale_factor} collapses the grid of {self.name} "
-                f"(tau range [{underline_tax_rate}, {overline_tax_rate}] -> index "
-                f"[{lower_index}, {upper_index}])"
-            )
-        return replace(self, tax_grid_step=scale_factor)
+    def upper_tax(self) -> float:
+        """Highest tax the leader may set, EUR per tonne of CO2e."""
+        return float(self.parameters["overline_tax_rate"]) * KG_PER_TONNE
 
     def arcs(self, arc_type: str) -> tuple[tuple[str, str], ...]:
         return self.sets[f"A_{arc_type}"]
@@ -295,26 +205,9 @@ class InstanceData:
     def parameter(self, parameter_name: str) -> Any:
         return self.parameters[parameter_name]
 
-    def tax_rate(self, tax_index: int) -> float:
-        """Real carbon tax rate (EUR/kg CO2e) for leader tax index ``tax_index``.
-
-        ``tax_index`` is the integer decision index the solver optimises over;
-        this converts it to the actual tax rate via ``tax_rate = scale_factor *
-        tax_index``, using this instance's own :attr:`scale_factor` (so a finer
-        grid is honoured). (For the per-tonne rate used in reporting and the
-        paper, multiply by 1000.)
-        """
-        return self.scale_factor * tax_index
-
-
-def _normalize_tax_index_parameter_keys(parameters: dict[str, Any]) -> None:
-    """Fill in the current tax-index parameter keys from their legacy names
-    when only the legacy names are present, so instance files written before
-    the hat_tau -> tax_index rename keep loading without modification. Leaves
-    the legacy keys in place (harmless) rather than deleting them."""
-    for current_key, legacy_key in _LEGACY_PARAMETER_KEY_ALIASES.items():
-        if current_key not in parameters and legacy_key in parameters:
-            parameters[current_key] = parameters[legacy_key]
+    def tax_rate(self, tax: float) -> float:
+        """Carbon tax rate in EUR per kg of CO2e for a tax of ``tax`` EUR per tonne."""
+        return tax / KG_PER_TONNE
 
 
 def _normalize_sets(raw_sets: dict[str, Any]) -> dict[str, Any]:
@@ -362,13 +255,6 @@ def _normalize_sets(raw_sets: dict[str, Any]) -> dict[str, Any]:
         normalized["RP"] = recovered_products
     return normalized
 
-
-def _tax_rate_to_tax_index(rate: Any) -> int:
-    numeric_rate = float(rate)
-    scaled = round(numeric_rate / TAX_SCALE_FACTOR)
-    if abs(numeric_rate - scaled * TAX_SCALE_FACTOR) > DEFAULT.eps:
-        raise InstanceValidationError(f"Tax bounds must be multiples of {TAX_SCALE_FACTOR} EUR/kg CO2e")
-    return int(scaled)
 
 
 
@@ -609,7 +495,7 @@ def _validate_technology_coverage(sets: dict[str, Any]) -> None:
 
 
 def _validate_capacity_feasibility(sets: dict[str, Any], parameters: dict[str, Any]) -> None:
-    """The follower's feasible region must be non-empty for every admissible tax_index, which can
+    """The follower's feasible region must be non-empty for every admissible tax, which can
     be verified a priori by checking that the network has sufficient installed capacity to cover
     maximum aggregate demand. This is a necessary, not sufficient, a-priori check: it sums each product's
     production and remanufacturing capacity across every factory (since technology installation
@@ -617,7 +503,7 @@ def _validate_capacity_feasibility(sets: dict[str, Any], parameters: dict[str, A
     capacity) and compares it against that product's largest single-period aggregate demand
     across all retailers. It cannot catch every source of infeasibility (per-facility area or
     raw-material bottlenecks, for instance), but a violation here proves the instance is
-    infeasible regardless of tax_index or network configuration."""
+    infeasible regardless of tax or network configuration."""
     factories = sets.get("F", ())
     products = sets.get("P", ())
     production_technologies = sets.get("G", ())

@@ -12,9 +12,8 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - only needed for optional YAML output
     yaml = None
 
-from clsc.config.tax_scale import TAX_SCALE_FACTOR
 
-from .config import GeneratorConfig, _tax_rate_to_tax_index
+from .config import GeneratorConfig
 from .generated_instance import GeneratedInstance
 from .geometry import _build_item_flow_tuples, _build_product_technology_pairs, _complete_cross_arcs, _connect_layers, _labels, _nested_arc_parameter, _products_by_technology, _sample_coordinates, _unique_arcs
 from .sampling import _sample_bom_and_product_profiles, _sample_demand, _sum_product_demand_by_period
@@ -224,8 +223,6 @@ def generate_instance(config: GeneratorConfig) -> GeneratedInstance:
         "e_ship_m": transport["e_ship_m"],
         "underline_tax_rate": config.tax_lower,
         "overline_tax_rate": config.tax_upper,
-        "underline_tax_index": _tax_rate_to_tax_index(config.tax_lower),
-        "overline_tax_index": _tax_rate_to_tax_index(config.tax_upper),
         "d_i_j": _nested_arc_parameter(network.transport_arcs, dist_transport),
     }
 
@@ -731,9 +728,6 @@ def _build_metadata(config: GeneratorConfig, coordinates, transport_family, retu
         },
         "carbon_tax_units": {
             "underline_tax_rate_overline_tax_rate": "EUR/kg CO2e",
-            # Written from the project's one tax-grid step, so it cannot drift from it.
-            "tax_index_step": f"{TAX_SCALE_FACTOR:g} EUR/kg CO2e",
-            "tau_formula_eur_per_kg_co2e": f"{TAX_SCALE_FACTOR:g} * tax_index",
         },
     }
 

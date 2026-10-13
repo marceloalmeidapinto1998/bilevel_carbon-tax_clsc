@@ -142,21 +142,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--scale-factor",
-        type=float,
-        help=(
-            "Grid-resolution override theta (EUR/kg CO2e per integer tax_index step). "
-            "When set, each in-memory instance's tax resolution is refined to this step "
-            "WHILE PRESERVING its real tax range [underline_tax_rate, overline_tax_rate]: the "
-            "index bounds are recomputed as round(tau / theta) so overline_tax_index "
-            "becomes overline_tax_rate/theta (e.g. 0.2/0.001 = 200). The stored instance "
-            "files are never touched. Omit to use each instance's stored grid, which "
-            "is already the project's one grid (theta = TAX_SCALE_FACTOR = 1e-3, "
-            "index {0..200}, a whole EUR/tonne per step) for every base instance -- this "
-            "flag exists for a deliberate probe at a different resolution."
-        ),
-    )
-    parser.add_argument(
         "--seed",
         type=int,
         help=(
@@ -299,8 +284,6 @@ def main() -> int:
         instance: InstanceData | None = None
         try:
             instance = InstanceData.from_file(instance_path)
-            if args.scale_factor is not None:
-                instance = instance.with_tax_grid_step(args.scale_factor)
             solve_started_at = time.perf_counter()
             if args.method == "dbp":
                 result = solve_bilevel_dbp(
@@ -508,7 +491,6 @@ def build_manifest(
         "leader_tax_weight": args.leader_tax_weight,
         "leader_tax_weight_relative": args.leader_tax_weight_relative,
         "tolerances": tolerance_config,
-        "tax_scale_factor": args.scale_factor,
         "gurobi_seed": args.seed,
         "use_warm_start": bool(args.use_warm_start),
         "use_emissions_cap": bool(args.use_emissions_cap),
@@ -518,7 +500,7 @@ def build_manifest(
     }
     if args.method == "dbp":
         # The leader's POLICY assumption, deliberately recorded here and not under "tolerances":
-        # the reported tax_index is a function of it, so a run is not reproducible or
+        # the reported tax is a function of it, so a run is not reproducible or
         # interpretable without it. The effective w (kg per EUR/t) is in each summary.
         solver_manifest["leader_objective"] = "emissions_plus_weighted_tax"
         solver_manifest["leader_tax_weight_relative_effective"] = (

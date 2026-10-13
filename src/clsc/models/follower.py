@@ -23,7 +23,7 @@ class FollowerModel:
 
 def solve_follower_lexicographic(
     instance_or_model: InstanceData | FollowerModel,
-    tax_index: int,
+    tax: float,
     *,
     output_flag: bool = False,
     time_limit: float | None = None,
@@ -54,7 +54,7 @@ def solve_follower_lexicographic(
     reports the worst (largest) of the two so single-objective consumers see a conservative bound.
     """
     follower_model = _coerce_follower_model(instance_or_model)
-    _set_fixed_tax_follower_expression(follower_model, tax_index)
+    _set_fixed_tax_follower_expression(follower_model, tax)
     artifacts = follower_model.artifacts
     model = artifacts.model
     model.ModelSense = GRB.MINIMIZE
@@ -66,7 +66,7 @@ def solve_follower_lexicographic(
     model.setObjective(artifacts.follower_objective_expr, GRB.MINIMIZE)
     stage1 = optimize_model(
         artifacts,
-        tax_index=tax_index,
+        tax=tax,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=True,
@@ -78,7 +78,7 @@ def solve_follower_lexicographic(
     if not stage1.has_solution or stage1.status_name not in ("OPTIMAL", "TIME_LIMIT"):
         return replace(
             stage1,
-            tax_index=tax_index,
+            tax=tax,
             variable_values=stage1.variable_values if capture_solution else None,
             lex_primary_mip_gap=stage1.mip_gap,
             lex_secondary_mip_gap=None,
@@ -91,7 +91,7 @@ def solve_follower_lexicographic(
         improvement = _improve_follower_value(
             artifacts,
             stage1,
-            tax_index=tax_index,
+            tax=tax,
             output_flag=output_flag,
             time_limit=time_limit,
             mip_gap=mip_gap,
@@ -122,7 +122,7 @@ def solve_follower_lexicographic(
     model.setObjective(artifacts.emissions_expr, GRB.MINIMIZE)
     stage2 = optimize_model(
         artifacts,
-        tax_index=tax_index,
+        tax=tax,
         output_flag=output_flag,
         time_limit=time_limit,
         capture_solution=capture_solution,
@@ -159,7 +159,7 @@ def solve_follower_lexicographic(
         chosen,
         status_code=chosen.status_code if solved else GRB.TIME_LIMIT,
         status_name="OPTIMAL" if solved else "TIME_LIMIT",
-        tax_index=tax_index,
+        tax=tax,
         mip_gap=merged_mip_gap,
         runtime=stage1.runtime + (improvement_seconds or 0.0) + stage2.runtime,
         status_history=stage1.status_history + stage2.status_history,
@@ -175,7 +175,7 @@ def _improve_follower_value(
     artifacts: ModelArtifacts,
     stage1: SolveResult,
     *,
-    tax_index: int,
+    tax: float,
     output_flag: bool,
     time_limit: float | None,
     mip_gap: float | None,
@@ -203,7 +203,7 @@ def _improve_follower_value(
     try:
         return optimize_model(
             artifacts,
-            tax_index=tax_index,
+            tax=tax,
             output_flag=output_flag,
             time_limit=time_limit,
             capture_solution=True,
@@ -220,8 +220,8 @@ def _improve_follower_value(
 
 def epsilon_prime_tolerance(value: float) -> float:
     """eps': the single tolerance added to a follower objective value, in the tie-break freeze
-    ``f <= f* + eps'`` and in the HPR's cuts ``f <= f(y_k) + eps'`` -- Soares et al. (2021)'s
-    (P4-eps') and (P5-eps').
+    ``f <= f* + eps'`` -- Soares et al. (2021)'s (P4-eps'). The HPR's cuts add no eps' of their
+    own (see ``DEFAULT.cut_slack``).
 
     Relative (``DEFAULT.epsilon_prime * |value|``) rather than absolute, so it means the same
     thing at every instance scale, with ``DEFAULT.eps`` as an absolute floor near zero. Soares et
@@ -238,19 +238,25 @@ def epsilon_prime_tolerance(value: float) -> float:
     return max(DEFAULT.eps, DEFAULT.epsilon_prime * abs(value))
 
 
+def _require_tax_in_bounds(instance: InstanceData, tax: float) -> None:
+    # A little slack: the HPR returns the tax to within the solver's feasibility tolerance.
+    slack = 1e-6 * max(1.0, abs(instance.upper_tax))
+    if not instance.lower_tax - slack <= tax <= instance.upper_tax + slack:
+        raise ValueError(f"tax={tax} EUR/t is outside the instance bounds")
+
+
 def build_fixed_tax_model(
     instance: InstanceData,
     *,
-    tax_index: int,
+    tax: float,
     tie_break: bool = False,
 ) -> ModelArtifacts:
-    if tax_index not in instance.iter_tax_index():
-        raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
+    _require_tax_in_bounds(instance, tax)
 
-    common = build_supply_chain_model(instance, model_name=f"fixed_tau_{tax_index}")
+    common = build_supply_chain_model(instance, model_name=f"fixed_tau_{tax}")
     follower_objective_expr = (
         common.cost_expr
-        + instance.scale_factor * tax_index * common.tax_base_expr
+        + instance.tax_rate(tax) * common.tax_base_expr
     )
 
     # tie_break minimises PHYSICAL emissions: that is the leader's criterion,
@@ -275,7 +281,7 @@ def build_follower_model(instance: InstanceData) -> FollowerModel:
         follower_objective_expr=common.cost_expr,
     )
     follower_model = FollowerModel(instance=instance, artifacts=artifacts)
-    _set_fixed_tax_follower_expression(follower_model, instance.lower_tax_index)
+    _set_fixed_tax_follower_expression(follower_model, instance.lower_tax)
     return follower_model
 
 
@@ -287,22 +293,21 @@ def _coerce_follower_model(
     return build_follower_model(instance_or_model)
 
 
-def _set_fixed_tax_follower_expression(follower_model: FollowerModel, tax_index: int) -> None:
-    if tax_index not in follower_model.instance.iter_tax_index():
-        raise ValueError(f"tax_index={tax_index} is outside the instance bounds")
+def _set_fixed_tax_follower_expression(follower_model: FollowerModel, tax: float) -> None:
+    _require_tax_in_bounds(follower_model.instance, tax)
     follower_model.artifacts.follower_objective_expr = (
         follower_model.artifacts.cost_expr
-        + follower_model.instance.scale_factor * tax_index * tax_base_of(follower_model.artifacts)
+        + follower_model.instance.tax_rate(tax) * tax_base_of(follower_model.artifacts)
     )
 
 
 def validate_fixed_tax_solution(
     instance: InstanceData,
     *,
-    tax_index: int,
+    tax: float,
     variable_values: dict[str, float],
 ) -> SolveResult:
-    artifacts = build_fixed_tax_model(instance, tax_index=tax_index)
+    artifacts = build_fixed_tax_model(instance, tax=tax)
     model = artifacts.model
     model.update()
     for variable in model.getVars():
@@ -335,7 +340,7 @@ def validate_fixed_tax_solution(
             variable.UB = target_value
     return optimize_model(
         artifacts,
-        tax_index=tax_index,
+        tax=tax,
         output_flag=False,
         time_limit=None,
         capture_solution=False,

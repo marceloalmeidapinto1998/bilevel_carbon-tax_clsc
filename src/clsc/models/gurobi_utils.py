@@ -22,15 +22,9 @@ class ModelArtifacts:
     # Emission aggregate the tax is levied on (discounted). Falls back to the
     # physical emissions_expr when the instance is undiscounted.
     tax_base_expr: gp.LinExpr | None = None
-    tax_index_var: gp.Var | None = None
+    tax_var: gp.Var | None = None
     emissions_total_var: gp.Var | None = None
     elastic_slack_var: gp.Var | None = None
-    # Continuous variable tied to tax_index_var by the single linear equality
-    # ``tax_rate_var == scale_factor * tax_index_var`` (added in
-    # build_hpr). The spatial HPR multiplies it by
-    # emissions_total_var for the one bilinear tau*E term, and cut RHSs read as
-    # ``cost_v + emissions_v * tax_rate_var`` (constant times variable, linear).
-    tax_rate_var: gp.Var | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +36,7 @@ class SolveResult:
     cost: float | None
     emissions: float | None
     follower_objective: float | None
-    tax_index: int | None
+    tax: float | None
     mip_gap: float | None
     runtime: float
     variable_values: dict[str, float] | None = None
@@ -61,7 +55,7 @@ class SolveResult:
     lex_primary_mip_gap: float | None = None
     lex_secondary_mip_gap: float | None = None
     # Populated only by the DBP high-point relaxation: the PROVEN dual bound on the leader's objective
-    # F = E + w*tax_index, in kg (the HPR's ObjBound). Always a valid lower bound on the
+    # F = E + w*tax, in kg (the HPR's ObjBound). Always a valid lower bound on the
     # bilevel optimum, whether or not the solve reached OPTIMAL -- which is what lets the DBP loop
     # keep a partially solved HPR's bound instead of discarding it. None when Gurobi reported
     # no finite bound.
@@ -91,7 +85,7 @@ def apply_mip_start(model: gp.Model, variable_values: dict[str, float] | None) -
 def optimize_model(
     artifacts: ModelArtifacts,
     *,
-    tax_index: int | None,
+    tax: float | None,
     output_flag: bool,
     time_limit: float | None,
     capture_solution: bool,
@@ -148,7 +142,7 @@ def optimize_model(
             cost=None,
             emissions=None,
             follower_objective=None,
-            tax_index=tax_index,
+            tax=tax,
             mip_gap=mip_gap_value,
             runtime=runtime,
             variable_values=None,
@@ -159,9 +153,9 @@ def optimize_model(
             slack_value=None,
         )
 
-    tax_index_value = tax_index
-    if artifacts.tax_index_var is not None:
-        tax_index_value = int(round(float(artifacts.tax_index_var.X)))
+    tax_value = tax
+    if artifacts.tax_var is not None:
+        tax_value = float(artifacts.tax_var.X)
 
     return SolveResult(
         status_code=status_code,
@@ -172,7 +166,7 @@ def optimize_model(
         emissions=float(artifacts.emissions_expr.getValue()),
         tax_base=float(tax_base_of(artifacts).getValue()),
         follower_objective=float(artifacts.follower_objective_expr.getValue()),
-        tax_index=tax_index_value,
+        tax=tax_value,
         mip_gap=mip_gap_value,
         runtime=runtime,
         variable_values=_extract_nonzero_variable_values(model) if capture_solution else None,

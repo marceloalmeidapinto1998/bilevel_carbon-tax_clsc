@@ -25,7 +25,7 @@ SUMMARY_FIELDNAMES = [
     "result_class",
     "termination_reason",
     "iterations",
-    "tax_index",
+    "tax",
     "leader_tax_weight",
     "tax_rate",
     "cost",
@@ -47,13 +47,13 @@ SUMMARY_FIELDNAMES = [
 
 TRACE_FIELDNAMES = [
     "iteration",
-    "relaxation_tax_index",
+    "relaxation_tax",
     "relaxation_lower_bound",
     "follower_seconds",
     "follower_objective",
     "leader_objective_ub",
     "relaxation_seconds",
-    "next_relaxation_tax_index",
+    "next_relaxation_tax",
     "next_relaxation_lower_bound",
     "relaxation_mip_gap",
     "relaxation_partial",
@@ -97,7 +97,7 @@ def build_summary_record(
         "result_class": classify_result(result),
         "termination_reason": result.termination_reason,
         "iterations": result.iterations,
-        "tax_index": result.incumbent.tax_index,
+        "tax": result.incumbent.tax,
         # kg CO2e per EUR/t in the leader's objective F = E + w*tau. The bounds below
         # (leader_objective_lb / leader_objective_ub) are bounds on F, not on emissions alone.
         "leader_tax_weight": getattr(result, "leader_tax_weight", 0.0),
@@ -159,7 +159,7 @@ def build_instance_result_payload(
         },
         "phase_summary": build_phase_summary(result),
         "leader": {
-            "tax_index": result.incumbent.tax_index,
+            "tax": result.incumbent.tax,
             "tax_rate": result.incumbent.tax_rate,
         },
         "follower": {
@@ -226,11 +226,11 @@ def build_instance_result_payload(
 
 
 def build_phase_summary(result) -> dict[str, object]:
-    # The leader's single objective F = E + w*tax_index is resolved inside the DBP loop itself,
+    # The leader's single objective F = E + w*tax is resolved inside the DBP loop itself,
     # so there is only one phase.
     return {
         "dbp_iterations": len(result.iteration_records),
-        "final_tax_index": result.incumbent.tax_index,
+        "final_tax": result.incumbent.tax,
     }
 
 
@@ -241,13 +241,13 @@ def build_dbp_trace_rows(result) -> list[dict[str, object]]:
 def build_dbp_trace_row(record) -> dict[str, object]:
     return {
         "iteration": record.iteration,
-        "relaxation_tax_index": record.relaxation_tax_index,
+        "relaxation_tax": record.relaxation_tax,
         "relaxation_lower_bound": record.relaxation_lower_bound,
         "follower_seconds": record.follower_seconds,
         "follower_objective": record.follower_objective,
         "leader_objective_ub": record.leader_objective_ub,
         "relaxation_seconds": record.relaxation_seconds,
-        "next_relaxation_tax_index": record.next_relaxation_tax_index,
+        "next_relaxation_tax": record.next_relaxation_tax,
         "next_relaxation_lower_bound": record.next_relaxation_lower_bound,
         "relaxation_mip_gap": getattr(record, "relaxation_mip_gap", None),
         "relaxation_partial": getattr(record, "relaxation_partial", False),
@@ -272,7 +272,7 @@ def build_solution_payload(
         raise RuntimeError(f"Cached optimistic incumbent solution for {instance.name} has no variable values")
 
     leader_variables = {
-        "tax_index": result.incumbent.tax_index,
+        "tax": result.incumbent.tax,
         "tax_rate": result.incumbent.tax_rate,
     }
     follower_variables = optimistic.variable_values
@@ -313,7 +313,7 @@ def build_failure_summary_record(
         "result_class": "failed",
         "termination_reason": "failed",
         "iterations": None,
-        "tax_index": None,
+        "tax": None,
         "tax_rate": None,
         "cost": None,
         "emissions": None,
