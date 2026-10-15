@@ -40,11 +40,6 @@ SUPPORTED_SOLVER_METHODS = (
 )
 
 
-SOLVER_METHOD_RESULT_DIRS = {
-    "dbp": "dbp",
-}
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Solve generated CLSC bilevel instances and write structured run results.",
@@ -214,8 +209,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
     parser.add_argument(
         "--results-root",
-        default="results/runs",
-        help="Root directory where run folders are created.",
+        default="results",
+        help=(
+            "Root directory of the results (default: results). One instance writes to "
+            "<results-root>/<instance>/; a folder of instances writes each instance to "
+            "<results-root>/<run-id>/<instance>/, with the run's summary and manifest in <run-id>/."
+        ),
     )
     parser.add_argument(
         "--results-scope",
@@ -223,7 +222,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help=(
             "Optional output layout override. Use 'sensitivity' to write results under "
-            "<results-root>/sensitivity/<run-id>/<instance-name>."
+            "<results-root>/sensitivity/ (then <instance>/ or <run-id>/<instance>/ as above)."
         ),
     )
     parser.add_argument(
@@ -266,16 +265,13 @@ def main() -> int:
     single_instance_run = len(instance_paths) == 1
     run_id = args.run_id or build_run_id()
     canonical_dirs = {instance_path: build_canonical_instance_dir(instance_path, target) for instance_path in instance_paths}
-    inferred_run_scope = infer_run_scope(canonical_dirs.values())
-    run_scope = "sensitivity" if args.results_scope == "sensitivity" else inferred_run_scope
+    run_scope = "sensitivity" if args.results_scope == "sensitivity" else None
     run_root = build_run_root(
         Path(args.results_root),
         run_scope,
         run_id,
         canonical_dirs=canonical_dirs,
         single_instance_run=single_instance_run,
-        method=args.method,
-        mode=args.dbp_mode,
     )
     if not prepare_run_root(
         run_root,
@@ -301,10 +297,7 @@ def main() -> int:
     for instance_path in instance_paths:
         relative_instance_dir = build_relative_instance_dir(
             canonical_dirs[instance_path],
-            run_scope,
             single_instance_run=single_instance_run,
-            method=args.method,
-            mode=args.dbp_mode,
         )
         instance_results_dir = run_root / relative_instance_dir
         instance_results_dir.mkdir(parents=True, exist_ok=True)
@@ -496,11 +489,6 @@ def build_run_id() -> str:
     return f"run_{timestamp}"
 
 
-def build_method_results_dir(method: str, mode: str = "") -> str:
-    canonical_method, _ = canonicalize_solver_method(method)
-    return SOLVER_METHOD_RESULT_DIRS[canonical_method]
-
-
 def canonicalize_solver_method(method: str) -> tuple[str, str]:
     if method == "dbp":
         return "dbp", "exact"
@@ -582,40 +570,11 @@ def build_manifest(
 
 
 def build_canonical_instance_dir(instance_path: Path, target: Path) -> Path:
-    dataset_dir = infer_dataset_instance_dir(instance_path)
-    if dataset_dir is not None:
-        return dataset_dir
+    """The instance's folder name: its file name without the extension, or, in a folder run, its path
+    relative to the folder (so instances in subfolders keep them)."""
     if target.is_file():
         return Path(instance_path.stem)
     return instance_path.relative_to(target).with_suffix("")
-
-
-def infer_dataset_instance_dir(instance_path: Path) -> Path | None:
-    # data/<X> mirrors results/runs/<X>, so reuse the subpath after data/ verbatim
-    # (e.g. base/<inst>, experiments/scenarios/<type>/<inst>, experiments/sensitivity/oat/<base>/<SA>).
-    # Anything not under a known top scope defaults to base/.
-    parts = instance_path.with_suffix("").parts
-    for index, part in enumerate(parts):
-        if part != "data" or index + 1 >= len(parts):
-            continue
-        remaining_parts = parts[index + 1 :]
-        if remaining_parts[0] in {"base", "experiments"}:
-            return Path(*remaining_parts)
-        return Path("base", *remaining_parts)
-    return None
-
-
-def normalize_results_scope_name(scope: str) -> str:
-    return scope
-
-
-def infer_run_scope(canonical_dirs) -> str | None:
-    first_parts = {normalize_results_scope_name(canonical_dir.parts[0]) for canonical_dir in canonical_dirs if canonical_dir.parts}
-    if first_parts == {"base"}:
-        return "base"
-    if first_parts == {"experiments"}:
-        return "experiments"
-    return None
 
 
 def build_run_root(
@@ -625,51 +584,18 @@ def build_run_root(
     *,
     canonical_dirs: dict[Path, Path],
     single_instance_run: bool,
-    method: str,
-    mode: str,
 ) -> Path:
-    # Single-instance runs get a deterministic per-instance path (no run_id wrapper).
-    # This branch is checked first so that sensitivity single-instance runs land at
-    # results/sensitivity/{instance_name}/{method}/ rather than results/sensitivity/{run_id}/.
+    """<results-root>[/sensitivity]/<instance> for one instance, <results-root>[/sensitivity]/<run-id>
+    for a folder of instances."""
+    root = results_root / "sensitivity" if run_scope == "sensitivity" else results_root
     if single_instance_run and canonical_dirs:
-        canonical_dir = next(iter(canonical_dirs.values()))
-        if canonical_dir.parts:
-            first_part = normalize_results_scope_name(canonical_dir.parts[0])
-            if first_part in {"base", "experiments"}:
-                return results_root.joinpath(
-                    *canonical_dir.parts,
-                    build_method_results_dir(method, mode),
-                )
-    if run_scope == "sensitivity":
-        return results_root / "sensitivity" / run_id
-    if run_scope is None:
-        return results_root / run_id
-    return results_root / run_scope / run_id
+        return root / next(iter(canonical_dirs.values()))
+    return root / run_id
 
 
-def build_relative_instance_dir(
-    canonical_dir: Path,
-    run_scope: str | None,
-    *,
-    single_instance_run: bool,
-    method: str | None = None,
-    mode: str | None = None,
-) -> Path:
-    if single_instance_run:
-        return Path()
-    if run_scope == "sensitivity":
-        if len(canonical_dir.parts) >= 3 and normalize_results_scope_name(canonical_dir.parts[0]) == "scenarios":
-            return Path(*canonical_dir.parts[2:])
-        if len(canonical_dir.parts) >= 2 and normalize_results_scope_name(canonical_dir.parts[0]) in {"base", "scenarios"}:
-            return Path(*canonical_dir.parts[1:])
-        return canonical_dir
-    if run_scope is None or not canonical_dir.parts:
-        return canonical_dir
-    if normalize_results_scope_name(canonical_dir.parts[0]) != run_scope:
-        return canonical_dir
-    if len(canonical_dir.parts) == 1:
-        return canonical_dir
-    return Path(*canonical_dir.parts[1:])
+def build_relative_instance_dir(canonical_dir: Path, *, single_instance_run: bool) -> Path:
+    """Where an instance's files go inside the run root: the root itself for a one-instance run."""
+    return Path() if single_instance_run else canonical_dir
 
 
 if __name__ == "__main__":

@@ -8,5 +8,5 @@ __pycache__/
 .vscode/
 .claude/
 
-# Solver output (clsc-solve --results-root results/runs)
+# Solver output (clsc-solve writes to results/<instance>/ by default)
 results/

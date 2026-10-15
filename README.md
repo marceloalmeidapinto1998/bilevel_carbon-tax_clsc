@@ -24,10 +24,10 @@ pip install -e ".[dev]"
 This command installs the `clsc` package together with two console scripts, `clsc-solve` and `clsc-generate` (equivalently, `python -m clsc.solver_cli` and `python -m clsc.generator`). Solving an instance requires a valid Gurobi licence; see "Requirements and reproducibility".
 
 ```bash
-clsc-solve data/STD_I17_M4_T3.json --results-root results/runs
+clsc-solve data/STD_I17_M4_T3.json
 ```
 
-A run on one instance writes to `results/runs/base/<instance>/dbp/`. The contents of each output file, and further command-line options, are described in "Usage".
+A run on one instance writes to `results/<instance>/`. The contents of each output file, and further command-line options, are described in "Usage".
 
 ## Problem
 
@@ -146,16 +146,16 @@ Every instance has 3 production and 3 remanufacturing technologies.
 
 ```bash
 # one instance, default configuration
-clsc-solve data/STD_I17_M4_T3.json --results-root results/runs
+clsc-solve data/STD_I17_M4_T3.json
 
 # every instance in a folder
-clsc-solve data --results-root results/runs
+clsc-solve data
 
 # a different tax weight (see Configuration)
 clsc-solve data/STD_I17_M4_T3.json --leader-tax-weight-relative 1e-5
 ```
 
-A run on one instance writes to `results/runs/base/<instance>/dbp/`. A run on a folder writes to `results/runs/base/<run_id>/`, with one subfolder per instance holding the per-instance files and, at the run root, one `summary.*` and one `manifest.json` for the whole run. If an instance fails, its folder also holds `diagnostics.json`.
+A run on one instance writes to `results/<instance>/` (`--results-root` changes `results`). A run on a folder writes to `results/<run_id>/`, with one subfolder per instance holding the per-instance files and, at the run root, one `summary.*` and one `manifest.json` for the whole run. If an instance fails, its folder also holds `diagnostics.json`.
 
 | File | Content |
 |---|---|
