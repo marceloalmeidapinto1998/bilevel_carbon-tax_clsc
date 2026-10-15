@@ -173,6 +173,14 @@ A run on one instance writes to `results/<instance>/` (`--results-root` changes 
 
 A run has no limit on its total time unless one is given, as in Soares et al., whose run ends on its stopping criteria. `--run-time-limit SECONDS` and `--max-iterations N` bound it: when one is reached the run ends with the incumbent and both bounds, as `bounds` with the termination reason `incumbent_time_limit` or `incumbent_iteration_limit`: an interval with its gap, and no optimality claim. The time budget is checked between subproblems and caps each subproblem's time limit at what remains of it. A follower solve has up to three stages, so the budget can be overrun by up to three subproblem limits. If the budget is spent before the first follower evaluation there is no incumbent and the instance is reported as failed.
 
+### Abatement curve
+
+```bash
+python -m clsc.analysis.abatement data/STD_I17_M4_T3.json
+```
+
+The follower's optimal value $f^*(\tau)$ is the lower envelope of one line per response, concave and piecewise linear in $\tau$; its break points are the taxes at which the follower changes response, and between two of them the emissions do not change. `clsc.analysis.abatement` finds every piece with about two follower solves per piece (the Eisner–Severance method), solving the follower as the DBP does, with the optimistic tie-break, at a MIP gap of $10^{-6}$. Since $E$ is constant on each piece and $w > 0$, the leader's optimum is the best of the lower tax bound and the break points, which gives an exact solution of the bilevel problem, up to the follower's MIP gap, that is independent of the DBP. It writes `abatement_curve.csv` (tax, emissions, cost and $F$ at the lower bound, every break point and the upper bound) and `abatement.json` (the leader's optimum on the curve) to `results/<instance>/`, using the weight $w$ of the DBP run found there (`--leader-tax-weight` sets it otherwise). Pieces narrower than $10^{-3}$ EUR/t and lines below the envelope by less than the MIP gap are not resolved.
+
 ### Generating instances
 
 ```bash
@@ -230,6 +238,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 .
 ├── data/                      # the 15 instances (JSON)
 ├── src/clsc/                  # the Python package
+│   ├── analysis/abatement.py  #   exact abatement curve E(tax) and the leader's optimum on it
 │   ├── config/                #   method defaults and shared constants
 │   ├── generator/             #   instance generator (CLI: clsc-generate)
 │   ├── models/                #   instance loading and the Gurobi models
@@ -239,8 +248,8 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 │   │   ├── hpr.py             #     DBP high-point relaxation
 │   │   └── gurobi_utils.py    #     solve wrapper and result types
 │   ├── solvers/dbp.py         #   the Deterministic Bounding Procedure
-│   └── solver_cli/            #   batch solver CLI (clsc-solve): parsing, output files, revalidation
-├── tests/test_baseline.py     # regression tests
+│   └── solver_cli/            #   batch solver CLI (clsc-solve): parsing, output files, validation
+├── tests/                     # regression, certificate, run-control, formulation and abatement tests
 ├── pyproject.toml             # metadata, dependencies, console scripts, pytest settings
 └── requirements.txt           # mirrors the dependencies in pyproject.toml
 ```
