@@ -672,7 +672,7 @@ def _solve_bilevel_dbp(
     mip_focus: int | None = None,
     seed: int | None = None,
     use_warm_start: bool = True,
-    use_emissions_cap: bool = False,
+    use_emissions_cap: bool = True,
     use_follower_improvement: bool = True,
     use_elastic_hpr: bool = True,
     tax_tolerance: float | None = None,
@@ -720,8 +720,10 @@ def _solve_bilevel_dbp(
     * a follower that stops on its time limit is improved by subproblem P6
       (``use_follower_improvement``); its best response is used, and a tie-break that finds
       nothing keeps the Step-2 response (P4-D). The result can then be epsilon-optimal at best;
-    * ``use_emissions_cap`` (optional extension, off by default; not in Soares et al.) adds
-      ``F <= UB`` (Mitsos 2010) to the HPR, valid only while the UB is a proven bilevel-feasible value;
+    * ``use_emissions_cap`` (on by default; Soares et al. report adding an objective cutoff of this
+      kind to their reformulated subproblems, after Mitsos 2010) adds ``F <= UB`` and ``E <= UB`` to
+      the HPR, which also bounds the operands of its bilinear product; it is applied only while the UB
+      is a proven bilevel-feasible value, and the follower's time limit can withhold it;
       ``use_warm_start`` (A3) warm-starts successive follower solves;
     * the run stops after ``DEFAULT.stagnation_limit`` iterations in which neither bound moved
       (their auxiliary stop).

@@ -183,12 +183,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ablation A3: disable warm starts between successive follower solves.",
     )
     parser.add_argument(
-        "--emissions-cap",
+        "--no-emissions-cap",
         dest="use_emissions_cap",
-        action="store_true",
+        action="store_false",
         help=(
-            "Optional extension (not in Soares et al. 2021): add the incumbent objective upper "
-            "bound F <= UB (Mitsos 2010) to the HPR, while the UB is a proven value."
+            "Disable the objective cutoff F <= UB (Mitsos 2010) and the bound E <= UB, which by "
+            "default are added to the HPR while the upper bound is a proven value. They also bound "
+            "the operands of the HPR's bilinear product."
         ),
     )
     parser.add_argument(
@@ -207,7 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.set_defaults(
-        use_warm_start=True, use_emissions_cap=False,
+        use_warm_start=True, use_emissions_cap=True,
         use_follower_improvement=True, use_elastic_hpr=True,
     )
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")

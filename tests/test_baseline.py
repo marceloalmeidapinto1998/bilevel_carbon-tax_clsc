@@ -101,5 +101,5 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
     )
     assert summary["cost"] == pytest.approx(1551005.3756630884, rel=1e-6)
     assert summary["emissions"] == pytest.approx(24683049.8245415, rel=1e-6)
-    assert summary["leader_objective_lb"] == pytest.approx(24764694.80956364, rel=1e-6)
+    assert summary["leader_objective_lb"] == pytest.approx(24766096.98039358, rel=1e-6)
     assert summary["leader_objective_ub"] == pytest.approx(24766317.208076447, rel=1e-6)
