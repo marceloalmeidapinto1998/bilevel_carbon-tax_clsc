@@ -66,6 +66,11 @@ def total_emissions_upper_bound(instance: InstanceData) -> float:
         )
 
     transport_bound = 0.0
+    # A capacity counted in units bounds the weight by the heaviest item.
+    heaviest_item = max(
+        (*params.get("omega_p", {}).values(), *params.get("omega_rp", {}).values(), *params.get("omega_u", {}).values()),
+        default=1.0,
+    )
     transport_arcs = instance.sets["A"]
     distance = params["d_i_j"]
     mode_family = params.get("mode_family_m", {})
@@ -85,10 +90,12 @@ def total_emissions_upper_bound(instance: InstanceData) -> float:
                     max(params.get("ecmax_i", {}).values(), default=0.0),
                     params["bar_X_m"][mode] * _trip_big_m(params, mode, origin=origin, destination=destination),
                 )
+            if _capacity_in_units(params, mode):
+                weight_bound *= heaviest_item
             transport_bound += (
                 len(periods)
                 * params["e_ship_m"][mode]
-                * params.get("road_return_factor_m", {}).get(mode, 1.0)
+                * _emission_return_factor(params, mode)
                 * distance[origin][destination]
                 * weight_bound
             )
@@ -224,6 +231,14 @@ def build_supply_chain_model(
         name="rem",
     )
     inv_w = model.addVars(((p, w, t) for p in products for w in warehouses for t in periods), lb=0.0, name="inv_w")
+    # Facilities that already exist (existing_i: entity -> installed area, m2) are open with that area,
+    # as Mota et al. (2018)'s factory and warehouse in Verona. Their construction cost is whatever
+    # c_area_f / c_area_w gives them (Mota: none).
+    for entity, area in (params.get("existing_i") or {}).items():
+        opened = y_f[entity] if entity in factories else y_w[entity]
+        opened.LB = 1.0
+        installed_area[entity].LB = float(area)
+        installed_area[entity].UB = float(area)
     x = model.addVars(
         ((item, o, d, m, t) for item, o, d in flow_tuples for m in allowed_modes[(o, d)] for t in periods),
         lb=0.0,
@@ -288,17 +303,7 @@ def build_supply_chain_model(
         + gp.quicksum(discount[t] * params["rmc_s_u"][s][u] * x[u, s, d, m, t] for u, s, d in flow_raw if s in suppliers for m in allowed_modes[(s, d)] for t in periods)
         + gp.quicksum(discount[t] * params["rpc_rp"][rp] * x[rp, r, d, m, t] for rp, r, d in flow_rp if r in retailers for m in allowed_modes[(r, d)] for t in periods)
         + _transport_variable_cost(params, flow_tuples, allowed_modes, weights, distances, periods, mode_family, x, trip, discount)
-        + gp.quicksum(
-            discount[t]
-            * params["c_handle_m"][m]
-            * ((1 if o in hubs else 0) + (1 if d in hubs else 0))
-            * weights[item]
-            * x[item, o, d, m, t]
-            for item, o, d in flow_tuples
-            if o in hubs or d in hubs
-            for m in allowed_modes[(o, d)]
-            for t in periods
-        )
+        + _handling_cost(params, flow_tuples, allowed_modes, weights, periods, hubs, x, discount)
     )
 
     embodied_share = embodied_emission_share_per_period(params)
@@ -332,7 +337,7 @@ def build_supply_chain_model(
             + gp.quicksum(
                 weight[t]
                 * params["e_ship_m"][m]
-                * params.get("road_return_factor_m", {}).get(m, 1.0)
+                * _emission_return_factor(params, m)
                 * weights[item] * distances[o][d] * x[item, o, d, m, t]
                 for item, o, d in flow_tuples for m in allowed_modes[(o, d)] for t in periods
             )
@@ -398,6 +403,35 @@ def _transport_fixed_cost(params, vehicle) -> gp.LinExpr:
     # payment is represented once, by the hub access fee f_h, matching Mota
     # et al.'s single bundled cfp_i (see sample_transport_fixed_cost).
     return gp.quicksum(params["f_mode_m"][mode] * vehicle[origin, mode] for origin, mode in vehicle.keys())
+
+
+def _handling_cost(params, flow_tuples, allowed_modes, weights, periods, hubs, x, discount) -> gp.LinExpr:
+    """Handling at the hub terminals.
+
+    With ``c_handle_h`` (EUR per unit, per hub), as Mota et al. (2018), eq. 43: each unit is charged
+    once, on entering a hub from a node that is not a hub. Otherwise ``c_handle_m`` (EUR per kg, per
+    mode) is charged at every hub end of an arc.
+    """
+    per_hub = params.get("c_handle_h")
+    if per_hub is not None:
+        return gp.quicksum(
+            discount[t] * float(per_hub.get(d, 0.0)) * x[item, o, d, m, t]
+            for item, o, d in flow_tuples
+            if d in hubs and o not in hubs
+            for m in allowed_modes[(o, d)]
+            for t in periods
+        )
+    return gp.quicksum(
+        discount[t]
+        * params["c_handle_m"][m]
+        * ((1 if o in hubs else 0) + (1 if d in hubs else 0))
+        * weights[item]
+        * x[item, o, d, m, t]
+        for item, o, d in flow_tuples
+        if o in hubs or d in hubs
+        for m in allowed_modes[(o, d)]
+        for t in periods
+    )
 
 
 def _transport_variable_cost(
@@ -733,16 +767,18 @@ def _add_transport_constraints(
         for mode in allowed_modes[(origin, destination)]:
             family = _mode_family(mode, mode_family)
             contracted_cap = params.get("ccamax_m", {}).get(mode, 0.0)
+            # The load the capacities are counted in: kg, or units of any item (capacity_unit_m).
+            in_units = _capacity_in_units(params, mode)
             for period in periods:
-                transported_weight = gp.quicksum(
-                    weights[item] * x[item, origin, destination, mode, period]
+                load = gp.quicksum(
+                    (1.0 if in_units else weights[item]) * x[item, origin, destination, mode, period]
                     for item in flow_by_arc.get((origin, destination), ())
                 )
                 if family == "truck":
                     trips = trip[origin, destination, mode, period]
-                    model.addConstr(transported_weight <= params["bar_X_m"][mode] * trips)
+                    model.addConstr(load <= params["bar_X_m"][mode] * trips)
                     if params.get("ctmin_m", {}).get(mode, 0.0) > 0.0:
-                        model.addConstr(transported_weight >= params["ctmin_m"][mode] * trips)
+                        model.addConstr(load >= params["ctmin_m"][mode] * trips)
                     big_m = _trip_big_m(params, mode, origin=origin, destination=destination)
                     for installed in activity:
                         model.addConstr(trips <= big_m * installed)
@@ -750,9 +786,9 @@ def _add_transport_constraints(
                     capacity = contracted_cap if contracted_cap > 0.0 else params["bar_X_m"][mode]
                     if activity:
                         for installed in activity:
-                            model.addConstr(transported_weight <= capacity * installed)
+                            model.addConstr(load <= capacity * installed)
                     else:
-                        model.addConstr(transported_weight <= capacity)
+                        model.addConstr(load <= capacity)
 
     _add_truck_fleet_constraints(
         model,
@@ -1433,6 +1469,20 @@ def _allowed_modes(
         required_family = "truck"
     allowed = tuple(mode for mode in modes if mode_family.get(mode, mode) == required_family)
     return allowed or tuple(modes)
+
+
+def _capacity_in_units(params, mode: str) -> bool:
+    """Whether the mode's capacities (bar_X_m, ctmin_m, ccamax_m) count units of items, not kg."""
+    return (params.get("capacity_unit_m") or {}).get(mode, "kg") == "unit"
+
+
+def _emission_return_factor(params, mode: str) -> float:
+    """Distance factor of the mode's emissions: emission_return_factor_m if given (Mota et al. 2018
+    count the outbound leg only), else the cost's road_return_factor_m."""
+    factors = params.get("emission_return_factor_m") or {}
+    if mode in factors:
+        return float(factors[mode])
+    return float(params.get("road_return_factor_m", {}).get(mode, 1.0))
 
 
 def _mode_family(mode: str, mode_family: dict[str, str]) -> str:

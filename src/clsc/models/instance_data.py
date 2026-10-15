@@ -176,6 +176,7 @@ class InstanceData:
             raise InstanceValidationError(f"Return lags theta_p must be integer-valued: {invalid_return_lags}")
         if negative_return_lags:
             raise InstanceValidationError(f"Return lags theta_p must be nonnegative: {negative_return_lags}")
+        self._validate_optional_parameters()
 
         _validate_arc_sets(self.sets)
         _validate_pair_sets(self.sets)
@@ -185,6 +186,29 @@ class InstanceData:
         _validate_unit_conventions(self.metadata)
         _validate_technology_coverage(self.sets)
         _validate_capacity_feasibility(self.sets, self.parameters)
+
+    def _validate_optional_parameters(self) -> None:
+        """The optional parameters that let an instance follow Mota et al. (2018)'s case study."""
+        params, sets = self.parameters, self.sets
+        for entity, area in (params.get("existing_i") or {}).items():
+            if entity in sets["F"]:
+                low, high = params.get("Amin_f", {}).get(entity, 0.0), params["A_f"][entity]
+            elif entity in sets["W"]:
+                low, high = params.get("Amin_w", {}).get(entity, 0.0), params["A_w"][entity]
+            else:
+                raise InstanceValidationError(f"existing_i names {entity!r}, which is not a factory or warehouse")
+            if not low <= float(area) <= high:
+                raise InstanceValidationError(f"existing_i area of {entity} ({area}) lies outside [{low}, {high}]")
+        for mode, unit in (params.get("capacity_unit_m") or {}).items():
+            if mode not in sets["M"] or unit not in ("kg", "unit"):
+                raise InstanceValidationError(f"capacity_unit_m: {mode!r} -> {unit!r} (modes of M, 'kg' or 'unit')")
+        hubs = set(sets.get("AIR", ())) | set(sets.get("PORT", ()))
+        unknown_hubs = set(params.get("c_handle_h") or {}) - hubs
+        if unknown_hubs:
+            raise InstanceValidationError(f"c_handle_h names nodes that are not hubs: {sorted(unknown_hubs)}")
+        for mode in params.get("emission_return_factor_m") or {}:
+            if mode not in sets["M"]:
+                raise InstanceValidationError(f"emission_return_factor_m names an unknown mode {mode!r}")
 
     @property
     def lower_tax(self) -> float:
