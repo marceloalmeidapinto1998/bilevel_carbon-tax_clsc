@@ -42,6 +42,8 @@ where $w$ (kg CO2e per EUR/t) is a policy weight. Since $w > 0$, the lowest tax 
 - **Strategic:** which factories and warehouses to open, their installed floor-area capacities, and which production and remanufacturing technologies to install at each factory.
 - **Tactical and operational (per period):** raw-material procurement from suppliers, production and remanufacturing volumes, warehouse inventory levels, and forward flows of final products and reverse flows of recovered products across the transport arcs and modes of the network.
 
+The constraints follow Mota et al. (2018): a selected supplier ships at least its minimum order of every raw material in every period (their eq. 10–11); an arc may be served by several modes in the same period, truck trips require both endpoints to be installed (eq. 26–27), and air and sea carry at most the contracted capacity (eq. 28). One departure remains: an installed remanufacturing technology may stand idle in a period. The instance generator gives every technology a positive minimum use (Mota's case has none for remanufacturing), returns must be remanufactured in the period they arrive, and none arrive before the first return lag has passed; Mota's minimum use in every period (eq. 37) would then make every instance infeasible. Here the minimum use applies in the periods in which the technology operates.
+
 Let $c(y)$ denote the follower's operating cost (procurement, production, remanufacturing, transport, handling and inventory), discounted over the planning horizon, and $\beta(y)$ the emissions aggregate on which the follower is taxed, discounted with the same present-value weights. The follower minimises
 
 $$f(\tau, y) = c(y) + \tau \, \beta(y).$$

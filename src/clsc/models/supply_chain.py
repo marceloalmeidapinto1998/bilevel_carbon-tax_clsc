@@ -107,9 +107,10 @@ def total_emissions_upper_bound(instance: InstanceData) -> float:
 #     is also bounded by what can be collected, and that bound replaces the capacity in the link when it is
 #     smaller.
 #
-# (A candidate that was measured and dropped: ``vehicle >= zt``, a trip needs a vehicle at its origin. With
-# the model's trip big-M the relaxation does not feel it, and with a big-M tight enough to matter, which is
-# not a valid bound, it closed only one to five points of the gap.)
+# (A candidate that was measured and dropped: a trip on an arc needs a vehicle at its origin, written
+# against the per-arc mode binary the model then had. With the trip big-M the relaxation does not feel
+# it, and with a big-M tight enough to matter, which is not a valid bound, it closed only one to five
+# points of the gap.)
 FORMULATION_STRENGTHENING_OPTIONS = ("remanufacturing_capacity",)
 DEFAULT_FORMULATION_STRENGTHENING: tuple[str, ...] = FORMULATION_STRENGTHENING_OPTIONS
 
@@ -174,23 +175,6 @@ def build_supply_chain_model(
             }
         )
     )
-    outsourced_modes = tuple(
-        sorted(
-            {
-                mode
-                for origin, destination in transport_arcs
-                for mode in allowed_modes[(origin, destination)]
-                if _mode_family(mode, mode_family) in {"air", "sea"}
-                and params.get("ccamax_m", {}).get(mode, 0.0) > 0.0
-            }
-        )
-    )
-    transport_mode_keys = tuple(
-        (o, d, m, t)
-        for o, d in transport_arcs
-        for m in allowed_modes[(o, d)]
-        for t in periods
-    )
     truck_transport_keys = tuple(
         (o, d, m, t)
         for o, d in transport_arcs
@@ -211,11 +195,8 @@ def build_supply_chain_model(
         vtype=GRB.BINARY,
         name="use_rem",
     )
-    zt = model.addVars(transport_mode_keys, vtype=GRB.BINARY, name="zt")
     trip = model.addVars(truck_transport_keys, vtype=GRB.INTEGER, lb=0.0, name="trip")
     vehicle = model.addVars(vehicle_pairs, vtype=GRB.INTEGER, lb=0.0, name="vehicle")
-    contract = model.addVars(((m, t) for m in outsourced_modes for t in periods), vtype=GRB.BINARY, name="contract")
-    order_su = model.addVars(((u, s, t) for u in raw_materials for s in suppliers for t in periods), vtype=GRB.BINARY, name="order_su")
     q = model.addVars(
         ((p, f, g, t) for p, g in sorted(production_pairs) for f in factories for t in periods),
         lb=0.0,
@@ -359,12 +340,12 @@ def build_supply_chain_model(
         remanufacturing_pairs, production_products_by_technology, remanufacturing_products_by_technology,
         production_technologies_by_product, remanufacturing_technologies_by_product,
         return_yield, raw_in, raw_out, fp_in, fp_out, rp_in, rp_out, fs, y_s, y_f, y_w, u_prod, u_rem,
-        use_rem, order_su, q, rem, inv_w, installed_area,
+        use_rem, q, rem, inv_w, installed_area,
         "remanufacturing_capacity" in strengthening,
     )
     _add_transport_constraints(
         model, params, transport_arcs, allowed_modes, flow_by_arc, weights, periods,
-        suppliers, factories, warehouses, airports, seaports, hubs, y_s, y_f, y_w, y_h, zt, trip, vehicle, contract, x,
+        suppliers, factories, warehouses, airports, seaports, hubs, y_s, y_f, y_w, y_h, trip, vehicle, x,
     )
     _add_valid_inequalities(
         model,
@@ -429,7 +410,7 @@ def _add_inventory_and_flow_constraints(
     remanufacturing_pairs, production_products_by_technology, remanufacturing_products_by_technology,
     production_technologies_by_product, remanufacturing_technologies_by_product,
     return_yield, raw_in, raw_out, fp_in, fp_out, rp_in, rp_out, fs, y_s, y_f, y_w, u_prod, u_rem,
-    use_rem, order_su, q, rem, inv_w, installed_area, bound_remanufacturing_by_collection,
+    use_rem, q, rem, inv_w, installed_area, bound_remanufacturing_by_collection,
 ) -> None:
     initial_inventory = params["i_p_n_0"]
     for product in products:
@@ -452,13 +433,15 @@ def _add_inventory_and_flow_constraints(
             for period in periods:
                 model.addConstr(fs(fp_in, product, hub, period) == fs(fp_out, product, hub, period))
 
+    # Supply capacity and minimum order (Mota et al. 2018, eq. 10-11; Tautenhain et al. 2021, eq. 1-2):
+    # a selected supplier ships between its minimum order and its capacity of every raw material in
+    # every period.
     for supplier in params.get("bar_s_s_u", {}):
         for raw_material in raw_materials:
             for period in periods:
                 shipped = fs(raw_out, raw_material, supplier, period)
-                model.addConstr(shipped <= params["bar_s_s_u"][supplier][raw_material] * order_su[raw_material, supplier, period])
-                model.addConstr(shipped >= params["scmin_s_u"][supplier][raw_material] * order_su[raw_material, supplier, period])
-                model.addConstr(order_su[raw_material, supplier, period] <= y_s[supplier])
+                model.addConstr(shipped <= params["bar_s_s_u"][supplier][raw_material] * y_s[supplier])
+                model.addConstr(shipped >= params["scmin_s_u"][supplier][raw_material] * y_s[supplier])
     for raw_material in raw_materials:
         for factory in factories:
             for period in periods:
@@ -704,54 +687,51 @@ def _derive_recovered_product_area(params, products, recovered_products) -> dict
 
 def _add_transport_constraints(
     model, params, transport_arcs, allowed_modes, flow_by_arc, weights, periods,
-    suppliers, factories, warehouses, airports, seaports, hubs, y_s, y_f, y_w, y_h, zt, trip, vehicle, contract, x,
+    suppliers, factories, warehouses, airports, seaports, hubs, y_s, y_f, y_w, y_h, trip, vehicle, x,
 ) -> None:
+    """Transport constraints, as in Mota et al. (2018), eq. 24-28.
+
+    Several modes may serve the same arc in the same period, and no binary selects a mode: a truck
+    mode carries what its integer trips allow (eq. 24-25), and trips need both endpoints installed
+    (eq. 26-27, ``trip <= BigM * Y``). Air and sea carry at most the capacity contracted per arc and
+    period (eq. 28); their flows are tied to the installed hubs at both ends through the same capacity,
+    which stands in for Mota's node-throughput link (eq. 12-13, not imposed here, see below).
+    """
     mode_family = params.get("mode_family_m", {})
+
+    def endpoint_activity(origin, destination):
+        # Installation binaries of the arc's endpoints; retailers are always present and have none.
+        return [
+            _entity_activity(node, suppliers, factories, warehouses, hubs, y_s, y_f, y_w, y_h)
+            for node in (origin, destination)
+            if node in suppliers or node in factories or node in warehouses or node in hubs
+        ]
+
     for origin, destination in transport_arcs:
+        activity = endpoint_activity(origin, destination)
         for mode in allowed_modes[(origin, destination)]:
             family = _mode_family(mode, mode_family)
+            contracted_cap = params.get("ccamax_m", {}).get(mode, 0.0)
             for period in periods:
                 transported_weight = gp.quicksum(
                     weights[item] * x[item, origin, destination, mode, period]
                     for item in flow_by_arc.get((origin, destination), ())
                 )
-                contracted_cap = params.get("ccamax_m", {}).get(mode, 0.0)
-                _add_transport_endpoint_activation(
-                    model,
-                    origin=origin,
-                    destination=destination,
-                    mode=mode,
-                    period=period,
-                    suppliers=suppliers,
-                    factories=factories,
-                    warehouses=warehouses,
-                    hubs=hubs,
-                    y_s=y_s,
-                    y_f=y_f,
-                    y_w=y_w,
-                    y_h=y_h,
-                    zt=zt,
-                )
                 if family == "truck":
-                    model.addConstr(transported_weight <= params["bar_X_m"][mode] * trip[origin, destination, mode, period])
+                    trips = trip[origin, destination, mode, period]
+                    model.addConstr(transported_weight <= params["bar_X_m"][mode] * trips)
                     if params.get("ctmin_m", {}).get(mode, 0.0) > 0.0:
-                        model.addConstr(transported_weight >= params["ctmin_m"][mode] * trip[origin, destination, mode, period])
-                    model.addConstr(
-                        trip[origin, destination, mode, period]
-                        <= _trip_big_m(params, mode, origin=origin, destination=destination) * zt[origin, destination, mode, period]
-                    )
-                    model.addConstr(trip[origin, destination, mode, period] >= zt[origin, destination, mode, period])
-                elif contracted_cap > 0.0:
-                    model.addConstr(transported_weight <= contracted_cap * zt[origin, destination, mode, period])
-                    if (mode, period) in contract:
-                        model.addConstr(zt[origin, destination, mode, period] <= contract[mode, period])
+                        model.addConstr(transported_weight >= params["ctmin_m"][mode] * trips)
+                    big_m = _trip_big_m(params, mode, origin=origin, destination=destination)
+                    for installed in activity:
+                        model.addConstr(trips <= big_m * installed)
                 else:
-                    model.addConstr(transported_weight <= params["bar_X_m"][mode] * zt[origin, destination, mode, period])
-        if allowed_modes[(origin, destination)]:
-            for period in periods:
-                model.addConstr(
-                    gp.quicksum(zt[origin, destination, mode, period] for mode in allowed_modes[(origin, destination)]) <= 1,
-                )
+                    capacity = contracted_cap if contracted_cap > 0.0 else params["bar_X_m"][mode]
+                    if activity:
+                        for installed in activity:
+                            model.addConstr(transported_weight <= capacity * installed)
+                    else:
+                        model.addConstr(transported_weight <= capacity)
 
     _add_truck_fleet_constraints(
         model,
@@ -809,41 +789,6 @@ def _add_transport_constraints(
         mode_family,
         x,
     )
-
-
-def _add_transport_endpoint_activation(
-    model,
-    *,
-    origin: str,
-    destination: str,
-    mode: str,
-    period: str,
-    suppliers,
-    factories,
-    warehouses,
-    hubs,
-    y_s,
-    y_f,
-    y_w,
-    y_h,
-    zt,
-) -> None:
-    if origin in suppliers:
-        model.addConstr(zt[origin, destination, mode, period] <= y_s[origin])
-    if destination in suppliers:
-        model.addConstr(zt[origin, destination, mode, period] <= y_s[destination])
-    if origin in factories:
-        model.addConstr(zt[origin, destination, mode, period] <= y_f[origin])
-    if destination in factories:
-        model.addConstr(zt[origin, destination, mode, period] <= y_f[destination])
-    if origin in warehouses:
-        model.addConstr(zt[origin, destination, mode, period] <= y_w[origin])
-    if destination in warehouses:
-        model.addConstr(zt[origin, destination, mode, period] <= y_w[destination])
-    if origin in hubs:
-        model.addConstr(zt[origin, destination, mode, period] <= y_h[origin])
-    if destination in hubs:
-        model.addConstr(zt[origin, destination, mode, period] <= y_h[destination])
 
 
 def _add_valid_inequalities(
