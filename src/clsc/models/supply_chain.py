@@ -106,12 +106,28 @@ def total_emissions_upper_bound(instance: InstanceData) -> float:
 #     factory in a period were collected at the retailers in that period (nothing is stored), so the flow
 #     is also bounded by what can be collected, and that bound replaces the capacity in the link when it is
 #     smaller.
+# vehicle_cover
+#     A truck is bought whole although the relaxation needs only the fraction of its driving hours that the
+#     trips use, which at the instances' flows is a few per cent. Where the model forces trips out of a
+#     node, it needs at least one truck there: a retailer with a positive minimum return in some period
+#     (its recovered products leave by road), an open supplier (it ships its minimum order) and an open
+#     factory (whatever it receives leaves as final products); and some factory ships at all when demand
+#     exceeds the initial stock. Each inequality is added only where every arc out of the node is a truck
+#     arc whose trips need driving hours, so that one trip implies one truck.
+# technology_cover
+#     Likewise a technology is installed whole. Recovered products collected in a period are
+#     remanufactured in that period, so a period with a positive minimum return of a recovered product
+#     runs some remanufacturing technology that uses it; and a product whose demand exceeds its initial
+#     stock plus everything that could be remanufactured installs some production technology for it.
+#
+# None of these is in Mota et al. (2018) or Tautenhain et al. (2021): with Mota's flows a node uses many
+# trucks and the relaxation's fraction is close to the integer value, so they are slack there.
 #
 # (A candidate that was measured and dropped: a trip on an arc needs a vehicle at its origin, written
 # against the per-arc mode binary the model then had. With the trip big-M the relaxation does not feel
 # it, and with a big-M tight enough to matter, which is not a valid bound, it closed only one to five
 # points of the gap.)
-FORMULATION_STRENGTHENING_OPTIONS = ("remanufacturing_capacity",)
+FORMULATION_STRENGTHENING_OPTIONS = ("remanufacturing_capacity", "vehicle_cover", "technology_cover")
 DEFAULT_FORMULATION_STRENGTHENING: tuple[str, ...] = FORMULATION_STRENGTHENING_OPTIONS
 
 
@@ -355,6 +371,11 @@ def build_supply_chain_model(
         y_f,
         u_prod,
         u_rem,
+    )
+    _add_cover_inequalities(
+        model, params, strengthening, transport_arcs, allowed_modes, mode_family, flow_rp, periods,
+        suppliers, factories, warehouses, retailers, hubs, products, recovered_products, remanufacturing_pairs,
+        production_technologies_by_product, return_yield, y_s, y_f, u_prod, use_rem, vehicle,
     )
     return _SupplyChainModel(
         model=model,
@@ -820,6 +841,97 @@ def _add_valid_inequalities(
             >= y_f[factory],
             name=f"vi_tech_demand[{factory}]",
         )
+
+
+def _add_cover_inequalities(
+    model, params, strengthening, transport_arcs, allowed_modes, mode_family, flow_rp, periods,
+    suppliers, factories, warehouses, retailers, hubs, products, recovered_products, remanufacturing_pairs,
+    production_technologies_by_product, return_yield, y_s, y_f, u_prod, use_rem, vehicle,
+) -> None:
+    """The vehicle_cover and technology_cover inequalities (see FORMULATION_STRENGTHENING_OPTIONS)."""
+    lags = _return_lags(params, products)
+    minimum_return = {
+        (retailer, recovered_product, period): sum(
+            return_yield[recovered_product][product]
+            * _return_fraction(params, "ret_min_frac_r_p_t", retailer, product, period)
+            * _lagged_demand(params, retailer, product, periods, period_index, lags[product])
+            for product in products
+        )
+        for retailer in retailers
+        for recovered_product in recovered_products
+        for period_index, period in enumerate(periods)
+    }
+    trucks_at = defaultdict(list)
+    for (origin, mode), variable in vehicle.items():
+        trucks_at[origin].append(variable)
+
+    if "vehicle_cover" in strengthening:
+        speed = params.get("speed_km_h_m", {})
+        hours = params.get("max_driving_hours_m", {})
+        distances = params["d_i_j"]
+
+        def one_trip_needs_a_truck(node) -> bool:
+            # Every arc out of the node is a truck arc, and a trip on it uses driving hours (or, without
+            # driving-hour data, counts against the fleet directly), so one trip forces one truck.
+            arcs = [(o, d) for o, d in transport_arcs if o == node]
+            if not arcs or node not in trucks_at:
+                return False
+            for o, d in arcs:
+                for mode in allowed_modes[(o, d)]:
+                    if _mode_family(mode, mode_family) != "truck":
+                        return False
+                    timed = float(speed.get(mode, 0.0)) > 0.0 and float(hours.get(mode, 0.0)) > 0.0
+                    if timed and distances[o][d] <= 0.0:
+                        return False
+            return True
+
+        for retailer in retailers:
+            if one_trip_needs_a_truck(retailer) and any(
+                minimum_return[retailer, recovered_product, period] > 0.0
+                for recovered_product in recovered_products for period in periods
+            ):
+                model.addConstr(gp.quicksum(trucks_at[retailer]) >= 1, name=f"cover_trucks[{retailer}]")
+        for node, installed in (*((s, y_s[s]) for s in suppliers), *((f, y_f[f]) for f in factories)):
+            if one_trip_needs_a_truck(node):
+                model.addConstr(gp.quicksum(trucks_at[node]) >= installed, name=f"cover_trucks[{node}]")
+        initial_stock = sum(params["i_p_n_0"][p][w] for p in products for w in warehouses)
+        total_demand = sum(params["d_r_p_t"][r][p][t] for r in retailers for p in products for t in periods)
+        if total_demand > initial_stock and factories and all(one_trip_needs_a_truck(f) for f in factories):
+            model.addConstr(
+                gp.quicksum(v for f in factories for v in trucks_at[f]) >= 1, name="cover_trucks[factories]",
+            )
+
+    if "technology_cover" in strengthening:
+        # Recovered products end at factories: every other node they reach passes them on.
+        sinks = {d for _, _, d in flow_rp} - set(factories) - set(warehouses) - set(hubs)
+        if not sinks:
+            bill = params.get("bom_rem_r_p", {})
+            for recovered_product in recovered_products:
+                technologies = sorted({
+                    technology for product, technology in remanufacturing_pairs
+                    if bill.get(recovered_product, {}).get(product, 0.0) > 0.0
+                })
+                for period in periods:
+                    if sum(minimum_return[r, recovered_product, period] for r in retailers) > 0.0 and technologies:
+                        model.addConstr(
+                            gp.quicksum(use_rem[f, l, period] for f in factories for l in technologies) >= 1,
+                            name=f"cover_remanufacturing[{recovered_product},{period}]",
+                        )
+        remanufacturable = _remanufacturing_flow_bounds(
+            params, products, recovered_products, retailers, periods, return_yield, lags,
+        )
+        for product in products:
+            demand = sum(params["d_r_p_t"][r][product][t] for r in retailers for t in periods)
+            stock = sum(params["i_p_n_0"][product][w] for w in warehouses)
+            # Each factory can remanufacture at most the collectable amount, but all factories together
+            # share the same collected products, so the bound counts once.
+            most_remanufactured = sum(remanufacturable[product, t] for t in periods)
+            technologies = production_technologies_by_product.get(product, ())
+            if demand > stock + most_remanufactured and technologies:
+                model.addConstr(
+                    gp.quicksum(u_prod[f, g] for f in factories for g in technologies) >= 1,
+                    name=f"cover_production[{product}]",
+                )
 
 
 def _add_truck_fleet_constraints(

@@ -105,6 +105,21 @@ def test_strengthening_keeps_the_integer_optimum(shape, tax: float) -> None:
 
 
 @requires_gurobi
+@pytest.mark.parametrize("tax", [0.0, 34.0])
+def test_strengthening_keeps_the_optimum_of_a_benchmark_instance(tax: float) -> None:
+    # A benchmark instance, where the truck and technology covers bind (a few seconds each).
+    from pathlib import Path
+
+    from clsc.models.instance_data import InstanceData
+
+    instance = InstanceData.from_file(Path(__file__).resolve().parents[1] / "data" / "STD_I17_M4_T3.json")
+    plain = _solve(instance, (), tax, relax=False)
+    strengthened = _solve(instance, FORMULATION_STRENGTHENING_OPTIONS, tax, relax=False)
+    assert strengthened == pytest.approx(plain, rel=1e-8)
+    assert _solve(instance, FORMULATION_STRENGTHENING_OPTIONS, tax, relax=True) > 1.05 * _solve(instance, (), tax, relax=True)
+
+
+@requires_gurobi
 @pytest.mark.parametrize("shape", INSTANCES)
 def test_strengthening_raises_the_relaxation_bound_without_passing_the_optimum(shape) -> None:
     instance = _instance(*shape)
