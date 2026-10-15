@@ -203,7 +203,7 @@ python -m pytest                  # all regression tests
 python -m pytest -m "not slow"    # skip the solver test
 ```
 
-[`tests/test_certificates.py`](tests/test_certificates.py) checks the signed gap, the result classes, the validation of the saved solution, and, on a tiny generated instance, that the DBP's bounds enclose the best value of a sweep of the tax (about 25 seconds; the gap and class tests need no licence). [`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a solve of `STD_I17_M4_T3` with one thread and Gurobi seed 0 reproduces its reference summary (about 80 seconds). The tests are skipped when no Gurobi licence is found; a size-limited licence is not enough (see "Requirements and reproducibility").
+[`tests/test_certificates.py`](tests/test_certificates.py) checks the signed gap, the result classes, the validation of the saved solution, and, on a tiny generated instance, that the DBP's bounds enclose the best value of a sweep of the tax (about 25 seconds; the gap and class tests need no licence). [`tests/test_baseline.py`](tests/test_baseline.py) checks that the generator reproduces the committed base and escalation instances, and that a solve of `STD_I17_M4_T3` with one thread and Gurobi seed 0 reproduces its reference summary (about 50 seconds). The tests are skipped when no Gurobi licence is found; a size-limited licence is not enough (see "Requirements and reproducibility").
 
 ## Configuration
 
@@ -230,7 +230,7 @@ The method's defaults are specified in [`src/clsc/config/defaults.py`](src/clsc/
 
 Instance generation is deterministic given a seed (see "Usage"). The DBP solve is deterministic given a fixed Gurobi `Seed` and thread count, subject to Gurobi's own run-to-run variability under multithreading.
 
-**Reference run.** On a laptop (11th Gen Intel Core i7-1185G7, 4 cores and 8 threads, 15.7 GB RAM, Windows 11) with Python 3.14.4 and Gurobi 13.0.1 under an academic licence, `clsc-solve data/STD_I17_M4_T3.json --threads 1 --seed 0` ends `optimal` in 4 iterations and 76 s, at a tax of 33.93 EUR/t. Runtimes of the other instances have not been recorded yet.
+**Reference run.** On a laptop (11th Gen Intel Core i7-1185G7, 4 cores and 8 threads, 15.7 GB RAM, Windows 11) with Python 3.14.4 and Gurobi 13.0.1 under an academic licence, `clsc-solve data/STD_I17_M4_T3.json --threads 1 --seed 0` ends `optimal` in 3 iterations and 47 s, at a tax of 33.93 EUR/t. Runtimes of the other instances have not been recorded yet.
 
 ## Project structure
 

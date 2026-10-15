@@ -12,7 +12,7 @@ import gurobipy as gp
 from gurobipy import GRB
 
 from clsc.config.constants import WEEKS_PER_YEAR
-from .instance_data import InstanceData
+from .instance_data import LEGACY_PRODUCT_ROTATION_PER_PERIOD, InstanceData
 
 
 @dataclass(slots=True)
@@ -572,17 +572,21 @@ def _add_inventory_and_flow_constraints(
         inv_w,
     )
 
-    # Floor-area requirement YCT_it: a flow-based handling term at
-    # both factories and warehouses, plus a stock-based storage term at
-    # warehouses only -- mirrors Mota et al. (2018)'s general facility-area
-    # expression (their Eq. 16), adapted to this model's flow-direction
-    # convention. Factories use X^out
-    # (the only nonzero flow direction for finished products under the
-    # greenfield convention, equal to q^p+q^r there);
-    # warehouses use X^in, mirroring Mota's own indexing, alongside their
-    # existing stock term. fs/fp_in/fp_out are already in scope here.
+    # Floor-area requirement YCT_it, as Mota et al. (2018), eq. 16: every item that enters the facility in
+    # the period, at its area per unit over the product rotation (apur), plus the stock held, at its area
+    # per unit (apu). At a factory the inflow is the raw materials and recovered products it transforms
+    # (and any final products it receives); at a warehouse, the final and recovered products it receives.
+    # Only warehouses hold stock.
     item_area = _item_area_map(params, products, recovered_products=())
-    item_flow_area = _item_flow_area_map(params, products)
+    item_flow_area = _item_flow_area_by_rotation(params, (*raw_materials, *products, *recovered_products))
+
+    def inflow_area(node, period):
+        return (
+            gp.quicksum(item_flow_area[u] * fs(raw_in, u, node, period) for u in raw_materials)
+            + gp.quicksum(item_flow_area[product] * fs(fp_in, product, node, period) for product in products)
+            + gp.quicksum(item_flow_area[rp] * fs(rp_in, rp, node, period) for rp in recovered_products)
+        )
+
     min_area_f = params.get("Amin_f", {factory: 0.0 for factory in factories})
     min_area_w = params.get("Amin_w", {warehouse: 0.0 for warehouse in warehouses})
 
@@ -590,22 +594,14 @@ def _add_inventory_and_flow_constraints(
         model.addConstr(installed_area[factory] >= min_area_f.get(factory, 0.0) * y_f[factory])
         model.addConstr(installed_area[factory] <= params["A_f"][factory] * y_f[factory])
         for period in periods:
-            used_area = gp.quicksum(
-                item_flow_area.get(product, 0.0) * fs(fp_out, product, factory, period)
-                for product in products
-            )
-            model.addConstr(used_area <= installed_area[factory])
+            model.addConstr(inflow_area(factory, period) <= installed_area[factory])
 
     for warehouse in warehouses:
         model.addConstr(installed_area[warehouse] >= min_area_w.get(warehouse, 0.0) * y_w[warehouse])
         model.addConstr(installed_area[warehouse] <= params["A_w"][warehouse] * y_w[warehouse])
         for period in periods:
-            used_area = gp.quicksum(
-                item_flow_area.get(product, 0.0) * fs(fp_in, product, warehouse, period)
-                + item_area.get(product, 0.0) * inv_w[product, warehouse, period]
-                for product in products
-            )
-            model.addConstr(used_area <= installed_area[warehouse])
+            stock_area = gp.quicksum(item_area.get(product, 0.0) * inv_w[product, warehouse, period] for product in products)
+            model.addConstr(inflow_area(warehouse, period) + stock_area <= installed_area[warehouse])
 
 
 def _add_technology_constraints(
@@ -722,9 +718,12 @@ def _item_area_map(params, products, recovered_products) -> dict[str, float]:
     return item_area
 
 
-def _item_flow_area_map(params, products) -> dict[str, float]:
-    flow_area = params.get("apur_p", {})
-    return {product: float(flow_area.get(product, 0.0)) for product in products}
+def _item_flow_area_by_rotation(params, items) -> dict[str, float]:
+    """Area per unit of each item in transit through a facility: its area per unit (apu) over the number
+    of times the stock rotates in a period (Mota et al. 2018's apur, from 4.5 rotations a year)."""
+    rotation = float(params.get("product_rotation_per_period") or LEGACY_PRODUCT_ROTATION_PER_PERIOD)
+    area = params.get("apu_q") or {}
+    return {item: float(area.get(item, 0.0)) / rotation for item in items}
 
 
 def _derive_recovered_product_area(params, products, recovered_products) -> dict[str, float]:

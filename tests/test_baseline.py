@@ -72,7 +72,7 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
     """The baseline is the CLI's summary: the DBP's own incumbent, validated against the saved solution.
 
     Run on one thread with Gurobi seed 0, the setting the reference values were recorded under
-    (Gurobi 13.0.1, about 80 seconds). The iteration count is not asserted: it depends on the solver's
+    (Gurobi 13.0.1, about 50 seconds). The iteration count is not asserted: it depends on the solver's
     path, which can differ between machines. Nor is the lower bound's value: it depends on where the
     HPR's solver stops within its MIP gap, so only its distance to the upper bound is checked.
     """
@@ -92,7 +92,9 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
     assert summary["termination_reason"] == "optimal"
     assert summary["tax"] == pytest.approx(33.9286, abs=0.01)
     assert summary["validation_status"] == "validated"
-    assert summary["leader_objective_lb"] <= summary["leader_objective_ub"]
+    # The bounds may meet with numerical noise (LB a few 1e-9 above UB); an inversion beyond the stopping
+    # tolerance would have ended the run as bound_inversion.
+    assert summary["leader_objective_lb"] <= summary["leader_objective_ub"] * (1.0 + 1e-6)
     assert summary["relative_gap"] <= 1e-4
     assert summary["final_tax_change"] <= 1e-3
     assert 0.0 <= summary["tax"] <= 200.0
@@ -100,8 +102,8 @@ def test_cli_reference_solve(tmp_path: Path) -> None:
     assert summary["emissions"] + summary["leader_tax_weight"] * summary["tax"] == pytest.approx(
         summary["leader_objective_ub"], rel=1e-9,
     )
-    assert summary["cost"] == pytest.approx(1551005.3756630884, rel=1e-6)
-    assert summary["emissions"] == pytest.approx(24683049.8245415, rel=1e-6)
+    assert summary["cost"] == pytest.approx(1553606.7931581168, rel=1e-6)
+    assert summary["emissions"] == pytest.approx(24683146.86718163, rel=1e-6)
     assert summary["leader_objective_lb"] >= summary["leader_objective_ub"] * (1.0 - 1e-4)
     assert summary["upper_bound_certified"] is True
-    assert summary["leader_objective_ub"] == pytest.approx(24766317.208076447, rel=1e-6)
+    assert summary["leader_objective_ub"] == pytest.approx(24766418.724541534, rel=1e-6)
