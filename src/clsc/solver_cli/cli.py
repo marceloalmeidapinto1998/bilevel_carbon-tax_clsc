@@ -133,7 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Seconds: a budget for the whole solve of each instance (default: none, as in Soares et "
             "al., whose run ends on its stopping criteria). When it is reached the run ends with the "
-            "incumbent and both bounds, as bounded / incumbent_time_limit. It is checked between "
+            "incumbent and both bounds, as bounds / incumbent_time_limit. It is checked between "
             "subproblems and caps each subproblem's time limit at what remains of it, but a follower "
             "solve has up to three stages, so the budget can be overrun by up to three subproblem limits."
         ),
@@ -141,7 +141,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-iterations",
         type=int,
-        help="Stop each instance after this many DBP iterations, as bounded / incumbent_iteration_limit (default: none).",
+        help="Stop each instance after this many DBP iterations, as bounds / incumbent_iteration_limit (default: none).",
     )
     parser.add_argument(
         "--cut-slack",

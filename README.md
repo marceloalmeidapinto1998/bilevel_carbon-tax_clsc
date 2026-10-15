@@ -80,9 +80,11 @@ The outcomes below hold up to the solvers' tolerances and $\varepsilon'$.
 | Optimal | The gap is at most $\varepsilon$ and $\lvert\tau_{k+1} - \tau_{k}\rvert \le \delta$; the last HPR did not stop on its time limit and has no active elastic slack; the follower's response behind $\mathrm{UB}$ was solved within its time limit. |
 | $\varepsilon$-optimal | The gap is at most $\varepsilon$, but one of the conditions above fails. |
 | Bound inversion | $\mathrm{LB}$ exceeds $\mathrm{UB}$ by more than $\varepsilon$ (relative): one of them is not a bound. |
-| Auxiliary stop | Neither bound changed during 10 consecutive iterations. |
+| Bounds | The run ends before the gap closes: the auxiliary stop (neither bound changed during 10 consecutive iterations), the run budget or the iteration cap. |
 
-In the summary files the outcomes appear as the result classes `optimal`, `epsilon_optimal` and `bounded` (the last for every run that does not end on the gap test), with the termination reason alongside (`optimal`, `epsilon_optimal`, `bound_inversion`, `incumbent_stagnation`, `incumbent_time_limit`). `final_tax_change` records $\lvert\tau_{k+1} - \tau_{k}\rvert$ where the gap closed.
+**Bounds.** As in Soares et al. for subproblems that cannot be solved to optimality, the result is the interval $[\mathrm{LB}, \mathrm{UB}]$ with its gap, and the incumbent that attains $\mathrm{UB}$. $\mathrm{LB}$ is the HPR's dual bound, valid whatever the HPR's own gap. $\mathrm{UB}$ is certified (`upper_bound_certified` is true in the summary) when every follower response behind it was solved within its time limit; otherwise it is the value of the best response found, which a time-limited follower solve does not prove optimal. The result class for a crossed pair of bounds is `inconsistent`.
+
+In the summary files the outcomes appear as the result classes `optimal`, `epsilon_optimal`, `bounds` and `inconsistent`, with the termination reason alongside (`optimal`, `epsilon_optimal`, `bound_inversion`, `incumbent_stagnation`, `incumbent_time_limit`, `incumbent_iteration_limit`). `final_tax_change` records $\lvert\tau_{k+1} - \tau_{k}\rvert$ where the gap closed.
 
 The follower's response changes at break points, taxes at which the follower is indifferent between two responses and the optimistic rule picks the one with fewer emissions. On `STD_I17_M4_T3` the optimal tax lies at such a break point, between 33.91 and 33.95 EUR/t, where the emissions drop by 0.33%. The tie-break accepts responses up to $\varepsilon'$ above the follower's best, so the reported tax can lie slightly below the exact break point. This repository does not certify the tax as an interval; $\lvert\tau_{k+1} - \tau_{k}\rvert$ is reported (`final_tax_change`) so that the distance between the evaluated tax and the HPR's proposal is visible.
 
@@ -167,7 +169,7 @@ A run on one instance writes to `results/runs/base/<instance>/dbp/`. A run on a 
 
 ### Bounding a run
 
-A run has no limit on its total time unless one is given, as in Soares et al., whose run ends on its stopping criteria. `--run-time-limit SECONDS` and `--max-iterations N` bound it: when one is reached the run ends with the incumbent and both bounds, as `bounded` with the termination reason `incumbent_time_limit` or `incumbent_iteration_limit`, with no optimality claim. The time budget is checked between subproblems and caps each subproblem's time limit at what remains of it. A follower solve has up to three stages, so the budget can be overrun by up to three subproblem limits. If the budget is spent before the first follower evaluation there is no incumbent and the instance is reported as failed.
+A run has no limit on its total time unless one is given, as in Soares et al., whose run ends on its stopping criteria. `--run-time-limit SECONDS` and `--max-iterations N` bound it: when one is reached the run ends with the incumbent and both bounds, as `bounds` with the termination reason `incumbent_time_limit` or `incumbent_iteration_limit`: an interval with its gap, and no optimality claim. The time budget is checked between subproblems and caps each subproblem's time limit at what remains of it. A follower solve has up to three stages, so the budget can be overrun by up to three subproblem limits. If the budget is spent before the first follower evaluation there is no incumbent and the instance is reported as failed.
 
 ### Generating instances
 

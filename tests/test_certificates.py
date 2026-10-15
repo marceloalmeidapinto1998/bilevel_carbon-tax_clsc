@@ -46,9 +46,10 @@ def test_relative_gap_keeps_its_sign() -> None:
     [
         (True, "optimal", "optimal"),
         (False, "epsilon_optimal", "epsilon_optimal"),
-        (False, "incumbent_stagnation", "bounded"),
-        (False, "bound_inversion", "bounded"),
-        (False, "incumbent_time_limit", "bounded"),
+        (False, "incumbent_stagnation", "bounds"),
+        (False, "incumbent_time_limit", "bounds"),
+        (False, "incumbent_iteration_limit", "bounds"),
+        (False, "bound_inversion", "inconsistent"),
     ],
 )
 def test_result_classes(exact: bool, reason: str, expected: str) -> None:

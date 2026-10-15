@@ -36,6 +36,7 @@ SUMMARY_FIELDNAMES = [
     "follower_objective",
     "leader_objective_lb",
     "leader_objective_ub",
+    "upper_bound_certified",
     "relative_gap",
     "final_tax_change",
     "validation_status",
@@ -74,16 +75,22 @@ def classify_result(result) -> str:
 
     ``optimal``          gap <= dbp_relative_gap with every certificate in hand (``exact``).
     ``epsilon_optimal``  gap <= dbp_relative_gap, but the tax or a bound is not certified.
-    ``bounded``          the gap did not close (or the bounds crossed by more than the tolerance,
-                         ``bound_inversion``): the result is the interval [LB, UB] and the
-                         incumbent that attains UB -- "optimal or nearly optimal" at best, with
-                         convergence not guaranteed under positive subproblem gaps.
+    ``bounds``           the run ended without closing the gap (budget, iteration cap, stagnation):
+                         the result is the interval [LB, UB] with its gap, and the incumbent that
+                         attains UB -- Soares et al.'s "good bounds" for subproblems that cannot be
+                         solved to optimality. LB is the HPR's dual bound. UB is certified when
+                         ``upper_bound_certified`` is true, that is, when every follower response
+                         behind it was solved within its time limit.
+    ``inconsistent``     LB exceeds UB by more than the tolerance (``bound_inversion``): one of the
+                         two is not a bound, and the interval carries no meaning.
     """
     if result.exact:
         return "optimal"
     if result.termination_reason.startswith(("optimal", "epsilon_optimal")):
         return "epsilon_optimal"
-    return "bounded"
+    if result.termination_reason == "bound_inversion":
+        return "inconsistent"
+    return "bounds"
 
 
 def build_summary_record(
@@ -112,6 +119,8 @@ def build_summary_record(
         "follower_objective": result.incumbent.follower_objective,
         "leader_objective_lb": result.leader_objective_lb,
         "leader_objective_ub": result.leader_objective_ub,
+        # True when every follower response behind UB was solved within its time limit.
+        "upper_bound_certified": result.leader_objective_ub_certificate.exact,
         "relative_gap": relative_optimality_gap(
             leader_objective_ub=result.leader_objective_ub,
             leader_objective_lb=result.leader_objective_lb,
@@ -339,6 +348,7 @@ def build_failure_summary_record(
         "follower_objective": None,
         "leader_objective_lb": None,
         "leader_objective_ub": None,
+        "upper_bound_certified": None,
         "final_tax_change": None,
         "relative_gap": None,
         "validation_status": "failed",

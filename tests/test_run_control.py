@@ -102,8 +102,10 @@ def test_iteration_cap_ends_the_run_with_the_incumbent(tiny_instance) -> None:
     assert result.termination_reason == "incumbent_iteration_limit"
     assert result.iterations == 1
     assert not result.exact
-    assert classify_result(result) == "bounded"
+    assert classify_result(result) == "bounds"
     assert result.incumbent_solution is not None and result.incumbent_solution.has_solution
+    # The follower was solved within its time limit, so the upper bound is certified.
+    assert result.leader_objective_ub_certificate.exact
 
 
 @requires_gurobi
@@ -113,7 +115,7 @@ def test_run_budget_ends_the_run_with_the_incumbent(tiny_instance) -> None:
     assert result.termination_reason == "incumbent_time_limit"
     assert result.iterations == 1
     assert not result.exact
-    assert classify_result(result) == "bounded"
+    assert classify_result(result) == "bounds"
     assert result.leader_objective_lb <= result.leader_objective_ub
 
 
