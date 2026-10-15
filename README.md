@@ -140,6 +140,8 @@ Each final product has one recovered counterpart. The rows `M12` and `M16` follo
 
 Every instance has 3 production and 3 remanufacturing technologies.
 
+**Case study.** `data/case_study/MOTA2018.json` is the case study of Mota et al. (2018): an electronic-components producer in Verona expanding to markets in Europe and Brazil, with 3 suppliers, 3 factories (Verona's already installed), 9 warehouses (Verona's already installed), 7 markets, 4 airports and 2 seaports, 4 raw materials, 2 final and 2 recovered products, 4 production and 2 remanufacturing technologies, trucks of two kinds, planes and ships, and 10 yearly periods. It is built by `python -m clsc.generator.mota2018` from the tables of Mota et al. (2018) and of Tautenhain et al. (2020, section 3), which publishes the case's demand, distances and emission factors; each table is cited in the builder. Where the two sources differ the builder follows Mota et al., and what neither states is assumed; both lists are in the builder and in the instance's metadata. The case's flows are about a hundred times those of the generated instances. Its capacities count units rather than kilograms, its handling is charged per hub and unit, and its truck emissions count the outbound leg only, as in Mota et al.; the optional parameters `capacity_unit_m`, `c_handle_h`, `emission_return_factor_m` and `existing_i` express this, and the generated instances do not use them. The instance differs from Mota et al.'s model in its objective (cost plus the carbon tax, with capital at its rental equivalent, instead of the NPV after profit tax) and in taxing the climate-change category only.
+
 ## Usage
 
 ### Solving instances
