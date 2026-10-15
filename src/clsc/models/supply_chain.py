@@ -96,7 +96,31 @@ def total_emissions_upper_bound(instance: InstanceData) -> float:
     return float(open_bound + production_bound + remanufacturing_bound + raw_material_bound + transport_bound)
 
 
-def build_supply_chain_model(instance: InstanceData, *, model_name: str) -> _SupplyChainModel:
+# Valid inequalities that tighten the model's linear relaxation without changing its integer solutions.
+#
+# remanufacturing_capacity
+#     The flow through a remanufacturing technology is linked to its installation by
+#     ``throughput <= capacity * use``, and the capacity follows the demand for final products while the
+#     recovered products that can be collected are a small fraction of it. The relaxation then pays a
+#     sliver of the technology, and the integer solution all of it. The recovered products that reach a
+#     factory in a period were collected at the retailers in that period (nothing is stored), so the flow
+#     is also bounded by what can be collected, and that bound replaces the capacity in the link when it is
+#     smaller.
+#
+# (A candidate that was measured and dropped: ``vehicle >= zt``, a trip needs a vehicle at its origin. With
+# the model's trip big-M the relaxation does not feel it, and with a big-M tight enough to matter, which is
+# not a valid bound, it closed only one to five points of the gap.)
+FORMULATION_STRENGTHENING_OPTIONS = ("remanufacturing_capacity",)
+DEFAULT_FORMULATION_STRENGTHENING: tuple[str, ...] = FORMULATION_STRENGTHENING_OPTIONS
+
+
+def build_supply_chain_model(
+    instance: InstanceData, *, model_name: str, strengthening: Iterable[str] | None = None,
+) -> _SupplyChainModel:
+    strengthening = frozenset(DEFAULT_FORMULATION_STRENGTHENING if strengthening is None else strengthening)
+    unknown = strengthening - set(FORMULATION_STRENGTHENING_OPTIONS)
+    if unknown:
+        raise ValueError(f"unknown formulation strengthening {sorted(unknown)}; options: {FORMULATION_STRENGTHENING_OPTIONS}")
     model = gp.Model(model_name)
     params = instance.parameters
 
@@ -336,6 +360,7 @@ def build_supply_chain_model(instance: InstanceData, *, model_name: str) -> _Sup
         production_technologies_by_product, remanufacturing_technologies_by_product,
         return_yield, raw_in, raw_out, fp_in, fp_out, rp_in, rp_out, fs, y_s, y_f, y_w, u_prod, u_rem,
         use_rem, order_su, q, rem, inv_w, installed_area,
+        "remanufacturing_capacity" in strengthening,
     )
     _add_transport_constraints(
         model, params, transport_arcs, allowed_modes, flow_by_arc, weights, periods,
@@ -404,7 +429,7 @@ def _add_inventory_and_flow_constraints(
     remanufacturing_pairs, production_products_by_technology, remanufacturing_products_by_technology,
     production_technologies_by_product, remanufacturing_technologies_by_product,
     return_yield, raw_in, raw_out, fp_in, fp_out, rp_in, rp_out, fs, y_s, y_f, y_w, u_prod, u_rem,
-    use_rem, order_su, q, rem, inv_w, installed_area,
+    use_rem, order_su, q, rem, inv_w, installed_area, bound_remanufacturing_by_collection,
 ) -> None:
     initial_inventory = params["i_p_n_0"]
     for product in products:
@@ -448,13 +473,21 @@ def _add_inventory_and_flow_constraints(
             for period in periods:
                 model.addConstr(fs(raw_in, raw_material, hub, period) == fs(raw_out, raw_material, hub, period))
 
+    return_lag = _return_lags(params, products)
+    remanufacturing_bound = (
+        _remanufacturing_flow_bounds(
+            params, products, recovered_products, retailers, periods, return_yield, return_lag,
+        )
+        if bound_remanufacturing_by_collection
+        else None
+    )
     _add_technology_constraints(
         model, params, products, factories, periods, production_technologies, remanufacturing_technologies,
         production_pairs, remanufacturing_pairs, production_products_by_technology, remanufacturing_products_by_technology,
         production_technologies_by_product,
         remanufacturing_technologies_by_product, y_f, u_prod, u_rem, use_rem, q, rem,
+        remanufacturing_bound,
     )
-    return_lag = _return_lags(params, products)
     for retailer in retailers:
         for recovered_product in recovered_products:
             for period_index, period in enumerate(periods):
@@ -542,6 +575,7 @@ def _add_technology_constraints(
     production_pairs, remanufacturing_pairs, production_products_by_technology, remanufacturing_products_by_technology,
     production_technologies_by_product,
     remanufacturing_technologies_by_product, y_f, u_prod, u_rem, use_rem, q, rem,
+    remanufacturing_bound=None,
 ) -> None:
     production_pairs = tuple(production_pairs)
     remanufacturing_pairs = tuple(remanufacturing_pairs)
@@ -564,7 +598,13 @@ def _add_technology_constraints(
             for period in periods:
                 compatible_products = remanufacturing_products_by_technology.get(technology, ())
                 throughput = gp.quicksum(rem[product, factory, technology, period] for product in compatible_products)
-                model.addConstr(throughput <= params["bar_q_l"][technology] * use_rem[factory, technology, period])
+                capacity = params["bar_q_l"][technology]
+                if remanufacturing_bound is not None:
+                    # What can be collected in the period, if smaller than the capacity (see
+                    # FORMULATION_STRENGTHENING_OPTIONS); every term is at least zero, so the sum bounds the throughput.
+                    collectable = sum(remanufacturing_bound[product, period] for product in compatible_products)
+                    capacity = min(capacity, collectable)
+                model.addConstr(throughput <= capacity * use_rem[factory, technology, period])
                 if compatible_products:
                     model.addConstr(throughput >= params["pcmin_l"][technology] * use_rem[factory, technology, period])
 
@@ -577,6 +617,42 @@ def _add_technology_constraints(
                 gp.quicksum(u_rem[factory, technology] for technology in remanufacturing_technologies_by_product.get(product, ()))
                 <= 1
             )
+
+
+def _remanufacturing_flow_bounds(
+    params, products, recovered_products, retailers, periods, return_yield, return_lag,
+) -> dict[tuple[str, str], float]:
+    """An upper bound on ``rem[product, factory, technology, period]``, in units of the product.
+
+    The recovered product ``rp`` that reaches factories in a period is at most what the retailers can
+    collect: ``sum_r sum_p yield[rp][p] * ret_max[r][p][t] * lagged_demand`` (the collection constraint),
+    because recovered products are not stored and flow only from retailers to factories. A factory uses
+    ``bom[rp][p] * rem[p, ...]`` of it for each product, so ``rem[p, ...] <= collectable[rp, t] / bom[rp][p]``
+    for every ``rp`` the product needs. The smallest of those is returned. A product no recovered product
+    can make has a bound of 0.
+    """
+    bill = params.get("bom_rem_r_p", {})
+    collectable = {}
+    for recovered_product in recovered_products:
+        for period_index, period in enumerate(periods):
+            collectable[recovered_product, period] = sum(
+                return_yield[recovered_product][product]
+                * _return_fraction(params, "ret_max_frac_r_p_t", retailer, product, period)
+                * _lagged_demand(params, retailer, product, periods, period_index, return_lag[product])
+                for retailer in retailers
+                for product in products
+            )
+    bounds: dict[tuple[str, str], float] = {}
+    tolerance = 1.0 + 1e-9  # the bound is a mathematical one; keep float noise from touching a feasible point
+    for product in products:
+        for period in periods:
+            limits = [
+                collectable[recovered_product, period] / bill[recovered_product][product]
+                for recovered_product in recovered_products
+                if bill.get(recovered_product, {}).get(product, 0.0) > 0.0
+            ]
+            bounds[product, period] = (min(limits) * tolerance + 1e-9) if limits else 0.0
+    return bounds
 
 
 def _add_inventory_capacity_constraints(
