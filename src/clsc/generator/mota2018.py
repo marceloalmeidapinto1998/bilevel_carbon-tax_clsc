@@ -11,6 +11,11 @@ Sources, cited at each table below:
 Where the two disagree, Mota is followed (see CONFLICTS). What neither states is assumed (see
 ASSUMPTIONS). Both lists are written into the instance's metadata.
 
+Quantities of items are in thousands of units (QUANTITY_UNIT): the tables are transcribed as published,
+in units, and converted at the end (in_thousands). In units the follower's matrix spans 1e0 to 6e6 and
+the solver's tolerances are no longer met; in thousands, per-unit costs, weights and areas grow by the
+same factor and the quantities shrink by it, which leaves every cost and emission unchanged.
+
     python -m clsc.generator.mota2018 [--output data/case_study/MOTA2018.json]
 """
 from __future__ import annotations
@@ -263,6 +268,32 @@ ARC_SUBSETS = {
 }
 
 
+QUANTITY_UNIT = 1000.0
+# Parameters counted in item units (divided by QUANTITY_UNIT) and parameters per item unit (multiplied).
+PER_QUANTITY = ("d_r_p_t", "bar_s_s_u", "scmin_s_u", "bar_p_g", "bar_q_l", "pcmin_g", "pcmin_l", "icmax_p_n",
+                "icmin_p_n", "i_p_n_0", "bar_X_m", "ctmin_m", "ccamax_m")
+PER_UNIT = ("omega_u", "omega_p", "omega_rp", "apu_u", "apu_p", "apu_rp", "c_prod_g", "c_rem_l", "h_p", "rpc_rp",
+            "rmc_s_u", "c_handle_h")
+
+
+def _scale(value, factor: float):
+    if isinstance(value, dict):
+        return {key: _scale(nested, factor) for key, nested in value.items()}
+    return float(value) * factor
+
+
+def in_thousands(parameters: dict) -> dict:
+    """Express item quantities in thousands of units. Ratios between items (bills of materials, return
+    fractions), costs per trip, per kg km or per technology, areas, distances and emission factors per kg,
+    m2 or kg km do not change."""
+    converted = dict(parameters)
+    for name in PER_QUANTITY:
+        converted[name] = _scale(parameters[name], 1.0 / QUANTITY_UNIT)
+    for name in PER_UNIT:
+        converted[name] = _scale(parameters[name], QUANTITY_UNIT)
+    return converted
+
+
 def build_instance() -> dict:
     check_transcription()
     table = distances()
@@ -400,6 +431,7 @@ def build_instance() -> dict:
         "overline_tax_rate": 0.2,
         "d_i_j": table,
     }
+    parameters = in_thousands(parameters)
     sets = {
         "S": suppliers, "F": factories, "W": warehouses, "R": markets, "AIR": airports, "PORT": seaports,
         "I": nodes, "N": nodes, "V": warehouses, "P": products, "U": raw, "K": recovered, "RP": recovered,
@@ -429,7 +461,8 @@ def build_instance() -> dict:
             "remanufacturing_emission_intensity": "kg CO2e/kg",
             "installation_emission_intensity": "kg CO2e/m2",
             "transport_emission_intensity": "kg CO2e/(kg km), per mode",
-            "transport_capacity": "units of items (capacity_unit_m)",
+            "transport_capacity": "items (capacity_unit_m)",
+            "item_quantity": "thousands of units (demand, supplies, capacities, stock); costs, weights and areas per thousand units",
         },
         "carbon_tax_units": {"underline_tax_rate_overline_tax_rate": "EUR/kg CO2e"},
         "benchmark": {"kind": "case_study"},
