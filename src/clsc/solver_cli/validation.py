@@ -28,8 +28,10 @@ class OutputValidationError(RuntimeError):
     """Raised when a saved incumbent cannot be revalidated because its solution data is missing."""
 
 
-# Relative to max(1, |bound|): the solver's own feasibility tolerance is 1e-6 on scaled rows, and the
-# saved values are the solver's, clamped to their bounds and snapped to integers.
+# A row's violation is relative to the row's scale, max(1, |rhs|, largest |coefficient * value|): a row
+# such as load - capacity * trips <= 0 has a zero right-hand side but terms of millions, and an absolute
+# miss of 0.01 there is numerical noise, not a violation of 1%. A bound's violation is relative to
+# max(1, |bound|). The solver's own feasibility tolerance is 1e-6.
 FEASIBILITY_TOLERANCE = 1e-6
 # Both sides of these comparisons come from the same expressions evaluated at the same values.
 OBJECTIVE_TOLERANCE = 1e-8
@@ -43,6 +45,13 @@ def _evaluate(expression: gp.LinExpr, values: dict[str, float]) -> float:
     for index in range(expression.size()):
         total += expression.getCoeff(index) * values.get(expression.getVar(index).VarName, 0.0)
     return float(total)
+
+
+def _largest_term(expression: gp.LinExpr, values: dict[str, float]) -> float:
+    return max(
+        (abs(expression.getCoeff(index) * values.get(expression.getVar(index).VarName, 0.0)) for index in range(expression.size())),
+        default=0.0,
+    )
 
 
 def _relative_difference(value: float, reference: float) -> float:
@@ -69,7 +78,8 @@ def validate_result_solution(*, instance: InstanceData, result) -> dict[str, obj
 
     worst_row, worst_row_violation = None, 0.0
     for constraint in model.getConstrs():
-        activity = _evaluate(model.getRow(constraint), values)
+        row = model.getRow(constraint)
+        activity = _evaluate(row, values)
         right_hand_side = constraint.RHS
         if constraint.Sense == GRB.LESS_EQUAL:
             violation = activity - right_hand_side
@@ -77,7 +87,7 @@ def validate_result_solution(*, instance: InstanceData, result) -> dict[str, obj
             violation = right_hand_side - activity
         else:
             violation = abs(activity - right_hand_side)
-        scaled = max(0.0, violation) / max(1.0, abs(right_hand_side))
+        scaled = max(0.0, violation) / max(1.0, abs(right_hand_side), _largest_term(row, values))
         if scaled > worst_row_violation:
             worst_row, worst_row_violation = constraint.ConstrName, scaled
 
