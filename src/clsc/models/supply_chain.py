@@ -677,7 +677,9 @@ def _remanufacturing_flow_bounds(
                 for product in products
             )
     bounds: dict[tuple[str, str], float] = {}
-    tolerance = 1.0 + 1e-9  # the bound is a mathematical one; keep float noise from touching a feasible point
+    # The bound is a mathematical one; a relative margin keeps float noise from touching a feasible point.
+    # It is only relative: where nothing can be collected the bound is exactly 0, not a coefficient of 1e-9.
+    tolerance = 1.0 + 1e-9
     for product in products:
         for period in periods:
             limits = [
@@ -685,7 +687,7 @@ def _remanufacturing_flow_bounds(
                 for recovered_product in recovered_products
                 if bill.get(recovered_product, {}).get(product, 0.0) > 0.0
             ]
-            bounds[product, period] = (min(limits) * tolerance + 1e-9) if limits else 0.0
+            bounds[product, period] = min(limits) * tolerance if limits else 0.0
     return bounds
 
 
