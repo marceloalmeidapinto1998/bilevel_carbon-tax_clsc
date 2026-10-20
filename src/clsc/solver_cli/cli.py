@@ -178,13 +178,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ablation A3: disable warm starts between successive follower solves.",
     )
     parser.add_argument(
-        "--no-emissions-cap",
-        dest="use_emissions_cap",
-        action="store_false",
+        "--incumbent-cutoff",
+        dest="use_incumbent_cutoff",
+        action="store_true",
         help=(
-            "Disable the objective cutoff F <= UB (Mitsos 2010) and the bound E <= UB, which by "
-            "default are added to the HPR while the upper bound is a proven value. They also bound "
-            "the operands of the HPR's bilinear product."
+            "Add the cutoff F <= UB and the bound E <= UB (UB the best evaluated value; after Mitsos "
+            "2010) to the HPR while the upper bound is a proven value. Off by default: the basic DBP "
+            "of Soares et al. (2021) has only the value-function cuts in the HPR. The cutoff also "
+            "narrows the bounds of the HPR's bilinear product."
         ),
     )
     parser.add_argument(
@@ -203,7 +204,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.set_defaults(
-        use_warm_start=True, use_emissions_cap=True,
+        use_warm_start=True, use_incumbent_cutoff=False,
         use_follower_improvement=True, use_elastic_hpr=True,
     )
     parser.add_argument("--solver-output", action="store_true", help="Show raw Gurobi output.")
@@ -333,7 +334,7 @@ def main() -> int:
                     mip_focus=args.mip_focus,
                     seed=args.seed,
                     use_warm_start=args.use_warm_start,
-                    use_emissions_cap=args.use_emissions_cap,
+                    use_incumbent_cutoff=args.use_incumbent_cutoff,
                     use_follower_improvement=args.use_follower_improvement,
                     use_elastic_hpr=args.use_elastic_hpr,
                 )
@@ -533,7 +534,7 @@ def build_manifest(
         "tolerances": tolerance_config,
         "gurobi_seed": args.seed,
         "use_warm_start": bool(args.use_warm_start),
-        "use_emissions_cap": bool(args.use_emissions_cap),
+        "use_incumbent_cutoff": bool(args.use_incumbent_cutoff),
         "use_follower_improvement": bool(args.use_follower_improvement),
         "use_elastic_hpr": bool(args.use_elastic_hpr),
         "fail_fast": bool(args.fail_fast),

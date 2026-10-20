@@ -705,7 +705,7 @@ def _solve_bilevel_dbp(
     mip_focus: int | None = None,
     seed: int | None = None,
     use_warm_start: bool = True,
-    use_emissions_cap: bool = True,
+    use_incumbent_cutoff: bool = False,
     use_follower_improvement: bool = True,
     use_elastic_hpr: bool = True,
     tax_tolerance: float | None = None,
@@ -753,10 +753,12 @@ def _solve_bilevel_dbp(
     * a follower that stops on its time limit is improved by subproblem P6
       (``use_follower_improvement``); its best response is used, and a tie-break that finds
       nothing keeps the Step-2 response (P4-D). The result can then be epsilon-optimal at best;
-    * ``use_emissions_cap`` (on by default; Soares et al. report adding an objective cutoff of this
-      kind to their reformulated subproblems, after Mitsos 2010) adds ``F <= UB`` and ``E <= UB`` to
-      the HPR, which also bounds the operands of its bilinear product; it is applied only while the UB
-      is a proven bilevel-feasible value, and the follower's time limit can withhold it;
+    * ``use_incumbent_cutoff`` (off by default: Soares et al.'s basic DBP, their Section 3, has the
+      cuts alone in the HPR) adds ``F <= UB`` and ``E <= UB``, with UB the best evaluated value, to
+      the HPR (a pruning cutoff after Mitsos 2010; it is not their Section 8 constraint, which is
+      bounded by the HPR's own bound). It also narrows the bounds of the HPR's bilinear product, and
+      it is applied only while the UB is a proven bilevel-feasible value, which the follower's time
+      limit can withhold;
       ``use_warm_start`` (A3) warm-starts successive follower solves;
     * the run stops after ``DEFAULT.stagnation_limit`` iterations in which neither bound moved
       (their auxiliary stop).
@@ -803,7 +805,7 @@ def _solve_bilevel_dbp(
         mip_focus=mip_focus,
         seed=seed,
         use_warm_start=use_warm_start,
-        use_emissions_cap=use_emissions_cap,
+        use_incumbent_cutoff=use_incumbent_cutoff,
         use_follower_improvement=use_follower_improvement,
         use_elastic_hpr=use_elastic_hpr,
         tax_tolerance=DEFAULT.tax_tolerance if tax_tolerance is None else tax_tolerance,
@@ -844,7 +846,7 @@ class _DbpRun:
         mip_focus: int | None,
         seed: int | None,
         use_warm_start: bool,
-        use_emissions_cap: bool,
+        use_incumbent_cutoff: bool,
         use_follower_improvement: bool,
         use_elastic_hpr: bool,
         tax_tolerance: float,
@@ -862,7 +864,7 @@ class _DbpRun:
         self.mip_focus = mip_focus
         self.seed = seed
         self.use_warm_start = use_warm_start
-        self.use_emissions_cap = use_emissions_cap
+        self.use_incumbent_cutoff = use_incumbent_cutoff
         self.use_follower_improvement = use_follower_improvement
         self.use_elastic_hpr = use_elastic_hpr
         self.tax_tolerance = tax_tolerance
@@ -1142,7 +1144,7 @@ class _DbpRun:
             iteration=iteration,
         )
         add_value_function_cut(self.hpr, cut)
-        if self.use_emissions_cap and self.ub_certificate.exact:
+        if self.use_incumbent_cutoff and self.ub_certificate.exact:
             # E <= UB holds at any point with F <= UB (the tax term is non-negative), and it is
             # what tightens the bounds of the bilinear product's operands; set_leader_objective_cap
             # adds the tighter F <= UB (Mitsos 2010, not Soares et al.).
