@@ -89,6 +89,7 @@ from clsc.models.hpr import (
     build_hpr,
     enable_elastic_cuts,
     set_emissions_cap,
+    set_emissions_lower_bound,
     set_hpr_start,
     set_leader_objective_cap,
     set_leader_tax_weight,
@@ -901,6 +902,9 @@ class _DbpRun:
             _require_optimal_or_usable_partial_hpr(scale_run, "initial DBP relaxation (weight scale)")
             reference_emissions = _required_value(scale_run.emissions, "reference emissions")
             weight_kg_per_eur_t = leader_tax_weight_relative * float(reference_emissions)
+            # The same dual bound bounds every response's emissions from below, which narrows the
+            # bounds of the HPR's bilinear product (see hpr._tighten_product_bounds).
+            set_emissions_lower_bound(self.hpr, float(reference_emissions))
         else:
             weight_kg_per_eur_t = float(leader_tax_weight)
         self.tax_weight_per_eur_t = weight_kg_per_eur_t

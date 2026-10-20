@@ -4,7 +4,9 @@ cuts, the objective cap, the elastic-cut remedy, and the HPR's solve.
 The leader's tax is a continuous variable, in EUR per tonne of CO2e. The follower's objective
 contains the product of the tax and the discounted emissions (tax * beta), a bilinear term in two
 continuous variables. The HPR carries it as a non-convex quadratic equality, which Gurobi solves by
-spatial branch-and-bound (``NonConvex=2``), so the relaxation stays exact.
+spatial branch-and-bound (``NonConvex=2``), so the relaxation stays exact. Its relaxation of the
+product is McCormick's, as tight as the bounds of the two operands, which the HPR keeps as narrow as
+the run's information allows (see _tighten_product_bounds).
 """
 from __future__ import annotations
 
@@ -19,7 +21,7 @@ from clsc.config.constants import KG_PER_TONNE
 from clsc.config.defaults import DEFAULT
 from .instance_data import InstanceData
 from .gurobi_utils import ModelArtifacts, SolveResult, finite_dual_bound, optimize_model
-from .supply_chain import build_supply_chain_model, total_emissions_upper_bound
+from .supply_chain import build_supply_chain_model, discount_factors, is_discounted, total_emissions_upper_bound
 from .follower import epsilon_prime_tolerance
 
 
@@ -66,12 +68,22 @@ class HighPointRelaxation:
     tax_weight_scaled: float = 0.0
     # F <= UB (Mitsos 2010), a two-variable row: see set_leader_objective_cap.
     objective_cap_constraint: gp.Constr | None = None
-    # The bilinear product's operands and result, kept so the emissions cap can tighten their
-    # bounds, which tightens the spatial branching: tax_base_var is the discounted emissions
-    # (tonnes), tax_payment_var is tax * tax_base (EUR).
+    # The bilinear product's operands and result, kept so that what the run learns can tighten
+    # their bounds (see _tighten_product_bounds): tax_base_var is the discounted emissions (tonnes),
+    # tax_payment_var is tax * tax_base (EUR).
     tax_base_var: gp.Var | None = None
     tax_payment_var: gp.Var | None = None
     tax_base_upper_bound_scaled: float = 0.0
+    # The least and the greatest per-period discount weight: the tax base is the emissions with
+    # every period weighted by its discount factor, so it lies between these times the emissions.
+    # Both 1.0 on an undiscounted instance.
+    discount_min: float = 1.0
+    discount_max: float = 1.0
+    # A proven lower bound on the emissions of every feasible response, in tonnes (set by
+    # set_emissions_lower_bound; 0.0 until then), and the leader's objective cap F <= UB, in kg
+    # (set by set_leader_objective_cap).
+    emissions_lower_bound_scaled: float = 0.0
+    leader_objective_cap: float | None = None
 
 
 def solve_hpr(
@@ -192,6 +204,10 @@ def build_hpr(
     )
     model.addConstr(tax_payment == tax * tax_base_scaled, name="tax_payment_def")
     model.Params.NonConvex = 2
+    weights = (
+        tuple(discount_factors(instance.parameters, instance.sets["T"]).values())
+        if is_discounted(instance.parameters) else (1.0,)
+    )
     follower_objective_expr = common.cost_expr + tax_payment
 
     # (P5-D) of Soares et al. (2021): with `elastic`, each cut gets its own slack D_k >= 0 (added
@@ -211,7 +227,7 @@ def build_hpr(
         model.setObjective(emissions_total_scaled + elastic_penalty * elastic_slack_var, GRB.MINIMIZE)
     else:
         model.setObjective(emissions_total_scaled, GRB.MINIMIZE)
-    return HighPointRelaxation(
+    hpr = HighPointRelaxation(
         artifacts=ModelArtifacts(
             model=model,
             cost_expr=common.cost_expr,
@@ -231,7 +247,11 @@ def build_hpr(
         tax_base_var=tax_base_scaled,
         tax_payment_var=tax_payment,
         tax_base_upper_bound_scaled=emissions_upper_bound_scaled,
+        discount_min=min(weights),
+        discount_max=max(weights),
     )
+    _tighten_product_bounds(hpr)
+    return hpr
 
 
 def add_value_function_cut(hpr: HighPointRelaxation, cut: ValueFunctionCut) -> None:
@@ -308,7 +328,10 @@ def set_leader_objective_cap(hpr: HighPointRelaxation, leader_objective_ub: floa
     model = artifacts.model
     # Widened by the same relative tolerance as set_emissions_cap: the UB comes from a different
     # model, and an exact cutoff could exclude the incumbent from its own relaxation.
-    ub_scaled = (leader_objective_ub + epsilon_prime_tolerance(leader_objective_ub)) / EMISSIONS_SCALE
+    tolerant_ub = leader_objective_ub + epsilon_prime_tolerance(leader_objective_ub)
+    ub_scaled = tolerant_ub / EMISSIONS_SCALE
+    hpr.leader_objective_cap = tolerant_ub
+    _tighten_product_bounds(hpr)
     if hpr.objective_cap_constraint is None:
         hpr.objective_cap_constraint = model.addConstr(
             artifacts.emissions_total_var + hpr.tax_weight_scaled * artifacts.tax_var <= ub_scaled,
@@ -377,22 +400,59 @@ def set_hpr_start(
     model.update()
 
 
-def _tighten_tax_base_bounds(hpr: HighPointRelaxation, cap_scaled: float | None) -> None:
-    """Bound the tax base, and so the tax payment, by the emissions cap, in tonnes.
+def set_emissions_lower_bound(hpr: HighPointRelaxation, emissions: float) -> None:
+    """Record a proven lower bound on the emissions of every feasible response (kg): the dual bound
+    of the HPR solved without cuts and without the tax term, which minimises E over the follower's
+    feasible region. It bounds the emissions and, through the discount weights, the tax base from
+    below, and with the objective cap the tax from above (see _tighten_product_bounds)."""
+    # Narrowed by the same relative tolerance the caps are widened by: the bound comes from one
+    # solve and the points it bounds are reconstructed in other models.
+    bound = max(0.0, emissions - epsilon_prime_tolerance(emissions))
+    hpr.emissions_lower_bound_scaled = bound / EMISSIONS_SCALE
+    if hpr.artifacts.emissions_total_var is not None:
+        hpr.artifacts.emissions_total_var.LB = hpr.emissions_lower_bound_scaled
+    _tighten_product_bounds(hpr)
 
-    ``E <= cap`` holds in the HPR once an incumbent exists, and the tax base never exceeds the
-    emissions (every per-period weight is at most 1), so the cap bounds the tax base, usually
-    far below the build-time bound. Tighter bounds on the operands of the bilinear product
-    tighten Gurobi's spatial branching. The bound is recomputed from the build-time value on
-    every call, so removing or raising the cap restores a valid, looser one.
+
+def _tighten_product_bounds(hpr: HighPointRelaxation) -> None:
+    """Bound the operands of the bilinear product tax * tax_base, and the product, as tightly as
+    what the run has proven allows. Gurobi relaxes the product by McCormick's envelopes, which are
+    exact only at the corners of the box [tax] x [tax_base]: the smaller the box, the tighter the
+    relaxation at every node of the spatial branch-and-bound.
+
+    With E_min the proven lower bound on the emissions, UB_E the emissions cap, UB_F the leader's
+    objective cap, w the tax weight and d_t the discount weights (all at most 1), every point the
+    HPR can still return as optimal satisfies
+
+    * d_min * E_min <= tax_base <= d_max * min(UB_E, build-time bound): the tax base is the
+      emissions with each period weighted by its d_t;
+    * tax <= (UB_F - E_min) / w: F = E + w * tax <= UB_F and E >= E_min;
+    * tax_lb * tax_base_lb <= tax_payment <= tax_ub * tax_base_ub.
+
+    Every bound is recomputed from the build-time values on each call, so a cap that is removed or
+    raised restores a valid, looser bound.
     """
-    if hpr.tax_base_var is None or hpr.tax_payment_var is None:
+    if hpr.tax_base_var is None or hpr.tax_payment_var is None or hpr.artifacts.tax_var is None:
         return
-    target = hpr.tax_base_upper_bound_scaled
-    if cap_scaled is not None:
-        target = min(target, cap_scaled)
-    hpr.tax_base_var.UB = target
-    hpr.tax_payment_var.UB = hpr.upper_tax * target
+    emissions_upper = hpr.tax_base_upper_bound_scaled
+    if hpr.emissions_cap is not None:
+        emissions_upper = min(emissions_upper, hpr.emissions_cap / EMISSIONS_SCALE)
+    if hpr.tax_base_var is hpr.artifacts.emissions_total_var:
+        # Undiscounted: the tax base IS the emissions variable, bounded below by E_min directly.
+        tax_base_lower = hpr.emissions_lower_bound_scaled
+        tax_base_upper = max(tax_base_lower, emissions_upper)
+    else:
+        tax_base_lower = hpr.discount_min * hpr.emissions_lower_bound_scaled
+        tax_base_upper = max(tax_base_lower, hpr.discount_max * emissions_upper)
+        hpr.tax_base_var.LB = tax_base_lower
+    hpr.tax_base_var.UB = tax_base_upper
+    tax_upper = hpr.upper_tax
+    if hpr.leader_objective_cap is not None and hpr.tax_weight_scaled > 0.0:
+        slack = hpr.leader_objective_cap / EMISSIONS_SCALE - hpr.emissions_lower_bound_scaled
+        tax_upper = min(tax_upper, max(hpr.lower_tax, slack / hpr.tax_weight_scaled))
+    hpr.artifacts.tax_var.UB = tax_upper
+    hpr.tax_payment_var.LB = hpr.lower_tax * tax_base_lower
+    hpr.tax_payment_var.UB = tax_upper * tax_base_upper
     hpr.artifacts.model.update()
 
 
@@ -410,7 +470,7 @@ def set_emissions_cap(
             hpr.emissions_cap_constraint = None
             hpr.emissions_cap = None
             hpr.artifacts.model.update()
-            _tighten_tax_base_bounds(hpr, None)
+            _tighten_product_bounds(hpr)
         return
 
     if upper_bound < 0:
@@ -441,7 +501,7 @@ def set_emissions_cap(
     else:
         hpr.emissions_cap_constraint.RHS = scaled_upper_bound
     hpr.emissions_cap = tolerant_upper_bound
-    _tighten_tax_base_bounds(hpr, scaled_upper_bound)
+    _tighten_product_bounds(hpr)
 
 
 def _synchronize_hpr(hpr: HighPointRelaxation, cuts: Iterable[ValueFunctionCut]) -> None:
