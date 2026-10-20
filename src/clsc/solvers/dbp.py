@@ -105,6 +105,8 @@ logger = logging.getLogger(__name__)
 #
 #   optimal_*          optimal. Gap closed AND Lemma 3 confirmed it.
 #   epsilon_optimal    within dbp_relative_gap; Lemma 3 does not apply.
+#   epsilon_optimal_cutoff_infeasible
+#                      the HPR under the cutoff F <= UB has no point: nothing beats the incumbent.
 #   incumbent_*        the best point found; the gap did NOT close.
 #   bound_inversion    LB above UB by more than the tolerance; no claim.
 #
@@ -120,6 +122,10 @@ ITERATION_LIMIT_REASON = "incumbent_iteration_limit"
 # Soares et al. (2021)'s Step 6 else-branch: the bounds have closed to eps but the HPR's next
 # proposal differs from the point just evaluated, so Lemma 3 does not apply.
 EPSILON_OPTIMAL_REASON = "epsilon_optimal"
+# The HPR, cut off at F <= UB, has no point: no response satisfying every cut does better than the
+# incumbent, so LB = UB. The standard cutoff argument of branch-and-bound; reported in Soares et
+# al.'s class epsilon_optimal, since it is not their Lemma 3.
+EPSILON_OPTIMAL_CUTOFF_REASON = "epsilon_optimal_cutoff_infeasible"
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +166,8 @@ class DbpIterationRecord:
     optimistic_emissions: float
     leader_objective_ub: float
     relaxation_seconds: float
-    next_relaxation_tax: float
+    # None when the HPR had no point to propose (see EPSILON_OPTIMAL_CUTOFF_REASON).
+    next_relaxation_tax: float | None
     next_relaxation_lower_bound: float
     # The HPR's own MIP gap at this iteration and whether it stopped on its time limit instead
     # of reaching its gap target. A partial HPR still yields a valid lower bound (its dual
@@ -356,12 +363,35 @@ def _is_usable_partial_hpr(result: SolveResult) -> bool:
 
 
 def _hpr_returned_no_point(result: SolveResult) -> bool:
-    """The HPR gave the loop nothing to propose: timed out without an incumbent, or
-    reported infeasible (which, with every cut valid and the incumbent meeting the cap, can only
-    be numerical). This is Soares et al. (2021)'s Difficulty 1, the trigger for (P5-D)."""
+    """The HPR gave the loop nothing to propose: timed out without an incumbent, or reported
+    infeasible. This is Soares et al. (2021)'s Difficulty 1, the trigger for (P5-D) -- unless the
+    HPR carries the cutoff F <= UB, where infeasibility proves the incumbent instead (see
+    _cutoff_proves_incumbent)."""
     if result.status_name in ("INFEASIBLE", "INF_OR_UNBD"):
         return True
     return _is_partial_hpr(result) and not _is_usable_partial_hpr(result)
+
+
+def _cutoff_proves_incumbent(result: SolveResult, objective_cap: float | None) -> bool:
+    """Whether the HPR, cut off at F <= UB (``objective_cap``, kg; None while no cutoff is set),
+    proves that no point beats the incumbent.
+
+    Every cut is valid, so the HPR without the cutoff contains every bilevel-feasible point; with
+    it, every one with F <= UB. If it has none, nothing does better than the incumbent: LB = UB.
+    Two ways show it: the plain HPR is infeasible, or the elastic HPR (P5-D) keeps a positive
+    slack with a dual bound above the cutoff -- a point meeting every cut has slack 0 and objective
+    F <= UB, so a bound above UB says there is none. With the cutoff absent, an infeasible HPR
+    proves nothing and is left to the elastic remedy, as before."""
+    if objective_cap is None:
+        return False
+    if result.status_name in ("INFEASIBLE", "INF_OR_UNBD"):
+        return True
+    elastic_active = result.slack_value is not None and result.slack_value > 1e-6
+    return (
+        elastic_active
+        and result.leader_lower_bound is not None
+        and result.leader_lower_bound > objective_cap
+    )
 
 
 def _require_optimal_or_usable_partial_hpr(result: SolveResult, label: str) -> None:
@@ -563,11 +593,13 @@ def _epsilon_optimal_result(
     iteration_records: list[DbpIterationRecord],
     iteration_timings: list[DbpIterationTiming],
     initial_relaxation_seconds: float,
+    termination_reason: str = EPSILON_OPTIMAL_REASON,
 ) -> BilevelSolveResult:
     """Soares et al. (2021)'s Step 6, else-branch: ``UB_F - LB_F <= eps`` but the HPR's next
     proposal is not the point just evaluated (or the HPR or follower behind it was only
     partially solved), so Lemma 3 does not apply: "terminate with the eps-optimal solution".
-    ``exact=False``: the result is certified to eps, not proven optimal.
+    ``exact=False``: the result is certified to eps, not proven optimal. Also the result of a
+    cutoff that leaves the HPR without a point (``EPSILON_OPTIMAL_CUTOFF_REASON``).
     """
     leader_objective_lb_certificate = _with_epsilon_context(
         BoundCertificate(
@@ -581,7 +613,7 @@ def _epsilon_optimal_result(
     return _build_bilevel_result(
         method="dbp",
         mode="exact",
-        termination_reason=EPSILON_OPTIMAL_REASON,
+        termination_reason=termination_reason,
         exact=False,
         iterations=iteration,
         leader_objective_lb=leader_objective_lb,
@@ -958,6 +990,13 @@ class _DbpRun:
             self.add_cut(candidate, follower_response, iteration)
 
             relaxation, relaxation_seconds = self.solve_hpr_with_remedy()
+            if _cutoff_proves_incumbent(relaxation, self.hpr.leader_objective_cap):
+                return self.cutoff_result(
+                    iteration=iteration, tax=tax, current_relaxation_lower_bound=current_relaxation_lower_bound,
+                    follower_response=follower_response, follower_seconds=follower_seconds,
+                    follower_time_limited=follower_time_limited, candidate=candidate,
+                    relaxation=relaxation, relaxation_seconds=relaxation_seconds,
+                )
             if _is_partial_hpr(relaxation) and not _is_usable_partial_hpr(relaxation):
                 # Timed out with nothing to propose next (no incumbent point). The dual bound it did
                 # prove is still valid, so keep it in the reported gap before stopping.
@@ -1116,6 +1155,7 @@ class _DbpRun:
         if (
             self.use_elastic_hpr
             and _hpr_returned_no_point(relaxation)
+            and not _cutoff_proves_incumbent(relaxation, self.hpr.leader_objective_cap)
             and not self.hpr.elastic
             and self.best_ub_values is not None
             and self.best_ub_tax is not None
@@ -1135,6 +1175,19 @@ class _DbpRun:
             relaxation, elastic_retry_seconds = self.solve_hpr()
             relaxation_seconds += elastic_retry_seconds
         return relaxation, relaxation_seconds
+
+    def cutoff_result(self, *, iteration: int, relaxation: SolveResult, **record) -> BilevelSolveResult:
+        """End the run on a cutoff that leaves the HPR without a point: LB = UB, the incumbent
+        stands (see _cutoff_proves_incumbent)."""
+        self.leader_objective_lb = max(self.leader_objective_lb, self.ub_certificate.value)
+        self.record_iteration(iteration=iteration, relaxation=relaxation, **record)
+        logger.info("the HPR has no point under the cutoff F <= UB: no response beats the incumbent")
+        result = _epsilon_optimal_result(
+            **self._result_inputs(iteration),
+            relaxation_mip_gap=relaxation.mip_gap,
+            termination_reason=EPSILON_OPTIMAL_CUTOFF_REASON,
+        )
+        return replace(result, final_tax_change=None)
 
     def update_lower_bound(self, relaxation: SolveResult) -> bool:
         # The HPR only ever GAINS constraints, so its optimum cannot fall -- but the value
@@ -1171,7 +1224,7 @@ class _DbpRun:
             optimistic_emissions=candidate.emissions,
             leader_objective_ub=self.ub_certificate.value,
             relaxation_seconds=relaxation_seconds,
-            next_relaxation_tax=_required_value(relaxation.tax, "next relaxation tax"),
+            next_relaxation_tax=relaxation.tax,
             next_relaxation_lower_bound=self.leader_objective_lb,
             relaxation_mip_gap=relaxation.mip_gap,
             relaxation_partial=_is_partial_hpr(relaxation),
@@ -1186,8 +1239,9 @@ class _DbpRun:
             leader_objective_ub=record.leader_objective_ub, leader_objective_lb=record.next_relaxation_lower_bound,
         )
         logger.info(
-            "iteration %d: tax %.4f -> %.4f EUR/t | LB %.2f UB %.2f gap %.2e | follower %.1f s%s, HPR %.1f s%s | elapsed %.0f s",
-            iteration, record.relaxation_tax, record.next_relaxation_tax,
+            "iteration %d: tax %.4f -> %s EUR/t | LB %.2f UB %.2f gap %.2e | follower %.1f s%s, HPR %.1f s%s | elapsed %.0f s",
+            iteration, record.relaxation_tax,
+            "none" if record.next_relaxation_tax is None else f"{record.next_relaxation_tax:.4f}",
             record.next_relaxation_lower_bound, record.leader_objective_ub, gap,
             record.follower_seconds, " (time limit)" if record.follower_time_limited else "",
             record.relaxation_seconds, " (time limit)" if record.relaxation_partial else "",

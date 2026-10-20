@@ -56,6 +56,26 @@ def test_result_classes(exact: bool, reason: str, expected: str) -> None:
     assert classify_result(SimpleNamespace(exact=exact, termination_reason=reason)) == expected
 
 
+def test_an_hpr_without_a_point_under_the_cutoff_proves_the_incumbent() -> None:
+    from clsc.solvers.dbp import EPSILON_OPTIMAL_CUTOFF_REASON, _cutoff_proves_incumbent
+
+    def hpr_result(status, slack=None, bound=None):
+        return SimpleNamespace(status_name=status, slack_value=slack, leader_lower_bound=bound)
+
+    cap = 100.0
+    assert _cutoff_proves_incumbent(hpr_result("INFEASIBLE"), cap)
+    assert _cutoff_proves_incumbent(hpr_result("INF_OR_UNBD"), cap)
+    # The elastic HPR keeps a slack and its dual bound passes the cutoff: no point meets every cut.
+    assert _cutoff_proves_incumbent(hpr_result("OPTIMAL", slack=0.8, bound=8.7e10), cap)
+    # Without the cutoff, an infeasible HPR proves nothing; it is left to the elastic remedy.
+    assert not _cutoff_proves_incumbent(hpr_result("INFEASIBLE"), None)
+    # A slack with a bound below the cutoff, a timed-out HPR, or a plain solution prove nothing.
+    assert not _cutoff_proves_incumbent(hpr_result("TIME_LIMIT", slack=0.8, bound=90.0), cap)
+    assert not _cutoff_proves_incumbent(hpr_result("TIME_LIMIT"), cap)
+    assert not _cutoff_proves_incumbent(hpr_result("OPTIMAL", slack=0.0, bound=99.0), cap)
+    assert classify_result(SimpleNamespace(exact=False, termination_reason=EPSILON_OPTIMAL_CUTOFF_REASON)) == "epsilon_optimal"
+
+
 # ---------------------------------------------------------------------------------------------
 # A tiny instance, solved with Gurobi
 # ---------------------------------------------------------------------------------------------
