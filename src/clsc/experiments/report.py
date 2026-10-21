@@ -1,0 +1,239 @@
+"""The paper's tables, computed from the experiments' files; no solver is called.
+
+Each table is written to <root>/tables/<name>.csv with whatever runs exist so far; a run whose files
+are missing, or that failed, is left out.
+
+The response without the tax is the DBP's first iteration: the first HPR proposes tax 0, so the first
+row of dbp_trace.csv holds the follower's cost at tax 0 (``follower_objective``, the tax term being
+zero) and its emissions (``leader_objective_ub``, F = E there). It is used only when that row's tax
+is 0.
+"""
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+
+from clsc.config.defaults import DEFAULT
+from clsc.models.instance_data import InstanceData
+
+from .plan import ALL_INSTANCES, EXPERIMENTS
+from .profile import response_profile
+from .scenarios import SCENARIOS, variant_name
+
+Row = dict[str, object]
+PROFILE_COLUMNS = (
+    "remanufacturing_share", "emissions_production", "emissions_raw_material", "emissions_remanufacturing",
+    "emissions_transport", "factories", "warehouses", "production_technologies", "remanufacturing_technologies",
+)
+
+
+def _number(value: str) -> object:
+    if value in ("", "None"):
+        return None
+    if value in ("True", "False"):
+        return value == "True"
+    try:
+        return float(value)
+    except ValueError:
+        return value
+
+
+def read_rows(path: Path) -> list[Row]:
+    with path.open(encoding="utf-8", newline="") as handle:
+        return [{key: _number(value) for key, value in row.items()} for row in csv.DictReader(handle)]
+
+
+def _json(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload[0] if isinstance(payload, list) else payload
+
+
+def _job(root: Path, key: str, name: str, seed: int = 0) -> Path:
+    return root / key / f"seed{seed}" / name
+
+
+def _relative(value: float | None, reference: float | None) -> float | None:
+    if value is None or reference is None:
+        return None
+    return (value - reference) / max(1.0, abs(reference))
+
+
+def run_record(directory: Path, instance_path: Path) -> Row | None:
+    """One DBP run: its result, the response without the tax and the profile of its solution."""
+    summary = _json(directory / "summary.json")
+    if summary is None or not summary.get("success"):
+        return None
+    trace = read_rows(directory / "dbp_trace.csv")
+    first = trace[0] if trace else {}
+    at_zero = first.get("relaxation_tax") == 0.0
+    emissions_no_tax = first.get("leader_objective_ub") if at_zero else None
+    cost_no_tax = first.get("follower_objective") if at_zero else None
+    record: Row = {
+        "result_class": summary["result_class"], "termination_reason": summary["termination_reason"],
+        "relative_gap": summary["relative_gap"], "iterations": summary["iterations"], "seconds": summary["solve_seconds"],
+        "leader_tax_weight": summary["leader_tax_weight"], "tax": summary["tax"],
+        "emissions": summary["emissions"], "cost": summary["cost"],
+        "tax_paid": summary["follower_objective"] - summary["cost"],
+        "emissions_no_tax": emissions_no_tax, "cost_no_tax": cost_no_tax,
+        "emission_reduction": None if emissions_no_tax is None else -_relative(summary["emissions"], emissions_no_tax),
+        "cost_increase": _relative(summary["cost"], cost_no_tax),
+    }
+    solution = _json(directory / "solution.json")
+    if solution is not None and instance_path.exists():
+        profile = response_profile(InstanceData.from_file(instance_path), solution["variables"])
+        record.update({column: profile[column] for column in PROFILE_COLUMNS})
+    return record
+
+
+def _variant_path(root: Path, path: str, scenario_name: str) -> Path:
+    scenario = SCENARIOS[scenario_name]
+    return Path(path) if scenario.is_base else root / "instances" / f"{variant_name(Path(path).stem, scenario)}.json"
+
+
+# ----- tables -----
+
+def main_table(root: Path) -> list[Row]:
+    """P1: the DBP on every instance, with the time split between the HPR and the follower."""
+    rows = []
+    for path in ALL_INSTANCES:
+        name = Path(path).stem
+        directory = _job(root, "P1", name)
+        summary = _json(directory / "summary.json")
+        if summary is None:
+            continue
+        result = _json(directory / "result.json") or {}
+        subproblems = (result.get("runtime") or {}).get("subproblem_seconds") or {}
+        rows.append({
+            "instance": name, "result_class": summary.get("result_class"), "termination_reason": summary.get("termination_reason"),
+            "iterations": summary.get("iterations"), "tax": summary.get("tax"),
+            "lower_bound": summary.get("leader_objective_lb"), "upper_bound": summary.get("leader_objective_ub"),
+            "relative_gap": summary.get("relative_gap"), "upper_bound_certified": summary.get("upper_bound_certified"),
+            "seconds": summary.get("solve_seconds"), "hpr_seconds": subproblems.get("relaxation_total"),
+            "follower_seconds": subproblems.get("follower_total"), "validation_status": summary.get("validation_status"),
+        })
+    return rows
+
+
+def sensitivity_table(root: Path) -> list[Row]:
+    """P2a and P2b: every instance under the base (from P1) and each scenario."""
+    rows = []
+    for key in ("P2a", "P2b"):
+        experiment = EXPERIMENTS[key]
+        for path in experiment.instances:
+            name = Path(path).stem
+            for scenario_name in ("base", *experiment.scenarios):
+                scenario = SCENARIOS[scenario_name]
+                directory = _job(root, "P1", name) if scenario.is_base else _job(root, key, variant_name(name, scenario))
+                record = run_record(directory, _variant_path(root, path, scenario_name))
+                if record is not None:
+                    rows.append({"instance": name, "scenario": scenario_name, "parameter": scenario.parameter or "base",
+                                 "level": scenario.level or "base", **record})
+    return rows
+
+
+def tornado_table(root: Path) -> list[Row]:
+    """For each instance and parameter, the optimal tax and the emission reduction at the low level,
+    the base and the high level: the data of the tornado charts."""
+    rows = sensitivity_table(root)
+    by_key = {(row["instance"], row["scenario"]): row for row in rows}
+    out = []
+    for instance in dict.fromkeys(row["instance"] for row in rows):
+        base = by_key.get((instance, "base"))
+        if base is None:
+            continue
+        parameters = dict.fromkeys(SCENARIOS[name].parameter for name in SCENARIOS if name != "base")
+        for parameter in parameters:
+            low_name, high_name = (name for name in SCENARIOS if SCENARIOS[name].parameter == parameter)
+            low, high = by_key.get((instance, low_name)), by_key.get((instance, high_name))
+            out.append({
+                "instance": instance, "parameter": parameter,
+                "level_low": SCENARIOS[low_name].level, "level_high": SCENARIOS[high_name].level,
+                "tax_low": low and low["tax"], "tax_base": base["tax"], "tax_high": high and high["tax"],
+                "tax_change_low": low and low["tax"] - base["tax"], "tax_change_high": high and high["tax"] - base["tax"],
+                "reduction_low": low and low["emission_reduction"], "reduction_base": base["emission_reduction"],
+                "reduction_high": high and high["emission_reduction"],
+                "gap_low": low and low["relative_gap"], "gap_base": base["relative_gap"], "gap_high": high and high["relative_gap"],
+            })
+    return out
+
+
+def policy_table(root: Path) -> list[Row]:
+    """P3: the response without the tax, at the fixed reference tax and at the regulator's optimal tax,
+    and the least emissions of any network, E_ref = w / q."""
+    rows = []
+    for path in EXPERIMENTS["P3"].instances:
+        name = Path(path).stem
+        record = run_record(_job(root, "P1", name), Path(path))
+        if record is None:
+            continue
+        e0, c0 = record["emissions_no_tax"], record["cost_no_tax"]
+
+        def point(label: str, tax, emissions, cost, tax_paid, remanufacturing_share=None) -> Row:
+            return {
+                "instance": name, "point": label, "tax": tax, "emissions": emissions, "cost": cost, "tax_paid": tax_paid,
+                "emission_reduction": None if e0 is None else -_relative(emissions, e0),
+                "cost_increase": _relative(cost, c0), "remanufacturing_share": remanufacturing_share,
+            }
+
+        rows.append(point("no_tax", 0.0, e0, c0, 0.0))
+        follower = _job(root, "P3", name) / "follower.csv"
+        if follower.exists():
+            for fixed in read_rows(follower):
+                rows.append(point("reference_tax", fixed["tax"], fixed["emissions"], fixed["cost"], fixed["tax_paid"],
+                                  fixed["remanufacturing_share"]))
+        rows.append(point("regulator_optimum", record["tax"], record["emissions"], record["cost"], record["tax_paid"],
+                          record.get("remanufacturing_share")))
+        least = record["leader_tax_weight"] / DEFAULT.tax_weight_relative
+        rows.append({"instance": name, "point": "least_emissions", "emissions": least,
+                     "emission_reduction": None if e0 is None else -_relative(least, e0)})
+    return rows
+
+
+def robustness_table(root: Path) -> list[Row]:
+    """R1 against P2a (and P1 for the base): the optimal tax and the emission reduction of each small
+    instance and scenario at the MIP gap of 1e-4 and of 1e-6."""
+    rows = []
+    for path in EXPERIMENTS["R1"].instances:
+        name = Path(path).stem
+        for scenario_name in EXPERIMENTS["R1"].scenarios:
+            scenario = SCENARIOS[scenario_name]
+            variant = variant_name(name, scenario)
+            instance_path = _variant_path(root, path, scenario_name)
+            coarse = run_record(_job(root, "P1" if scenario.is_base else "P2a", variant), instance_path)
+            fine = run_record(_job(root, "R1", variant), instance_path)
+            if coarse is None or fine is None:
+                continue
+            rows.append({
+                "instance": name, "scenario": scenario_name,
+                "tax_gap_1e-4": coarse["tax"], "tax_gap_1e-6": fine["tax"], "tax_difference": fine["tax"] - coarse["tax"],
+                "reduction_gap_1e-4": coarse["emission_reduction"], "reduction_gap_1e-6": fine["emission_reduction"],
+                "class_gap_1e-6": fine["result_class"], "seconds_gap_1e-6": fine["seconds"],
+            })
+    return rows
+
+
+TABLES = {
+    "main": main_table, "sensitivity": sensitivity_table, "tornado": tornado_table, "policy": policy_table,
+    "robustness": robustness_table,
+}
+
+
+def write_tables(root: Path, names: list[str] | None = None) -> dict[str, int]:
+    """Write the tables (all by default) to <root>/tables/; return the number of rows of each."""
+    directory = root / "tables"
+    directory.mkdir(parents=True, exist_ok=True)
+    counts = {}
+    for name in names or TABLES:
+        rows = TABLES[name](root)
+        counts[name] = len(rows)
+        if not rows:
+            continue
+        fields = list(dict.fromkeys(key for row in rows for key in row))
+        with (directory / f"{name}.csv").open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+    return counts

@@ -183,6 +183,17 @@ python -m clsc.analysis.abatement data/STD_I17_M4_T3.json
 
 The follower's optimal value $f^*(\tau)$ is the lower envelope of one line per response, concave and piecewise linear in $\tau$; its break points are the taxes at which the follower changes response, and between two of them the emissions do not change. `clsc.analysis.abatement` finds every piece with about two follower solves per piece (the Eisner–Severance method), solving the follower as the DBP does, with the optimistic tie-break, at a MIP gap of $10^{-6}$. Since $E$ is constant on each piece and $w > 0$, the leader's optimum is the best of the lower tax bound and the break points, which gives an exact solution of the bilevel problem, up to the follower's MIP gap, that is independent of the DBP. It writes `abatement_curve.csv` (tax, emissions, cost and $F$ at the lower bound, every break point and the upper bound) and `abatement.json` (the leader's optimum on the curve) to `results/<instance>/`, using the weight $w$ of the DBP run found there (`--leader-tax-weight` sets it otherwise). Pieces narrower than $10^{-3}$ EUR/t and lines below the envelope by less than the MIP gap are not resolved.
 
+### Experiments
+
+```bash
+python -m clsc.experiments list          # the experiments, with their jobs done and in total
+python -m clsc.experiments run P1 P2a    # run the jobs not done yet; a killed run resumes where it stopped
+python -m clsc.experiments report        # the paper's tables, from the files that exist
+python -m clsc.experiments figures       # the tornado charts (needs the plots extra: pip install -e ".[plots]")
+```
+
+The experiments of the paper (the main table, a one-at-a-time sensitivity analysis of six parameters on the four small instances and the case study, the comparison with a fixed reference tax, and two robustness checks) are declared in [`src/clsc/experiments/plan.py`](src/clsc/experiments/plan.py) and described in [`docs/experiments.md`](docs/experiments.md). Their files go to `results/experiments/`.
+
 ### Generating instances
 
 ```bash
@@ -239,9 +250,11 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 ```text
 .
 ├── data/                      # the 15 instances (JSON)
+├── docs/experiments.md        # the experiment plan
 ├── src/clsc/                  # the Python package
 │   ├── analysis/abatement.py  #   exact abatement curve E(tax) and the leader's optimum on it
 │   ├── config/                #   method defaults and shared constants
+│   ├── experiments/           #   experiment plan, data scenarios, resumable runner and tables
 │   ├── generator/             #   instance generator (CLI: clsc-generate)
 │   ├── models/                #   instance loading and the Gurobi models
 │   │   ├── instance_data.py   #     load and validate an instance
