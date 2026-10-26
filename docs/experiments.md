@@ -19,9 +19,11 @@ Método: o DBP básico de Soares et al. (2021), commit `4028eda`: só os cortes 
 | P1 | DBP em todas as instâncias (é também a base da P2) | 15 geradas + Mota | 16 | 1 h |
 | P2a | Sensibilidade: 6 parâmetros × 2 níveis, um de cada vez | 4 pequenas | 48 | 30 min |
 | P2b | A mesma sensibilidade | Mota | 12 | 1 h |
-| P3 | O seguidor ao imposto fixo de referência (80 EUR/t, provisório) | 4 pequenas + Mota | 5 | 600 s por fase |
+| P3 | O seguidor sem imposto e ao imposto fixo de referência (74 EUR/t, preço médio EUA de 2025, ESMA 2026) | 4 pequenas + Mota | 5 | 600 s por fase |
 | R1 | Robustez: P2a e as bases das 4 pequenas com `--mip-gap 1e-6` (em vez de 1e-4) | 4 pequenas | 52 | 30 min |
 | R2 | Mota, base, com 3 h | Mota | 1 | 3 h |
+| P3b | A P3 nas outras 7 instâncias que a P1 fecha | 7 fechadas | 7 | 600 s por fase |
+| R3 | Robustez: as 4 pequenas com as seeds 1–4 (com a seed 0 da P1, cinco seeds) | 4 pequenas | 16 | 1 h |
 
 As 4 pequenas são STD_I17_M4_T3, STD_I17_M8_T3, STD_I25_M4_T3 e STD_I17_M4_T6.
 
@@ -49,17 +51,17 @@ Em cada execução: τ*, emissões, custo, imposto pago, redução de emissões 
 | `main` | P1 por instância: classe, LB, UB, gap, iterações, tempo do HPR e do seguidor | Tabela do método |
 | `sensitivity` | P2: cada instância e cenário, com a base da P1 | — |
 | `tornado` | P2: τ* e redução nos dois níveis de cada parâmetro | Gráfico tornado por instância |
-| `policy` | P3: sem imposto, imposto de referência, óptimo do regulador e emissões mínimas E_ref | Tabela de política |
+| `policy` | P3 e P3b: sem imposto, imposto de referência, óptimo do regulador e emissões mínimas E_ref, com o perfil da rede (emissões por fonte, tecnologias) | Tabela de política |
 | `robustness` | R1 contra P2a: τ* e redução com gap 1e-4 e 1e-6 | — |
+| `seeds` | R3 com a P1: τ*, redução, classe e tempo das 4 pequenas com as seeds 0–4 | — |
 
 A figura `figures/tornado.png` (e `.pdf`) sai de `python -m clsc.experiments figures`.
 
 ## Limitações a declarar
 
-- Uma seed por execução.
+- Uma seed por execução, excepto nas 4 pequenas (cinco seeds, R3).
 - As instâncias difíceis e o Mota não fecham o gap em 1 h. No Mota, diferenças entre cenários menores do que o gap não são conclusivas.
-- O imposto de referência (80 EUR/t) tem de ser fixado com a fonte e o ano que o artigo citar; a P3 volta a correr em minutos.
 
 ## Orçamento
 
-≈ 24–26 h de máquina, a 20 e 21 de Outubro. Ordem: P2a, P1, P3, P2b; depois R1 e R2, acrescentadas a 21 de Outubro depois de ver que τ* varia com a tolerância do seguidor e que o Mota não fecha em 1 h.
+≈ 24–26 h de máquina, a 20 e 21 de Outubro. Ordem: P2a, P1, P3, P2b; depois R1 e R2, acrescentadas a 21 de Outubro depois de ver que τ* varia com a tolerância do seguidor e que o Mota não fecha em 1 h. P3b e R3 acrescentadas a 21 de Outubro, depois do relatório de referee (questões M4 e M7).

@@ -13,7 +13,7 @@ import csv
 from pathlib import Path
 
 PARAMETER_LABELS = {
-    "q": "Regulator weight q",
+    "q": "Regulator weight ξ",
     "e_prod": "Production emission intensity",
     "e_rem": "Remanufacturing emission intensity",
     "returns": "Return fractions",
@@ -23,7 +23,7 @@ PARAMETER_LABELS = {
 LOW, HIGH = "#2a78d6", "#eb6834"
 SURFACE, TEXT, TEXT_SECONDARY, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
 # Instances whose optimal tax is not determined within the run's gap (see docs/experiments.md).
-UNDETERMINED_TAX = {"MOTA2018": "tax not determined within the gap of 1-2.4%"}
+UNDETERMINED_TAX = {"MOTA2018": "tax not determined within the gap of 0.2-2.4%"}
 
 
 def _float(value: str) -> float | None:
@@ -40,7 +40,7 @@ def tornado_figure(table: Path, out_dir: Path) -> list[Path]:
     instances = list(dict.fromkeys(row["instance"] for row in rows))
     parameters = list(PARAMETER_LABELS)
     measures = (
-        ("tax", "Change of the optimal tax (EUR/t)", 1.0),
+        ("tax", "Change of the optimal tax (€/t)", 1.0),
         ("reduction", "Change of the emission reduction (pp)", 100.0),
     )
     plt.rcParams.update({"font.size": 8, "axes.edgecolor": GRID, "axes.labelcolor": TEXT_SECONDARY,

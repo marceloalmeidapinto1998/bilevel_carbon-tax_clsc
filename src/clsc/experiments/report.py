@@ -161,34 +161,58 @@ def tornado_table(root: Path) -> list[Row]:
 
 
 def policy_table(root: Path) -> list[Row]:
-    """P3: the response without the tax, at the fixed reference tax and at the regulator's optimal tax,
-    and the least emissions of any network, E_ref = w / q."""
+    """P3 and P3b: the response without the tax, at the fixed reference tax and at the regulator's
+    optimal tax, and the least emissions of any network, E_ref = w / q.
+
+    The no_tax row's emissions and cost are the DBP's first iteration; its network profile is that of
+    the follower solved at tax 0 in P3/P3b (the same problem, solved again), when that run exists."""
     rows = []
-    for path in EXPERIMENTS["P3"].instances:
+    for key in ("P3", "P3b"):
+        for path in EXPERIMENTS[key].instances:
+            name = Path(path).stem
+            record = run_record(_job(root, "P1", name), Path(path))
+            if record is None:
+                continue
+            e0, c0 = record["emissions_no_tax"], record["cost_no_tax"]
+
+            def point(label: str, tax, emissions, cost, tax_paid, profile: Row | None = None) -> Row:
+                return {
+                    "instance": name, "point": label, "tax": tax, "emissions": emissions, "cost": cost, "tax_paid": tax_paid,
+                    "emission_reduction": None if e0 is None else -_relative(emissions, e0),
+                    "cost_increase": _relative(cost, c0),
+                    **{column: (profile or {}).get(column) for column in PROFILE_COLUMNS},
+                }
+
+            follower = _job(root, key, name) / "follower.csv"
+            fixed_rows = read_rows(follower) if follower.exists() else []
+            at_zero = next((fixed for fixed in fixed_rows if fixed["tax"] == 0.0), None)
+            rows.append(point("no_tax", 0.0, e0, c0, 0.0, at_zero))
+            for fixed in fixed_rows:
+                if fixed["tax"] == 0.0:
+                    continue  # the response without a tax is the no_tax row, from the DBP's first iteration
+                rows.append(point("reference_tax", fixed["tax"], fixed["emissions"], fixed["cost"], fixed["tax_paid"], fixed))
+            rows.append(point("regulator_optimum", record["tax"], record["emissions"], record["cost"], record["tax_paid"], record))
+            least = record["leader_tax_weight"] / DEFAULT.tax_weight_relative
+            rows.append({"instance": name, "point": "least_emissions", "emissions": least,
+                         "emission_reduction": None if e0 is None else -_relative(least, e0)})
+    return rows
+
+
+def seeds_table(root: Path) -> list[Row]:
+    """R3 with P1: each small instance under seeds 0-4 (seed 0 is P1's run)."""
+    rows = []
+    for path in EXPERIMENTS["R3"].instances:
         name = Path(path).stem
-        record = run_record(_job(root, "P1", name), Path(path))
-        if record is None:
-            continue
-        e0, c0 = record["emissions_no_tax"], record["cost_no_tax"]
-
-        def point(label: str, tax, emissions, cost, tax_paid, remanufacturing_share=None) -> Row:
-            return {
-                "instance": name, "point": label, "tax": tax, "emissions": emissions, "cost": cost, "tax_paid": tax_paid,
-                "emission_reduction": None if e0 is None else -_relative(emissions, e0),
-                "cost_increase": _relative(cost, c0), "remanufacturing_share": remanufacturing_share,
-            }
-
-        rows.append(point("no_tax", 0.0, e0, c0, 0.0))
-        follower = _job(root, "P3", name) / "follower.csv"
-        if follower.exists():
-            for fixed in read_rows(follower):
-                rows.append(point("reference_tax", fixed["tax"], fixed["emissions"], fixed["cost"], fixed["tax_paid"],
-                                  fixed["remanufacturing_share"]))
-        rows.append(point("regulator_optimum", record["tax"], record["emissions"], record["cost"], record["tax_paid"],
-                          record.get("remanufacturing_share")))
-        least = record["leader_tax_weight"] / DEFAULT.tax_weight_relative
-        rows.append({"instance": name, "point": "least_emissions", "emissions": least,
-                     "emission_reduction": None if e0 is None else -_relative(least, e0)})
+        for seed in (0, *EXPERIMENTS["R3"].seeds):
+            directory = _job(root, "P1", name) if seed == 0 else _job(root, "R3", name, seed)
+            record = run_record(directory, Path(path))
+            if record is None:
+                continue
+            rows.append({
+                "instance": name, "seed": seed, "result_class": record["result_class"], "iterations": record["iterations"],
+                "tax": record["tax"], "emissions": record["emissions"], "emission_reduction": record["emission_reduction"],
+                "relative_gap": record["relative_gap"], "seconds": record["seconds"],
+            })
     return rows
 
 
@@ -217,7 +241,7 @@ def robustness_table(root: Path) -> list[Row]:
 
 TABLES = {
     "main": main_table, "sensitivity": sensitivity_table, "tornado": tornado_table, "policy": policy_table,
-    "robustness": robustness_table,
+    "robustness": robustness_table, "seeds": seeds_table,
 }
 
 
