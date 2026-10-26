@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 import math
+import os
 from typing import Iterable
 
 import gurobipy as gp
@@ -23,6 +24,10 @@ from .instance_data import InstanceData
 from .gurobi_utils import ModelArtifacts, SolveResult, finite_dual_bound, optimize_model
 from .supply_chain import build_supply_chain_model, discount_factors, is_discounted, total_emissions_upper_bound
 from .follower import epsilon_prime_tolerance
+
+# The bounds of the bilinear product are narrowed with what the run proves (see _tighten_product_bounds),
+# unless the environment variable CLSC_PRODUCT_BOUNDS is "off": a switch for the ablation experiment only.
+PRODUCT_BOUNDS_FROM_RUN = os.environ.get("CLSC_PRODUCT_BOUNDS", "on").lower() != "off"
 
 
 # The HPR works in tonnes of CO2e (kg / EMISSIONS_SCALE), which keeps its coefficients moderate.
@@ -433,6 +438,15 @@ def _tighten_product_bounds(hpr: HighPointRelaxation) -> None:
     raised restores a valid, looser bound.
     """
     if hpr.tax_base_var is None or hpr.tax_payment_var is None or hpr.artifacts.tax_var is None:
+        return
+    if not PRODUCT_BOUNDS_FROM_RUN:
+        # Ablation (CLSC_PRODUCT_BOUNDS=off): only the build-time box, nothing the run proves.
+        hpr.tax_base_var.LB = 0.0
+        hpr.tax_base_var.UB = hpr.tax_base_upper_bound_scaled
+        hpr.artifacts.tax_var.UB = hpr.upper_tax
+        hpr.tax_payment_var.LB = 0.0
+        hpr.tax_payment_var.UB = hpr.upper_tax * hpr.tax_base_upper_bound_scaled
+        hpr.artifacts.model.update()
         return
     emissions_upper = hpr.tax_base_upper_bound_scaled
     if hpr.emissions_cap is not None:

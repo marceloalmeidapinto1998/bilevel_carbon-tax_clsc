@@ -6,6 +6,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 import math
+import os
 from typing import Iterable
 
 import gurobipy as gp
@@ -135,7 +136,19 @@ def total_emissions_upper_bound(instance: InstanceData) -> float:
 # it, and with a big-M tight enough to matter, which is not a valid bound, it closed only one to five
 # points of the gap.)
 FORMULATION_STRENGTHENING_OPTIONS = ("remanufacturing_capacity", "vehicle_cover", "technology_cover")
-DEFAULT_FORMULATION_STRENGTHENING: tuple[str, ...] = FORMULATION_STRENGTHENING_OPTIONS
+
+
+def _default_strengthening() -> tuple[str, ...]:
+    """All three families, unless the environment variable CLSC_STRENGTHENING lists others (comma-separated;
+    empty for none). The variable exists for the ablation experiment, which runs the solver in its own
+    process; the method itself always uses all three."""
+    value = os.environ.get("CLSC_STRENGTHENING")
+    if value is None:
+        return FORMULATION_STRENGTHENING_OPTIONS
+    return tuple(name.strip() for name in value.split(",") if name.strip())
+
+
+DEFAULT_FORMULATION_STRENGTHENING: tuple[str, ...] = _default_strengthening()
 
 
 def build_supply_chain_model(

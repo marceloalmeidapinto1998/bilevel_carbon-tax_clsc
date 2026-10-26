@@ -239,9 +239,87 @@ def robustness_table(root: Path) -> list[Row]:
     return rows
 
 
+def _enumeration_record(directory: Path) -> Row | None:
+    summary = _json(directory / "summary.json")
+    if summary is None or (_json(directory / "job.json") or {}).get("status") != "ok":
+        return None
+    return summary
+
+
+def _evaluations(directory: Path) -> list[Row]:
+    path = directory / "evaluations.csv"
+    return read_rows(path) if path.exists() else []
+
+
+def methods_table(root: Path) -> list[Row]:
+    """The DBP against the enumeration of the break points and the grid, instance by instance: on the
+    original instances (P1, E1, E2) and on the calibrated ones (C1, C2, C5). ``value_difference`` is the
+    enumeration's leader value minus the DBP's upper bound, relative to the latter."""
+    rows = []
+    for dbp_key, enum_key, grid_key, instances in (("P1", "E1", "E2", ALL_INSTANCES),
+                                                     ("C1", "C2", "C5", EXPERIMENTS["C1"].instances)):
+        for path in instances:
+            name = Path(path).stem
+            dbp = _json(_job(root, dbp_key, name) / "summary.json")
+            enum = _enumeration_record(_job(root, enum_key, name))
+            grid = _enumeration_record(_job(root, grid_key, name))
+            if dbp is None and enum is None:
+                continue
+            row: Row = {"set": "original" if dbp_key == "P1" else "calibrated", "instance": name}
+            if dbp is not None:
+                row.update({
+                    "dbp_class": dbp.get("result_class"), "dbp_tax": dbp.get("tax"), "dbp_lb": dbp.get("leader_objective_lb"),
+                    "dbp_ub": dbp.get("leader_objective_ub"), "dbp_gap": dbp.get("relative_gap"),
+                    "dbp_iterations": dbp.get("iterations"), "dbp_seconds": dbp.get("solve_seconds"),
+                })
+            if enum is not None:
+                row.update({
+                    "enum_complete": enum["complete"], "enum_certified": enum["certified"], "enum_tax": enum["tax"],
+                    "enum_value": enum["leader_objective"], "enum_solves": enum["follower_solves"],
+                    "enum_break_points": len(enum["break_points"]), "enum_seconds": enum["seconds"] + enum["scale_seconds"],
+                })
+                if dbp is not None and dbp.get("leader_objective_ub") is not None:
+                    row["value_difference"] = _relative(enum["leader_objective"], dbp["leader_objective_ub"])
+                    row["tax_difference"] = enum["tax"] - dbp["tax"] if dbp.get("tax") is not None else None
+            if grid is not None:
+                row.update({
+                    "grid_complete": grid["complete"], "grid_tax": grid["tax"], "grid_value": grid["leader_objective"],
+                    "grid_solves": grid["follower_solves"], "grid_seconds": grid["seconds"] + grid["scale_seconds"],
+                })
+            rows.append(row)
+    return rows
+
+
+def staircase_table(root: Path) -> list[Row]:
+    """The candidate taxes of each enumeration -- the lower end of the range and every break point -- with
+    the optimistic emissions there and the leader's value: the staircase of emissions the tax can induce."""
+    rows = []
+    for key in ("E1", "C2"):
+        for path in EXPERIMENTS[key].instances:
+            name = Path(path).stem
+            directory = _job(root, key, name)
+            summary = _enumeration_record(directory)
+            if summary is None:
+                continue
+            evaluations = _evaluations(directory)
+            no_tax = next((e for e in evaluations if e["tax"] == 0.0), None)
+            for evaluation in evaluations:
+                if not evaluation["candidate"]:
+                    continue
+                rows.append({
+                    "set": "original" if key == "E1" else "calibrated", "instance": name, "tax": evaluation["tax"],
+                    "emissions": evaluation["emissions"], "cost": evaluation["cost"],
+                    "leader_objective": evaluation["leader_objective"],
+                    "emission_reduction": None if no_tax is None else -_relative(evaluation["emissions"], no_tax["emissions"]),
+                    "cost_increase": None if no_tax is None else _relative(evaluation["cost"], no_tax["cost"]),
+                    "optimal": evaluation["tax"] == summary["tax"],
+                })
+    return rows
+
+
 TABLES = {
     "main": main_table, "sensitivity": sensitivity_table, "tornado": tornado_table, "policy": policy_table,
-    "robustness": robustness_table, "seeds": seeds_table,
+    "robustness": robustness_table, "seeds": seeds_table, "methods": methods_table, "staircase": staircase_table,
 }
 
 

@@ -14,9 +14,13 @@ P3b  P3 on the other seven instances that P1 closes, so that the fixed reference
      the optimal tax on every closed instance.
 R3   the DBP on the four small instances with seeds 1-4; with seed 0 (P1), five seeds: how much the
      optimal tax and the reduction vary with the solver's seed.
+E1   the break points of the follower's value function enumerated on every instance (Aneja and Nair's
+     dichotomic scheme): the exact alternative to the DBP for one tax, and the staircase of emissions.
+E2   a grid of taxes 1 EUR/t apart on the small instances: the simplest alternative, at the DBP's resolution.
 
 Tasks (clsc.experiments.tasks): ``dbp`` runs clsc-solve, so that its files are those of the main
-results; ``follower`` solves the follower at given taxes.
+results; ``follower`` solves the follower at given taxes; ``enumeration`` enumerates the break points or
+evaluates a grid.
 """
 from __future__ import annotations
 
@@ -44,6 +48,24 @@ SMALL = _standard("I17_M4_T3", "I17_M8_T3", "I25_M4_T3", "I17_M4_T6")
 CLOSED_NOT_SMALL = _standard(
     "I17_M4_T12", "I17_M8_T6", "I25_M4_T6", "I25_M4_T12", "I25_M8_T3", "I25_M8_T12", "I33_M8_T6",
 )
+
+# The calibrated instances (clsc.generator.calibrated): the case study's emission factors and return
+# fractions on the generated networks; three replicates of the twelve standard sizes, one of the three
+# escalation sizes.
+CALIBRATED = f"{DATA}/calibrated"
+STANDARD_SIZES = (
+    "I17_M4_T3", "I17_M4_T6", "I17_M4_T12", "I17_M8_T3", "I17_M8_T6", "I17_M8_T12",
+    "I25_M4_T3", "I25_M4_T6", "I25_M4_T12", "I25_M8_T3", "I25_M8_T6", "I25_M8_T12",
+)
+ESCALATION_SIZES = ("I25_M12_T6", "I25_M16_T6", "I33_M8_T6")
+
+
+def _calibrated(sizes: tuple[str, ...], replicates: tuple[int, ...]) -> tuple[str, ...]:
+    return tuple(f"{CALIBRATED}/CAL_{size}_r{k}.json" for k in replicates for size in sizes)
+
+
+ALL_CALIBRATED = (*_calibrated(STANDARD_SIZES, (0, 1, 2)), *_calibrated(ESCALATION_SIZES, (0,)))
+CALIBRATED_SMALL = _calibrated(("I17_M4_T3", "I17_M8_T3", "I25_M4_T3", "I17_M4_T6"), (0,))
 
 # A fixed tax that does not anticipate the follower's response (EUR/t), to compare the regulator's
 # optimal tax with: the 2025 annual average EU ETS spot price, EUR 74/tCO2e (ESMA, Market report on
@@ -81,5 +103,24 @@ EXPERIMENTS: dict[str, Experiment] = {
                    CLOSED_NOT_SMALL, options={"taxes": (0.0, REFERENCE_TAX)}),
         Experiment("R3", "Robustness: the small instances with seeds 1-4", "dbp", SMALL,
                    seeds=(1, 2, 3, 4), options={"run_time_limit": 3600.0}),
+        Experiment("E1", "Enumeration of the break points on every instance", "enumeration", ALL_INSTANCES,
+                   options={"method": "enumeration", "run_time_limit": 3600.0}),
+        Experiment("E2", "A grid of taxes 1 EUR/t apart on the small instances", "enumeration", SMALL,
+                   options={"method": "grid", "step": 1.0, "run_time_limit": 3600.0}),
+        Experiment("C1", "Calibrated instances: the DBP", "dbp", ALL_CALIBRATED,
+                   options={"run_time_limit": 3600.0}),
+        Experiment("C2", "Calibrated instances: enumeration of the break points", "enumeration", ALL_CALIBRATED,
+                   options={"method": "enumeration", "run_time_limit": 3600.0}),
+        Experiment("C3", "Calibrated instances: the follower without a tax and at the reference tax", "follower",
+                   ALL_CALIBRATED, options={"taxes": (0.0, REFERENCE_TAX)}),
+        Experiment("C4", "Calibrated instances: sensitivity analysis on the small instances", "enumeration",
+                   CALIBRATED_SMALL, scenarios=SENSITIVITY_SCENARIOS,
+                   options={"method": "enumeration", "run_time_limit": 3600.0}),
+        Experiment("C5", "Calibrated instances: the grid of taxes on the small instances", "enumeration",
+                   CALIBRATED_SMALL, options={"method": "grid", "step": 1.0, "run_time_limit": 3600.0}),
+        Experiment("A1", "Ablation: the DBP without the bounds of the bilinear product", "dbp", CALIBRATED_SMALL,
+                   options={"run_time_limit": 3600.0, "environment": {"CLSC_PRODUCT_BOUNDS": "off"}}),
+        Experiment("A2", "Ablation: the DBP without the valid inequalities", "dbp", CALIBRATED_SMALL,
+                   options={"run_time_limit": 3600.0, "environment": {"CLSC_STRENGTHENING": ""}}),
     )
 }

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -19,8 +20,10 @@ from .profile import response_profile
 
 def run_dbp(instance_path: Path, directory: Path, *, seed: int, run_time_limit: float | None = None,
             threads: int | None = None, leader_tax_weight_relative: float | None = None,
-            mip_gap: float | None = None) -> dict:
-    """clsc-solve on the instance, in its own process, writing to ``directory``."""
+            mip_gap: float | None = None, environment: dict[str, str] | None = None) -> dict:
+    """clsc-solve on the instance, in its own process, writing to ``directory``. ``environment`` adds
+    variables to the solver's environment: the ablation's switches CLSC_STRENGTHENING and
+    CLSC_PRODUCT_BOUNDS."""
     if directory.name != instance_path.stem:
         raise ValueError(f"clsc-solve writes {instance_path.stem}/, not {directory.name}/")
     command = [
@@ -35,7 +38,8 @@ def run_dbp(instance_path: Path, directory: Path, *, seed: int, run_time_limit: 
         command += ["--leader-tax-weight-relative", repr(leader_tax_weight_relative)]
     if mip_gap is not None:
         command += ["--mip-gap", repr(mip_gap)]
-    completed = subprocess.run(command, check=False)
+    env = None if not environment else {**os.environ, **environment}
+    completed = subprocess.run(command, check=False, env=env)
     summary_path = directory / "summary.json"
     if not summary_path.exists():
         raise RuntimeError(f"clsc-solve wrote no summary (exit code {completed.returncode})")
@@ -75,3 +79,56 @@ def run_follower(instance_path: Path, directory: Path, *, seed: int, taxes: tupl
 
 
 TASKS = {"dbp": run_dbp, "follower": run_follower}
+
+
+def run_enumeration(instance_path: Path, directory: Path, *, seed: int, method: str = "enumeration",
+                    run_time_limit: float | None = None, threads: int | None = None,
+                    leader_tax_weight_relative: float | None = None, step: float = 1.0) -> dict:
+    """The exact alternatives to the DBP for one tax: the break points of the follower's value function
+    (``method="enumeration"``) or a grid of taxes (``method="grid"``). Writes evaluations.csv, every tax
+    evaluated, and summary.json."""
+    from clsc.solvers.enumeration import enumerate_break_points, grid_search
+
+    instance = InstanceData.from_file(instance_path)
+    options = dict(seed=seed, run_time_limit=run_time_limit, threads=threads,
+                   leader_tax_weight_relative=leader_tax_weight_relative)
+    if method == "enumeration":
+        result = enumerate_break_points(instance, **options)
+    elif method == "grid":
+        result = grid_search(instance, step=step, **options)
+    else:
+        raise ValueError(f"unknown method {method!r}")
+    candidate_taxes = {evaluation.tax for evaluation in result.candidates}
+    rows = [{
+        "tax": e.tax, "candidate": e.tax in candidate_taxes, "emissions": e.emissions, "cost": e.cost,
+        "tax_base": e.tax_base, "follower_objective": e.follower_objective,
+        "leader_objective": e.leader_objective, "solved": e.solved, "seconds": e.seconds,
+    } for e in result.evaluations]
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / "evaluations.csv").open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    best = result.best
+    profile = {}
+    if best is not None:
+        # The network at the best tax: the same two-stage solve again, keeping the solution.
+        response = solve_follower_lexicographic(build_follower_model(instance), best.tax, threads=threads, seed=seed,
+                                                capture_solution=True)
+        if response.has_solution:
+            profile = response_profile(instance, response.variable_values or {})
+    summary = {
+        "method": result.method, "complete": result.complete, "certified": result.certified,
+        "follower_solves": result.follower_solves, "break_points": result.break_points,
+        "tax": best.tax if best else None, "emissions": best.emissions if best else None,
+        "leader_objective": best.leader_objective if best else None,
+        "tax_weight_per_eur_t": result.tax_weight_per_eur_t, "reference_emissions": result.reference_emissions,
+        "seconds": result.seconds, "scale_seconds": result.scale_seconds,
+        "cost": best.cost if best else None, "tax_base": best.tax_base if best else None,
+        "profile": profile,
+    }
+    (directory / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    return {key: summary[key] for key in ("complete", "certified", "follower_solves", "tax", "seconds")}
+
+
+TASKS["enumeration"] = run_enumeration
