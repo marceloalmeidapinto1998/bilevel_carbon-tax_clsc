@@ -1,0 +1,114 @@
+%% supplementary.tex -- Supplementary Material of the EJOR manuscript
+%% Class: elsarticle, option `review' (single column, 1.5 line spacing, no line numbers), 11 pt.
+%% References: biblatex-apa (APA 7th edition, as the EJOR Guide for Authors requires), compiled with biber.
+%% Compile: latexmk -pdf main.tex   (or: pdflatex, biber, pdflatex, pdflatex)
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[british]{babel}
+\usepackage{csquotes}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[style=apa,backend=biber,doi=true,url=true]{biblatex}
+\addbibresource{references.bib}
+\usepackage{etoolbox}
+\usepackage{xurl}
+\usepackage[hidelinks,hypertexnames=false]{hyperref}
+% The text is set at 1.5 line spacing (option `review'), as EJOR asks; tables and the algorithm are single-spaced.
+\AtBeginEnvironment{table}{\linespread{1}\selectfont}
+\AtBeginEnvironment{algorithm}{\linespread{1}\selectfont}
+
+
+% ---------------------------------------------------------------- theorems
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+
+% ---------------------------------------------------------------- notation
+\newcommand{\tmin}{\tau_{\min}}
+\newcommand{\tmax}{\tau_{\max}}
+\newcommand{\Eref}{E_{\mathrm{ref}}}
+\newcommand{\Ebar}{\bar{E}}
+\newcommand{\Xin}{X^{\mathrm{in}}}
+\newcommand{\Xout}{X^{\mathrm{out}}}
+\newcommand{\inst}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\EUR}{\texteuro}
+\newcommand{\CO}{CO\textsubscript{2}e}
+\newcommand{\tr}[1]{\textsuperscript{#1}}
+\renewcommand{\arraystretch}{1.12}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\theequation}{S\arabic{equation}}
+\linespread{1.5}
+
+\begin{document}
+
+\begin{center}
+{\Large Supplementary Material}\\[0.5em]
+{\large Setting a carbon tax that anticipates the operator: a bilevel model for closed-loop supply chain network design}
+\end{center}
+
+The sections below complete the manuscript. Equations, propositions, tables and sections without the prefix S refer to the manuscript.
+
+\section{Parameters of the operator's problem}\label{sup:parameters}
+
+\begin{table}[!htbp]
+\centering
+\caption{Parameters of the operator's problem.}\label{tab:parameters}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}L>{\raggedright\arraybackslash}p{3.2cm}@{}}
+\toprule
+Parameter & Description & Unit \\
+\midrule
+$D_{rpt}$ & Demand for product $p$ at retailer $r$ in period $t$ & units \\
+$\underline{\rho}_{rpt}$, $\overline{\rho}_{rpt}$ & Minimum and maximum fraction of the sales of $p$ at $r$ that return, $\theta_p$ periods later & -- \\
+$\eta_{kp}$ & Units of recovered product $k$ obtained per unit of $p$ returned & -- \\
+$b_{kp}$ & Units of recovered product $k$ used per unit of $p$ remanufactured & -- \\
+$a_{upg}$ & Units of raw material $u$ per unit of $p$ made with technology $g$ & -- \\
+$\underline{S}_{su}$, $\overline{S}_{su}$ & Minimum order and capacity of supplier $s$ for raw material $u$, per period & units \\
+$\underline{Q}_g$, $\overline{Q}_g$ & Minimum use and capacity of production technology $g$, per period & units \\
+$\underline{R}_l$, $\overline{R}_l$ & Minimum use and capacity of remanufacturing technology $l$, per period & units \\
+$\underline{A}_i$, $\overline{A}_i$ & Minimum and maximum floor area of factory or warehouse $i$ & m$^2$ \\
+$\alpha_n$, $\kappa$ & Floor area per unit of item $n$; stock rotations per period & m$^2$/unit; -- \\
+$\underline{I}_{pw}$, $\overline{I}_{pw}$, $I^0_{pw}$ & Minimum and maximum stock, initial stock of $p$ at warehouse $w$ & units \\
+$\omega_n$ & Weight of a unit of item $n$ & kg \\
+$\delta_{ij}$ & Distance from $i$ to $j$ & km \\
+$\underline{X}_m$, $\overline{X}_m$ & Minimum and maximum load of a truck trip of mode $m$ & kg \\
+$\overline{C}_m$ & Capacity contracted per arc and period for air or sea mode $m$ & kg \\
+$B_{ijm}$ & Upper bound on the trips of truck mode $m$ on arc $(i, j)$ in a period & trips \\
+$\nu_m$, $\hat{H}_m$, $\lambda_m$ & Speed, driving hours per truck and period, and distance factor (outbound plus return) of truck mode $m$ & km/h; h; -- \\
+$\overline{V}_{im}$, $\hat{B}$ & Maximum trucks of mode $m$ at node $i$; investment budget for trucks & trucks; \EUR \\
+$c^{\mathrm{raw}}_{su}$, $c^{\mathrm{rec}}_k$ & Purchase cost of raw material $u$ from $s$; acquisition cost of a returned unit of $k$ & \EUR/unit \\
+$c^{p}_g$, $c^{r}_l$ & Variable cost of production with $g$ and remanufacturing with $l$ & \EUR/unit \\
+$h_p$ & Holding cost of $p$ per period & \EUR/unit \\
+$c^{s}_m$, $c^{t}_m$, $c^{h}_m$ & Air or sea freight; truck trip cost; hub handling & \EUR/(kg$\cdot$km); \EUR/km; \EUR/kg \\
+$c^{a}_i$, $\Phi^{g}_g$, $\Phi^{l}_l$, $\Phi^{m}$, $f_h$ & Construction cost; technology investment; truck price; hub fee per period & \EUR/m$^2$; \EUR; \EUR; \EUR; \EUR \\
+$\pi_i$, $\gamma_i$, $\gamma^{s}_i$, $\gamma_g$, $\gamma_l$, $\gamma_m$, $\Omega$ & Wage at node $i$; workers per open facility, per m$^2$, per technology and per truck; working hours per period & \EUR/h; workers; h \\
+$r$, $d_t$, $\Delta$, $\varphi^f$, $\varphi^t$, $\varphi^v$ & Annual interest rate; discount factor $(1+r)^{-t\ell}$, with $\ell$ the period length in years; annuity $\sum_t d_t$; capital multipliers of facilities, technologies and vehicles & -- \\
+$e^{\mathrm{raw}}_{su}$, $e^{p}_g$, $e^{r}_l$ & Emissions of raw material $u$ from $s$; of production with $g$; of remanufacturing with $l$ & kg \CO/kg \\
+$e^{s}_m$, $\lambda^{e}_m$ & Transport emissions of mode $m$; their distance factor & kg \CO/(kg$\cdot$km); -- \\
+$e^{o}_i$, $\sigma$ & Construction emissions of facility $i$; share charged per period, $\ell/20$ & kg \CO/m$^2$; -- \\
+$\tmin$, $\tmax$, $\xi$, $\mu$ & Tax range; relative weight and weight of the tax in $F$ & \EUR/t; --; kg \CO\ per \EUR/t \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The capital multipliers $\varphi^c = \Delta \cdot \mathrm{CRF}(i_\ell, \mathit{life}_c/\ell)$, with $i_\ell = (1 + r)^\ell - 1$ and $\mathrm{CRF}(i, n) = i / (1 - (1 + i)^{-n})$, charge each asset at its rental equivalent over its life (20 years for facilities, 8 for technologies, 5 for vehicles) instead of its full price.
+
+
+\printbibliography
+
+\end{document}

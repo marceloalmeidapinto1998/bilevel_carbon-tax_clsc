@@ -317,9 +317,80 @@ def staircase_table(root: Path) -> list[Row]:
     return rows
 
 
+def _enumeration_point(directory: Path) -> Row | None:
+    """The best tax of a complete enumeration, with the response without a tax (its evaluation at 0)."""
+    summary = _enumeration_record(directory)
+    if summary is None or not summary["complete"]:
+        return None
+    no_tax = next((e for e in _evaluations(directory) if e["tax"] == 0.0), None)
+    e0 = None if no_tax is None else no_tax["emissions"]
+    c0 = None if no_tax is None else no_tax["cost"]
+    tax_paid = None if summary.get("tax_base") is None else summary["tax"] / 1000.0 * summary["tax_base"]
+    return {
+        "certified": summary["certified"], "tax": summary["tax"], "emissions": summary["emissions"],
+        "cost": summary.get("cost"), "tax_paid": tax_paid, "emissions_no_tax": e0, "cost_no_tax": c0,
+        "emission_reduction": None if e0 is None else -_relative(summary["emissions"], e0),
+        "cost_increase": _relative(summary.get("cost"), c0),
+        "bill_share": None if tax_paid is None or not summary.get("cost") else tax_paid / summary["cost"],
+        "reference_emissions": summary["reference_emissions"], "break_points": len(summary["break_points"]),
+        **{column: (summary.get("profile") or {}).get(column) for column in PROFILE_COLUMNS},
+    }
+
+
+def calibrated_policy_table(root: Path) -> list[Row]:
+    """The calibrated instances: the response without a tax and at the fixed reference tax (C3), at the
+    regulator's optimal tax (C2, complete enumerations only) and the least emissions of any network."""
+    rows = []
+    for path in EXPERIMENTS["C2"].instances:
+        name = Path(path).stem
+        optimum = _enumeration_point(_job(root, "C2", name))
+        if optimum is None:
+            continue
+        follower = _job(root, "C3", name) / "follower.csv"
+        fixed = {row["tax"]: row for row in read_rows(follower)} if follower.exists() else {}
+        zero = fixed.get(0.0)
+        e0 = zero["emissions"] if zero else optimum["emissions_no_tax"]
+        c0 = zero["cost"] if zero else optimum["cost_no_tax"]
+
+        def point(label: str, tax, emissions, cost, tax_paid, profile: Row | None) -> Row:
+            return {"instance": name, "point": label, "tax": tax, "emissions": emissions, "cost": cost, "tax_paid": tax_paid,
+                    "emission_reduction": -_relative(emissions, e0), "cost_increase": _relative(cost, c0),
+                    "bill_share": None if tax_paid is None or not cost else tax_paid / cost,
+                    "intensity_kg_per_eur": None if not cost else emissions / cost,
+                    **{column: (profile or {}).get(column) for column in PROFILE_COLUMNS}}
+
+        rows.append(point("no_tax", 0.0, e0, c0, 0.0, zero))
+        for tax, row in fixed.items():
+            if tax != 0.0:
+                rows.append(point("reference_tax", tax, row["emissions"], row["cost"], row["tax_paid"], row))
+        rows.append(point("regulator_optimum", optimum["tax"], optimum["emissions"], optimum["cost"], optimum["tax_paid"], optimum))
+        rows.append({"instance": name, "point": "least_emissions", "emissions": optimum["reference_emissions"],
+                     "emission_reduction": -_relative(optimum["reference_emissions"], e0)})
+    return rows
+
+
+def calibrated_sensitivity_table(root: Path) -> list[Row]:
+    """C4 with its bases from C2: the optimal tax, the emissions there and the reduction against each
+    scenario's own network without a tax, so that a change of the reduction can be told apart from a change
+    of the baseline."""
+    rows = []
+    experiment = EXPERIMENTS["C4"]
+    for path in experiment.instances:
+        name = Path(path).stem
+        for scenario_name in ("base", *experiment.scenarios):
+            scenario = SCENARIOS[scenario_name]
+            directory = _job(root, "C2", name) if scenario.is_base else _job(root, "C4", variant_name(name, scenario))
+            point = _enumeration_point(directory)
+            if point is not None:
+                rows.append({"instance": name, "scenario": scenario_name, "parameter": scenario.parameter or "base",
+                             "level": scenario.level or "base", **point})
+    return rows
+
+
 TABLES = {
     "main": main_table, "sensitivity": sensitivity_table, "tornado": tornado_table, "policy": policy_table,
     "robustness": robustness_table, "seeds": seeds_table, "methods": methods_table, "staircase": staircase_table,
+    "calibrated_policy": calibrated_policy_table, "calibrated_sensitivity": calibrated_sensitivity_table,
 }
 
 

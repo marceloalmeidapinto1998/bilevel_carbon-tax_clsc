@@ -157,6 +157,22 @@ Let $Y$ be nonempty and bounded, with integer variables taking finitely many val
 
 Two remarks follow. First, responses in $\Psi(\tau)$ share the cost and the tax base but can differ in $E$, because $\beta$ discounts emissions and $E$ does not; the optimistic tie-break is therefore needed even between break points. Second, under the pessimistic convention $E$ at a break point would take the larger of the adjacent values, and the infimum would in general not be attained. Proposition~\ref{prop:structure}(c) reduces the leader's choice to finitely many candidates; Section~\ref{sec:enumeration} discusses what this implies for the choice of method.
 
+The break points are the operator's \emph{switching prices}: the taxes at which it moves from one network to another. Their level depends on how emission-intensive the operator is, in a simple way.
+
+\begin{proposition}\label{prop:scale}
+Let every emission factor be multiplied by $k > 0$, so that $E$ and $\beta$ become $kE$ and $k\beta$ while $c$ is unchanged, and let $\phi_k$, $\Psi_k$ be the follower's value function and response set after scaling. Then
+\begin{enumerate}
+\item[(a)] $\Psi_k(\tau) = \Psi(k\tau)$ and $\phi_k(\tau) = \phi(k\tau)$, so every break point is divided by $k$;
+\item[(b)] at $\tau$ after scaling and at $k\tau$ before, each response has the same cost and the same tax bill, $\tau\,k\beta(y)/1000$, so the tax bill as a share of the operator's cost is the same;
+\item[(c)] with $\mu = \xi\,\Eref$, the regulator's problem after scaling is the problem before scaling with the weight $\xi/k$ on the range $[k\tmin, k\tmax]$, its optimal tax divided by $k$.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+(a) and (b): $c(y) + \tau\,k\beta(y)/1000 = f(k\tau, y)$ for every $y \in Y$. (c) $\Eref$ scales by $k$, hence so does $\mu$, and $kE(y) + k\mu\,\tau = k\,[E(y) + (\mu/k)\,(k\tau)]$; substituting $\tau' = k\tau$ gives the problem before scaling with weight $\mu/k$ over $\tau' \in [k\tmin, k\tmax]$.
+\end{proof}
+
+Proposition~\ref{prop:scale} separates what a tax level means from the data that set it. A switching price found on an operator that emits $\iota$ kg \CO\ per euro of cost corresponds to a tax $\iota/\iota'$ times higher on an otherwise identical operator that emits $\iota'$, at the same tax bill relative to cost. We use the bill share, $\tau\,\beta(y)/(1000\,c(y))$, to compare switching prices across instances and with an observed carbon price (Section~\ref{sec:anticipation}).
+
 % =====================================================================================
 \section{The deterministic bounding procedure}\label{sec:dbp}
 
@@ -325,11 +341,43 @@ Inconsistent & LB exceeds UB by more than $\varepsilon$, so one of them is not a
 
 The lower bound is the HPR's proven dual bound, valid whether or not the HPR reaches its own gap. Every saved incumbent is re-evaluated in a fresh model: it must satisfy every constraint, be integral where required and reproduce the reported cost, emissions and leader objective. In the runs of Section~\ref{sec:results}, every $\varepsilon$-optimal result has a certified UB.
 
-\subsection{Bounding or enumerating break points}\label{sec:enumeration}
+\subsection{Enumerating the switching prices}\label{sec:enumeration}
 
-With a single tax, Proposition~\ref{prop:structure}(c) reduces the leader's problem to a finite comparison: evaluate $E^\circ(\tau) + \mu\,\tau$ at $\tmin$ and at the break points of $\phi$, and keep the best. The break points are the taxes at which the minimiser of $c(y) + \tau\,\beta(y)/1000$ moves from one extreme supported point of the biobjective problem $\min\, (c(y), \beta(y))$ to the next. They can be enumerated by the dichotomic scheme of \textcite{aneja1979bicriteria}. Solve the follower at both ends of the tax range, solve it again at the tax where the two resulting lines cross, and recurse on both halves until no new line appears. For $N$ lines that are optimal somewhere in the range, this takes $2N - 1$ follower solves, plus one tie-break \eqref{P4} at each break point. The same structure underlies multi-parametric approaches to bilevel MILPs \parencite{avraamidou2019multi} and value functions parameterised by the objective \parencite{tavasloglu2019solving}. The leader's problem also resembles the optimisation of a linear function over the efficient set of a biobjective MILP \parencite{sierraaltamiranda2019new}.
+With a single tax, Proposition~\ref{prop:structure}(c) reduces the leader's problem to a finite comparison: evaluate $E^\circ(\tau) + \mu\,\tau$ at $\tmin$ and at the break points of $\phi$, and keep the best. The break points are the taxes at which the minimiser of $c(y) + \tau\,\beta(y)/1000$ moves from one extreme supported point of the biobjective problem $\min\, (c(y), \beta(y))$ to the next, and the dichotomic scheme of \textcite{aneja1979bicriteria} finds them (Algorithm~\ref{alg:enum}). Solve the follower at both ends of the tax range; each response defines a line $\tau \mapsto c(y) + \tau\,\beta(y)/1000$. Solve it again where the two lines cross. If the response there lies on one of the two lines, the crossing is a break point; otherwise its line is optimal somewhere in between, and the search recurses on both halves. Every evaluation is the two-stage solve \eqref{P3}--\eqref{P4}, so the value recorded at a candidate is the one the DBP would record there. The same structure underlies multi-parametric approaches to bilevel MILPs \parencite{avraamidou2019multi} and value functions parameterised by the objective \parencite{tavasloglu2019solving}, and the leader's problem resembles the optimisation of a linear function over the efficient set of a biobjective MILP \parencite{sierraaltamiranda2019new}.
 
-Enumeration is therefore an exact alternative for a single tax, and it needs no bilinear relaxation. We use the DBP for three reasons. First, its number of follower solves does not grow with $N$: the runs of Section~\ref{sec:results} need 3 to 6 iterations, whereas enumeration must visit every break point in $[\tmin, \tmax]$, however far it lies from the optimum. Second, the DBP returns a valid lower bound at every iteration, so a run stopped by its budget still bounds the optimum; a partial enumeration yields only an incumbent. Third, the DBP extends in principle to a vector of taxes, one per emission source or per period. The value function then becomes a concave piecewise-linear function of several variables, whose linearity regions a one-dimensional search cannot enumerate, and the HPR carries one bilinear term per tax; we have not tested that extension. \textcite{merkert2022exact} give a general exact method for products of leader and follower variables; the DBP exploits instead the fact that the follower's feasible set does not depend on the tax. A computational comparison with enumeration, which would also verify the taxes reported here, is left to future work (Section~\ref{sec:conclusions}).
+\begin{algorithm}[!htbp]
+\caption{Enumeration of the switching prices, after \textcite{aneja1979bicriteria}.}\label{alg:enum}
+\begin{algorithmic}[1]
+\Require tolerances $\varepsilon'$ and $\delta_\tau$; weight $\mu$; run budget
+\State Evaluate $\tmin$ and $\tmax$: solve \eqref{P3} and \eqref{P4}, giving $y_{\min}$ and $y_{\max}$; candidates $\gets \{(\tmin, y_{\min})\}$
+\State Pending $\gets \{(\tmin, y_{\min}, \tmax, y_{\max})\}$
+\While{pending is not empty and the budget is not spent}
+  \State Take $(a, y_a, b, y_b)$ from pending
+  \If{$y_a$ and $y_b$ have the same cost and tax base, or $b - a \le \delta_\tau$}
+     \State \textbf{continue}
+  \EndIf
+  \State $\tau_\times \gets 1000\,(c(y_b) - c(y_a))/(\beta(y_a) - \beta(y_b))$ \Comment{the two lines cross}
+  \State Evaluate $\tau_\times$, giving $y_\times$
+  \If{$y_\times$ lies on the line of $y_a$ or of $y_b$, or its solve stopped on its time limit}
+     \State Add $(\tau_\times, y_\times)$ to the candidates \Comment{a break point}
+  \Else
+     \State Add $(a, y_a, \tau_\times, y_\times)$ and $(\tau_\times, y_\times, b, y_b)$ to pending
+  \EndIf
+\EndWhile
+\State \Return the candidate with the least $E(y) + \mu\,\tau$ (ties: the lower tax), and every candidate
+\end{algorithmic}
+\end{algorithm}
+
+\begin{lemma}\label{lem:enum}
+Let every follower solve be exact with $\varepsilon' = 0$, let $N$ lines be optimal somewhere in $[\tmin, \tmax]$, and let the budget not bind. Then Algorithm~\ref{alg:enum} stops after at most $2N - 1$ evaluations, its candidates are $\tmin$ and every break point of $\phi$ in $(\tmin, \tmax)$, and the candidate it returns is optimal for \eqref{P1}.
+\end{lemma}
+\begin{proof}
+Two evaluations are made at the ends. Each later evaluation either reveals a line not seen before, at most $N - 2$ times, or certifies that the crossing of two lines adjacent on the envelope is a break point, at most $N - 1$ times. Every break point is the crossing of two lines that are adjacent on the envelope, and the recursion reaches every such pair. At each candidate the evaluation returns the optimistic response, so $E^\circ$ there, and Proposition~\ref{prop:structure}(c) completes the proof.
+\end{proof}
+
+Two responses are taken to lie on the same line when their costs and tax bases agree to round-off, not to the MIP gap. Lines whose values differ by less than the gap can differ widely in emissions, and merging them misses switching prices. When a follower solve stops on its time limit, its line is not proven optimal; Algorithm~\ref{alg:enum} then keeps the crossing as a candidate without recursing, and the result is not certified. A search stopped by its budget returns the best of every tax it evaluated: a feasible point, but no lower bound.
+
+The two methods are complementary. Enumeration needs no bilinear relaxation, its cost is $2N - 1$ follower solves, and it returns every switching price with the emissions it induces: the staircase from which a regulator can read what each tax level buys. The DBP needs a few iterations whatever $N$, each with a non-convex relaxation; it returns a valid lower bound at every iteration, so a run stopped by its budget, or by follower solves that cannot be completed, still bounds the optimum; and it extends in principle to a vector of taxes, one per emission source or per period, whose linearity regions a one-dimensional search cannot enumerate. \textcite{merkert2022exact} give a general exact method for products of leader and follower variables; both methods here exploit instead the fact that the follower's feasible set does not depend on the tax. Section~\ref{sec:performance} compares them.
 
 % =====================================================================================
 \section{A bilevel model for carbon tax setting in closed-loop supply chain design}\label{sec:model}
@@ -355,7 +403,7 @@ The objective of the operator departs from \textcite{mota2018sustainable} in two
 
 \subsection{Notation}\label{sec:notation}
 
-Tables~\ref{tab:sets} and~\ref{tab:variables} list the sets and variables of the implemented model, and Table~\ref{tab:parameters} in \ref{app:parameters} lists its parameters. Where \textcite{mota2018sustainable} number an equation, the corresponding constraint follows it.
+Tables~\ref{tab:sets} and~\ref{tab:variables} list the sets and variables of the implemented model, and Table~S1 of the Supplementary Material lists its parameters with their units. Where \textcite{mota2018sustainable} number an equation, the corresponding constraint follows it.
 
 \begin{table}[!htbp]
 \centering
@@ -644,7 +692,7 @@ Interest rate & 5\% & 20\% & Discounts the tax paid but not the emissions; weigh
 \end{tabularx}
 \end{table}
 
-Scaling every emission factor by the same factor $k$ is not among the scenarios, because it adds nothing to them. At the tax $\tau/k$ the operator faces the same problem as at $\tau$ before scaling, and since $\Eref$, and hence $\mu$, also scale by $k$, the regulator's objective becomes $k\,[E + (\mu/k)\,\tau]$. Scaling is therefore the base problem with the weight $\xi/k$ and the range $[0, 200k]$~\EUR/t, with the resulting tax divided by $k$: its effect is that of the regulator's weight, which the scenarios vary directly.
+Scaling every emission factor by the same factor $k$ is not among the scenarios: by Proposition~\ref{prop:scale} it divides every switching price by $k$ and acts on the regulator's choice as the weight $\xi/k$, which the scenarios vary directly.
 
 \begin{figure}[!htbp]
 \centering
@@ -719,52 +767,6 @@ Four findings matter for policy, each on the instances named.
 The study has limits that point to further work. On the method: with one tax, enumerating break points is an exact alternative (Section~\ref{sec:enumeration}), and a computational comparison would also verify the taxes reported here. The HPR dominates the computing time, and discretisation schemes such as multiparametric disaggregation \parencite{kolodziej2013global} could tighten it. The certificate fixes the tax only to about \EUR1/t on a plateau, and the case study's tax not at all within 1--3~h. On the model: the tax is a single rate. A tax per emission source or per period, such as the differential taxes compared by \textcite{xia2025comparative}, makes the leader's decision a vector; the DBP applies in principle, with one bilinear term per tax in the HPR, but enumeration no longer does. The regulator does not maximise welfare \parencite{krass2013environmental,rustico2022environmental}, and the operator does not compete; under competition, emissions may even rise with the tax \parencite{krass2025competitive}. The model is deterministic, while demand, returns and the price of carbon are uncertain \parencite{haddadsisakht2018closed,beck2023survey}. On the data: the generated instances' emission factors are large relative to costs and give remanufacturing no advantage; a recalibrated generator would let them speak to the closed-loop findings too.
 
 % =====================================================================================
-\appendix
-\section{Parameters}\label{app:parameters}
-
-\begin{table}[!htbp]
-\centering
-\caption{Parameters of the operator's problem.}\label{tab:parameters}
-\footnotesize
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}L>{\raggedright\arraybackslash}p{3.2cm}@{}}
-\toprule
-Parameter & Description & Unit \\
-\midrule
-$D_{rpt}$ & Demand for product $p$ at retailer $r$ in period $t$ & units \\
-$\underline{\rho}_{rpt}$, $\overline{\rho}_{rpt}$ & Minimum and maximum fraction of the sales of $p$ at $r$ that return, $\theta_p$ periods later & -- \\
-$\eta_{kp}$ & Units of recovered product $k$ obtained per unit of $p$ returned & -- \\
-$b_{kp}$ & Units of recovered product $k$ used per unit of $p$ remanufactured & -- \\
-$a_{upg}$ & Units of raw material $u$ per unit of $p$ made with technology $g$ & -- \\
-$\underline{S}_{su}$, $\overline{S}_{su}$ & Minimum order and capacity of supplier $s$ for raw material $u$, per period & units \\
-$\underline{Q}_g$, $\overline{Q}_g$ & Minimum use and capacity of production technology $g$, per period & units \\
-$\underline{R}_l$, $\overline{R}_l$ & Minimum use and capacity of remanufacturing technology $l$, per period & units \\
-$\underline{A}_i$, $\overline{A}_i$ & Minimum and maximum floor area of factory or warehouse $i$ & m$^2$ \\
-$\alpha_n$, $\kappa$ & Floor area per unit of item $n$; stock rotations per period & m$^2$/unit; -- \\
-$\underline{I}_{pw}$, $\overline{I}_{pw}$, $I^0_{pw}$ & Minimum and maximum stock, initial stock of $p$ at warehouse $w$ & units \\
-$\omega_n$ & Weight of a unit of item $n$ & kg \\
-$\delta_{ij}$ & Distance from $i$ to $j$ & km \\
-$\underline{X}_m$, $\overline{X}_m$ & Minimum and maximum load of a truck trip of mode $m$ & kg \\
-$\overline{C}_m$ & Capacity contracted per arc and period for air or sea mode $m$ & kg \\
-$B_{ijm}$ & Upper bound on the trips of truck mode $m$ on arc $(i, j)$ in a period & trips \\
-$\nu_m$, $\hat{H}_m$, $\lambda_m$ & Speed, driving hours per truck and period, and distance factor (outbound plus return) of truck mode $m$ & km/h; h; -- \\
-$\overline{V}_{im}$, $\hat{B}$ & Maximum trucks of mode $m$ at node $i$; investment budget for trucks & trucks; \EUR \\
-$c^{\mathrm{raw}}_{su}$, $c^{\mathrm{rec}}_k$ & Purchase cost of raw material $u$ from $s$; acquisition cost of a returned unit of $k$ & \EUR/unit \\
-$c^{p}_g$, $c^{r}_l$ & Variable cost of production with $g$ and remanufacturing with $l$ & \EUR/unit \\
-$h_p$ & Holding cost of $p$ per period & \EUR/unit \\
-$c^{s}_m$, $c^{t}_m$, $c^{h}_m$ & Air or sea freight; truck trip cost; hub handling & \EUR/(kg$\cdot$km); \EUR/km; \EUR/kg \\
-$c^{a}_i$, $\Phi^{g}_g$, $\Phi^{l}_l$, $\Phi^{m}$, $f_h$ & Construction cost; technology investment; truck price; hub fee per period & \EUR/m$^2$; \EUR; \EUR; \EUR; \EUR \\
-$\pi_i$, $\gamma_i$, $\gamma^{s}_i$, $\gamma_g$, $\gamma_l$, $\gamma_m$, $\Omega$ & Wage at node $i$; workers per open facility, per m$^2$, per technology and per truck; working hours per period & \EUR/h; workers; h \\
-$r$, $d_t$, $\Delta$, $\varphi^f$, $\varphi^t$, $\varphi^v$ & Annual interest rate; discount factor $(1+r)^{-t\ell}$, with $\ell$ the period length in years; annuity $\sum_t d_t$; capital multipliers of facilities, technologies and vehicles & -- \\
-$e^{\mathrm{raw}}_{su}$, $e^{p}_g$, $e^{r}_l$ & Emissions of raw material $u$ from $s$; of production with $g$; of remanufacturing with $l$ & kg \CO/kg \\
-$e^{s}_m$, $\lambda^{e}_m$ & Transport emissions of mode $m$; their distance factor & kg \CO/(kg$\cdot$km); -- \\
-$e^{o}_i$, $\sigma$ & Construction emissions of facility $i$; share charged per period, $\ell/20$ & kg \CO/m$^2$; -- \\
-$\tmin$, $\tmax$, $\xi$, $\mu$ & Tax range; relative weight and weight of the tax in $F$ & \EUR/t; --; kg \CO\ per \EUR/t \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-The capital multipliers $\varphi^c = \Delta \cdot \mathrm{CRF}(i_\ell, \mathit{life}_c/\ell)$, with $i_\ell = (1 + r)^\ell - 1$ and $\mathrm{CRF}(i, n) = i / (1 - (1 + i)^{-n})$, charge each asset at its rental equivalent over its life (20 years for facilities, 8 for technologies, 5 for vehicles) instead of its full price.
-
 % =====================================================================================
 %% Declarations required by the EJOR Guide for Authors (single-anonymized review: they stay in the manuscript).
 \section*{CRediT authorship contribution statement}
