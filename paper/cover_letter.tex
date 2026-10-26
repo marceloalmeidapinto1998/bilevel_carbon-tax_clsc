@@ -1,0 +1,28 @@
+%% Cover letter to the editor of the European Journal of Operational Research.
+%% TODO(author): complete the author details and check every statement before sending.
+\documentclass[11pt]{letter}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[british]{babel}
+\signature{Marcelo Pinto\\ On behalf of all authors}
+\address{Marcelo Pinto\\ TODO Department, University of Coimbra\\ TODO street address, Coimbra, Portugal\\ TODO@uc.pt}
+\begin{document}
+\begin{letter}{The Editor\\ European Journal of Operational Research}
+\opening{Dear Editor,}
+
+We submit the manuscript \emph{Setting a carbon tax that anticipates the operator: a bilevel model for closed-loop supply chain network design} for consideration as a Theory and Methodology paper in the European Journal of Operational Research. We propose \emph{OR in environment and climate change} as its first keyword.
+
+The paper asks how a regulator should set a carbon tax when the operator responds by redesigning a multi-period closed-loop supply chain, with supplier selection, facility location, production and remanufacturing technologies and intermodal transport. We formulate the question as a bilevel program with a continuous tax and a mixed-integer follower, and make three contributions:
+\begin{itemize}
+\item We show that an optimal tax exists and lies at a break point of the operator's value function, where the operator switches to a cleaner network.
+\item We adapt the deterministic bounding procedure of Soares, Alves and Henggeler Antunes (2021, EJOR 291, 52--66) to a high-point relaxation in which the tax multiplies a continuous emission aggregate, and state precisely what each result certifies at the solver's tolerances.
+\item On 15 generated instances and the case study of Mota et al. (2018, Omega 77, 32--57), the method closes the gap to 0.01\% on 11 instances within one hour. A fixed tax at the 2025 EU allowance price buys the same abatement at a much larger bill when the operator's break point lies below it, and much less abatement when it lies above it.
+\end{itemize}
+The paper relates to recent EJOR work on bilevel optimisation with a sustainability perspective and on bounding methods for mixed-integer bilevel problems, and states its limits plainly: the case study's optimal tax is not determined within its gap, and the generated instances test the method more than they calibrate tax levels.
+
+The manuscript has not been published and is not under consideration elsewhere, and all authors approve its submission. The authors declare no competing interests. The code, instances and results will be made available as stated in the manuscript.
+
+\closing{Yours sincerely,}
+\end{letter}
+\end{document}
