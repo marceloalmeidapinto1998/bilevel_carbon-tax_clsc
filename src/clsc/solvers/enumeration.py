@@ -171,7 +171,9 @@ def _result(search: _Search, method: str, break_points: list[float], candidates:
         evaluations=list(search.evaluations),
         break_points=sorted(break_points),
         candidates=sorted(candidates, key=lambda e: e.tax),
-        best=_choose(candidates) if candidates else None,
+        # A search cut short by its budget has not reached every break point; its best point is then the
+        # best of every tax evaluated, each a feasible point of the bilevel problem.
+        best=_choose(candidates if complete else list(search.evaluations)) if search.evaluations else None,
         complete=complete,
         certified=complete and all(e.solved for e in search.evaluations),
         seconds=search.elapsed(),
@@ -239,6 +241,14 @@ def enumerate_break_points(
             # The response at the crossing lies on one of the two lines: no other line is optimal in
             # between, the crossing is a break point, and the evaluation there is the optimistic
             # response at that break point.
+            break_points.append(crossing)
+            candidates.append(middle)
+            continue
+        if not middle.solved:
+            # The follower stopped on its time limit: its line is not proven optimal, and recursing on it
+            # would chase lines that differ only by the solver's gap. The crossing is kept as a candidate,
+            # and the result is not certified.
+            logger.warning("tax %.4f: the follower stopped on its time limit; crossing kept as a candidate", crossing)
             break_points.append(crossing)
             candidates.append(middle)
             continue

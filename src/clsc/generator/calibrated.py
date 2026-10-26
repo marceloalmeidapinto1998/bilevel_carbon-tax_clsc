@@ -20,7 +20,15 @@ only what the case study pins down, so that the two can be compared instance by 
   which has no supplier term: the operator is taxed on its own operations -- production,
   remanufacturing, transport and construction -- as a tax on direct emissions would tax it;
 * a maximum return fraction of 1, every unit sold may return, and a minimum return fraction drawn below the
-  case study's 15%, as in Mota et al.'s case.
+  case study's 15%, as in Mota et al.'s case;
+* the case study's cost of acquiring a returned unit, EUR 0.15. The generator draws it as a fraction of the
+  selling price, up to tens of euros per unit, so that a remanufactured unit, which takes four to five
+  returned units, costs a hundred times a new one.
+
+The emission factors stay large relative to costs, as they are in the case study itself (13.5 kg CO2e per
+euro of cost without a tax). Tax levels scale with that intensity: multiplying every emission factor by k
+divides every break point of the follower's value function by k and leaves the tax bill, as a share of the
+operator's cost, unchanged at each of them.
 """
 from __future__ import annotations
 
@@ -34,6 +42,8 @@ REMANUFACTURING_EMISSION_RANGE = (103.0, 134.0)
 RAW_MATERIAL_EMISSION = 0.0
 RETURN_MAX_FRACTION = 1.0
 RETURN_MIN_FRACTION_CEILING = 0.15
+# EUR per returned unit acquired (Mota et al., 2018, Table 3; clsc.generator.mota2018.RECOVERY_COST).
+RECOVERY_COST_PER_UNIT = 0.15
 
 PREFIX = "CAL"
 
@@ -56,6 +66,7 @@ def calibrate(instance: dict[str, Any], *, attempt: int = 0) -> dict[str, Any]:
     for key in ("ret_max_frac_r_p_t", "rho_r_p_t"):
         parameters[key] = {r: {p: {t: RETURN_MAX_FRACTION for t in periods} for p, periods in products.items()}
                            for r, products in parameters[key].items()}
+    parameters["rpc_rp"] = {k: RECOVERY_COST_PER_UNIT for k in parameters["rpc_rp"]}
     parameters["ret_min_frac_r_p_t"] = {
         r: {p: {t: round(rng.uniform(0.0, RETURN_MIN_FRACTION_CEILING), 4) for t in periods}
             for p, periods in products.items()}
@@ -71,6 +82,7 @@ def calibrate(instance: dict[str, Any], *, attempt: int = 0) -> dict[str, Any]:
         "raw_material_emission": RAW_MATERIAL_EMISSION,
         "return_max_fraction": RETURN_MAX_FRACTION,
         "return_min_fraction_ceiling": RETURN_MIN_FRACTION_CEILING,
+        "recovery_cost_per_unit": RECOVERY_COST_PER_UNIT,
         "source": "Mota et al. (2018) case study; Tautenhain et al. (2021) data document, Table 24",
     }
     return calibrated
