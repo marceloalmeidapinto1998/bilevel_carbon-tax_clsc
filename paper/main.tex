@@ -126,14 +126,13 @@ This paper & Carbon tax & Multi-period CLSC design (MILP) & Tax times a continuo
 
 \subsection{Problem and assumptions}\label{sec:assumptions}
 
-A regulator (the leader) sets a carbon tax rate $\tau \in [\tmin, \tmax]$, in \EUR\ per tonne of CO\textsubscript{2}-equivalent (\CO). An operator (the follower) then designs and plans a CLSC over $|\mathcal{T}|$ periods. Raw materials are bought from suppliers and turned into final products at factories; products flow through warehouses to retailers; a fraction of the units sold returns as recovered products, which are collected and remanufactured at factories. Goods move by truck, and by air or sea between hubs. The operator chooses suppliers, factories and warehouses with their floor areas, production and remanufacturing technologies, a truck fleet, and per period the purchases, production, remanufacturing, inventories and flows. The model rests on six assumptions.
+A regulator (the leader) sets a carbon tax rate $\tau \in [\tmin, \tmax]$, in \EUR\ per tonne of CO\textsubscript{2}-equivalent (\CO). An operator (the follower) then designs and plans a CLSC over $|\mathcal{T}|$ periods. Raw materials are bought from suppliers and turned into final products at factories; products flow through warehouses to retailers; a fraction of the units sold returns as recovered products, which are collected and remanufactured at factories. Goods move by truck, and by air or sea between hubs. The operator chooses suppliers, factories and warehouses with their floor areas, production and remanufacturing technologies, a truck fleet, and per period the purchases, production, remanufacturing, inventories and flows. The model rests on five assumptions.
 \begin{enumerate}
 \item[(A1)] One operator responds to the tax; demand is given and must be met.
 \item[(A2)] The operator minimises its discounted cost plus the tax on its discounted emissions; the regulator counts physical, undiscounted emissions.
-\item[(A3)] The tax base comprises the emissions of production, remanufacturing, transport and the construction of facilities, and of purchased raw materials where the data assign them; on the calibrated instances these are zero, so the operator is taxed on its own operations (Section~\ref{sec:instances}).
-\item[(A4)] All data are deterministic, and the operator's feasible set does not depend on the tax.
-\item[(A5)] Among the operator's optimal responses, the one with the least emissions is taken (the optimistic convention).
-\item[(A6)] The regulator minimises its emissions plus a weight $\mu > 0$ on the tax rate, which selects the lowest tax among those that induce the same emissions.
+\item[(A3)] All data are deterministic, and the operator's feasible set does not depend on the tax.
+\item[(A4)] Among the operator's optimal responses, the one with the least emissions is taken (the optimistic convention).
+\item[(A5)] The regulator minimises its emissions plus a weight $\mu > 0$ on the tax rate, which selects the lowest tax among those that induce the same emissions.
 \end{enumerate}
 
 \subsection{Notation}\label{sec:notation}
@@ -319,7 +318,7 @@ The regulator anticipates the operator's response \eqref{eq:follower} and solves
 \begin{equation}\label{eq:bilevel}
 \min_{\tau,\, y} \; F(\tau, y) = E(y) + \mu\,\tau \quad \text{s.t.} \quad \tmin \le \tau \le \tmax, \quad y \in \arg\min_{y' \in Y} f(\tau, y'). \tag{P1}
 \end{equation}
-Under (A5), when the follower has several optimal responses the one with the least $E$ is taken, which \eqref{eq:bilevel} expresses by minimising $F$ over $y$ as well. The weight $\mu = \xi\,\Eref$, in kg \CO\ per \EUR/t, states how much emission the regulator gives up to lower the tax by \EUR1/t; $\Eref$ is a lower bound on the emissions of any network (Section~\ref{sec:dbp}), and $\xi = 10^{-4}$ reads ``give up 1\% of the least emissions to avoid \EUR100/t of tax''. As $\xi \to 0$ the problem becomes lexicographic: the least emissions any tax in the range induces, then the lowest tax that induces them. A lower tax for the same abatement limits the transfer from the operator. In computation, the follower's optimality holds only to a tolerance $\varepsilon' > 0$, and the $\varepsilon'$-optimistic problem lets the follower choose any response within $\varepsilon'$ of its optimum \parencite{mitsos2008global}.
+Under (A4), when the follower has several optimal responses the one with the least $E$ is taken, which \eqref{eq:bilevel} expresses by minimising $F$ over $y$ as well. The weight $\mu = \xi\,\Eref$, in kg \CO\ per \EUR/t, states how much emission the regulator gives up to lower the tax by \EUR1/t; $\Eref$ is a lower bound on the emissions of any network (Section~\ref{sec:dbp}), and $\xi = 10^{-4}$ reads ``give up 1\% of the least emissions to avoid \EUR100/t of tax''. As $\xi \to 0$ the problem becomes lexicographic: the least emissions any tax in the range induces, then the lowest tax that induces them. A lower tax for the same abatement limits the transfer from the operator. In computation, the follower's optimality holds only to a tolerance $\varepsilon' > 0$, and the $\varepsilon'$-optimistic problem lets the follower choose any response within $\varepsilon'$ of its optimum \parencite{mitsos2008global}.
 
 \subsection{Structure of the solutions}\label{sec:structure}
 
