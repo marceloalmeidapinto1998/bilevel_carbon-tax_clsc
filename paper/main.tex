@@ -84,7 +84,7 @@ A regulator who anticipates how an operator redesigns its supply chain can choos
 
 In most studies of carbon pricing in supply chain planning and design, the price is a parameter, and the studies describe how the supply chain responds to it \parencite{fahimnia2015tactical,zakeri2015carbon,haddadsisakht2018closed,waltho2019green}. That response is not smooth. \textcite{zakeri2015carbon} observe an erratic, non-linear reduction in emissions, with inflection points, as the price rises, and \textcite{krass2013environmental} show that a firm's technology choice can even reverse as the tax rises. A regulator that wants to set the tax well must therefore anticipate how the supply chain will react, not merely observe it.
 
-Choosing the tax is a leader--follower problem, a bilevel program \parencite{kleinert2021survey}: the regulator sets the tax anticipating the operator's best response. Bilevel models of environmental taxes replace a continuous follower by its optimality conditions \parencite{almutairi2014carbon}, search over the policy on a grid \parencite{bard2000bilevel}, or solve an integer follower by problem-specific branch-and-bound \parencite{liu2023optimal}. A closed-loop supply chain (CLSC) design follower is a mixed-integer linear program (MILP) whose objective contains the product of the tax and the emissions. General exact methods for mixed-integer bilevel programs either exclude continuous leader variables from the follower's problem \parencite{fischetti2017new,lozano2017value} or treat products of leader and follower variables in general \parencite{mitsos2008global,merkert2022exact}, without exploiting that the tax leaves the follower's feasible set unchanged.
+Choosing the tax is a leader--follower problem, a bilevel program \parencite{kleinert2021survey}: the regulator sets the tax anticipating the operator's best response. Bilevel models of environmental taxes replace a continuous follower by its optimality conditions \parencite{almutairi2014carbon}, search over the policy on a grid \parencite{bard2000bilevel}, or solve an integer follower by problem-specific branch-and-bound \parencite{liu2023optimal}. A closed-loop supply chain (CLSC) design follower is a mixed-integer linear program (MILP) whose objective contains the product of the tax and the emissions. General exact methods for mixed-integer bilevel programs either require the leader's variables to be integer \parencite{lozano2017value} or treat products of leader and follower variables in general \parencite{mitsos2008global,merkert2022exact}, without exploiting that the tax leaves the follower's feasible set unchanged.
 
 This paper sets a carbon tax for an operator that designs a multi-period, multi-product CLSC with the model of \textcite{mota2018sustainable}. It makes three contributions.
 \begin{enumerate}
@@ -97,9 +97,9 @@ Section~\ref{sec:model} states the model and its structure, Section~\ref{sec:met
 
 \subsection{Related literature}\label{sec:literature}
 
-\paragraph{Carbon pricing and closed-loop supply chains} Carbon caps, offsets, cap-and-trade and taxes reduce supply chain emissions mostly by moving the supply chain to lower-emitting resources \parencite{waltho2019green}. Cap, tax, cap-and-trade and offsets change supplier, transport-mode and facility decisions \parencite{palak2014analyzing,marufuzzaman2014environmentally} and the choice of technology and capacity \parencite{drake2016technology}; \textcite{fahimnia2015tactical} ask which price gives the best environmental return per unit of added cost. CLSC network design models under a carbon tax take the tax as given \parencite{govindan2015reverse,haddadsisakht2018closed,govindan2023location}, and \textcite{yenipazarli2016managing} characterises the taxes under which remanufacturing lowers emissions. \textcite{mota2018sustainable} integrate facility location, supplier selection, technology choice, intermodal transport and remanufacturing in one model, which \textcite{tautenhain2021efficient} solve with a Lagrangian matheuristic.
+\paragraph{Carbon pricing and closed-loop supply chains} Carbon caps, offsets, cap-and-trade and taxes reduce supply chain emissions mostly by moving the supply chain to lower-emitting resources \parencite{waltho2019green}. Cap, tax, cap-and-trade and offsets change supplier, transport-mode and facility decisions \parencite{palak2014analyzing,marufuzzaman2014environmentally} and the choice of technology and capacity \parencite{drake2016technology}; \textcite{fahimnia2015tactical} ask which price gives the best environmental return per unit of added cost. CLSC network design models under a carbon tax take the tax as given \parencite{haddadsisakht2018closed,govindan2023location}, and \textcite{yenipazarli2016managing} characterises the taxes under which remanufacturing lowers emissions. \textcite{mota2018sustainable} integrate facility location, supplier selection, technology choice, intermodal transport and remanufacturing in one model, which \textcite{tautenhain2021efficient} solve with a Lagrangian matheuristic.
 
-\paragraph{Bilevel tax models and exact methods} \textcite{labbe1998bilevel} formulate the bilevel taxation problem and show that it is NP-complete. Regulators set taxes to induce green technology in stylised models \parencite{krass2013environmental,rustico2022environmental}, and \textcite{caselli2026bilevel} survey bilevel models with a sustainability perspective. When the follower has integer variables, exact methods work with its optimal value function \parencite{moore1990mixed,kleinert2021survey}: branch-and-cut \parencite{fischetti2017new}, value-function reformulations \parencite{lozano2017value,tavasloglu2019solving}, multi-parametric programming \parencite{avraamidou2019multi}, projection \parencite{merkert2022exact} and bounding procedures that alternate a relaxation with the follower's response \parencite{mitsos2008global,soares2021deterministic,soares2023deterministic}. In the pricing problems of \textcite{soares2021deterministic}, prices multiply binary follower variables and the high-point relaxation is a MILP; here the tax multiplies a continuous aggregate. Table~\ref{tab:positioning} positions this paper.
+\paragraph{Bilevel tax models and exact methods} \textcite{labbe1998bilevel} formulate the bilevel taxation problem. Regulators set taxes to induce green technology in stylised models \parencite{krass2013environmental,rustico2022environmental}, and \textcite{caselli2026bilevel} survey bilevel models with a sustainability perspective. When the follower has integer variables, exact methods work with its optimal value function \parencite{kleinert2021survey}: branch-and-cut \parencite{fischetti2017new}, value-function reformulations \parencite{lozano2017value,tavasloglu2019solving}, multi-parametric programming \parencite{avraamidou2019multi}, projection \parencite{merkert2022exact} and bounding procedures that alternate a relaxation with the follower's response \parencite{mitsos2008global,soares2021deterministic,soares2023deterministic}. In the pricing problems of \textcite{soares2021deterministic}, prices multiply binary follower variables and the high-point relaxation is a MILP; here the tax multiplies a continuous aggregate. Table~\ref{tab:positioning} positions this paper.
 
 \begin{table}[!htbp]
 \centering
@@ -181,12 +181,12 @@ $\underline{I}_{pw}$, $\overline{I}_{pw}$ & Minimum and maximum stock of $p$ at 
 $\underline{A}_i$, $\overline{A}_i$; $\alpha_n$; $\kappa$ & Minimum and maximum floor area; area per unit of $n$; stock rotations per period & m$^2$; m$^2$/unit; -- \\
 $\omega_n$; $\delta_{ij}$ & Weight of a unit of $n$; distance from $i$ to $j$ & kg; km \\
 $\underline{X}_m$, $\overline{X}_m$; $\overline{C}_m$ & Minimum and maximum load of a truck trip; air or sea capacity contracted per arc and period & kg \\
-$B_{ijm}$; $\overline{V}_{im}$ & Upper bounds on the trips per period and on the trucks at $i$ (from the capacities) & trips; trucks \\
+$B_{ijm}$; $\overline{V}_{im}$ & Upper bounds on the trips per period and on the trucks at $i$, both $\lceil \bar{F}/\overline{X}_m \rceil + 1$ & trips; trucks \\
 $\nu_m$, $\hat{H}_m$, $\lambda_m$ & Truck speed, driving hours per truck and period, distance factor (outbound and return) & km/h; h; -- \\
 \multicolumn{3}{@{}l}{\emph{Costs}} \\
 $c^{\mathrm{raw}}_{su}$; $c^{\mathrm{rec}}_k$; $c^{p}_g$; $c^{r}_l$; $h_p$ & Purchase of $u$ from $s$; acquisition of a returned unit of $k$; production; remanufacturing; holding per period & \EUR/unit \\
 $c^{s}_m$; $c^{t}_m$; $c^{h}_m$ & Air or sea freight; truck trip; hub handling & \EUR/(kg$\cdot$km); \EUR/km; \EUR/kg \\
-$c^{a}_i$; $\Phi^{g}_g$, $\Phi^{l}_l$, $\Phi^{m}$; $f_h$; $\hat{B}$ & Construction; technology investment; truck price; hub fee per period; truck budget & \EUR/m$^2$; \EUR \\
+$c^{a}_i$; $\Phi^{g}_g$, $\Phi^{l}_l$, $\Phi^{m}$; $f_s$; $f_h$; $\hat{B}$ & Construction; technology investment; truck price; supplier selection; hub fee per period; truck budget & \EUR/m$^2$; \EUR \\
 $\pi_i$; $\gamma_i$, $\gamma^{s}_i$, $\gamma_g$, $\gamma_l$, $\gamma_m$; $\Omega$ & Wage at $i$; workers per open facility, per m$^2$, per technology, per truck; working hours per period & \EUR/h; workers; h \\
 $r$; $d_t$; $\Delta$ & Annual interest rate; discount factor $(1+r)^{-t\ell}$; annuity $\Delta = \sum_t d_t$ & -- \\
 $\varphi^{f}$, $\varphi^{t}$, $\varphi^{v}$ & Capital multipliers of facilities, technologies, vehicles, $\varphi^c = \Delta\, \mathrm{CRF}\bigl((1+r)^\ell - 1, L_c/\ell\bigr)$ with lives $L_c$ of 20, 8 and 5 years and $\mathrm{CRF}(i, n) = i/(1 - (1+i)^{-n})$ & -- \\
@@ -226,10 +226,11 @@ At a tax $\tau$, the operator solves
 \begin{equation}\label{eq:follower}
 \min_{y \in Y} \; f(\tau, y) = c(y) + \frac{\tau}{1000}\,\beta(y),
 \end{equation}
-where $c$ is the discounted cost \eqref{eq:cost}, $\beta$ the discounted emissions \eqref{eq:emissions}, both written with the flows \eqref{eq:flows}, and $Y$ the set defined by \eqref{eq:balance-factory}--\eqref{eq:use}. Capital is charged at its rental equivalent, recurring fixed costs over the annuity $\Delta$, and flows at their discounted value; selecting a supplier carries no fixed cost:
+where $c$ is the discounted cost \eqref{eq:cost}, $\beta$ the discounted emissions \eqref{eq:emissions}, both written with the flows \eqref{eq:flows}, and $Y$ the set defined by \eqref{eq:balance-factory}--\eqref{eq:use}. Capital is charged at its rental equivalent, recurring fixed costs over the annuity $\Delta$, and flows at their discounted value; the supplier selection cost $f_s$ is zero on every instance, as in both sources:
 \begin{equation}\label{eq:cost}
 \begin{aligned}
-c(y) ={}& \varphi^{f} \sum_{i \in \mathcal{F} \cup \mathcal{W}} c^{a}_i A_i + \varphi^{t} \sum_{f \in \mathcal{F}} \Bigl( \sum_{g} \Phi^{g}_g u^{p}_{fg} + \sum_{l} \Phi^{l}_l u^{r}_{fl} \Bigr) + \varphi^{v} \sum_{i,\, m \in \mathcal{M}^T} \Phi^{m} V_{im} + \Delta \sum_{h \in \mathcal{H}} f_h\, o_h \\
+c(y) ={}& \sum_{s \in \mathcal{S}} f_s\, o_s + \varphi^{f} \sum_{i \in \mathcal{F} \cup \mathcal{W}} c^{a}_i A_i + \varphi^{t} \sum_{f \in \mathcal{F}} \Bigl( \sum_{g} \Phi^{g}_g u^{p}_{fg} + \sum_{l} \Phi^{l}_l u^{r}_{fl} \Bigr) \\
+&+ \varphi^{v} \sum_{i,\, m \in \mathcal{M}^T} \Phi^{m} V_{im} + \Delta \sum_{h \in \mathcal{H}} f_h\, o_h \\
 &+ \Delta\, \Omega \Bigl[ \sum_{i \in \mathcal{F} \cup \mathcal{W}} \pi_i \bigl( \gamma_i o_i + \gamma^{s}_i A_i \bigr) + \sum_{f \in \mathcal{F}} \pi_f \Bigl( \sum_g \gamma_g u^{p}_{fg} + \sum_l \gamma_l u^{r}_{fl} \Bigr) + \sum_{i,\, m \in \mathcal{M}^T} \pi_i \gamma_m V_{im} \Bigr] \\
 &+ \sum_{t \in \mathcal{T}} d_t \Bigl[ \sum_{p,f,g} c^{p}_g q_{pfgt} + \sum_{p,f,l} c^{r}_l r_{pflt} + \sum_{p,w} h_p I_{pwt} + \sum_{s,u} c^{\mathrm{raw}}_{su} \Xout_{ust} + \sum_{r,k} c^{\mathrm{rec}}_{k} \Xout_{krt} \\
 &\qquad + \sum_{n,(i,j),\, m \in \mathcal{M}^A \cup \mathcal{M}^S} c^{s}_m \omega_n \delta_{ij} x_{nijmt} + \sum_{(i,j),\, m \in \mathcal{M}^T} c^{t}_m \lambda_m \delta_{ij} z_{ijmt} \\
@@ -262,11 +263,10 @@ Construction emissions are amortised over the facilities' 20-year life, as their
 & \textstyle\sum_{p} \sum_{l \in \mathcal{L}_p} b_{kp}\, r_{pflt} = \Xin_{kft} && \forall k, f, t \label{eq:rem-bom}
 \end{align}
 
-\paragraph{Technologies} A technology is installed only at an open factory, at most one per product, and every open factory installs one:
+\paragraph{Technologies} A technology is installed only at an open factory, and at most one per product:
 \begin{align}
 & u^{p}_{fg} \le o_f, \quad u^{r}_{fl} \le o_f, \quad v_{flt} \le u^{r}_{fl} && \forall f, g, l, t \label{eq:tech-open}\\
 & \textstyle\sum_{g \in \mathcal{G}_p} u^{p}_{fg} \le 1, \quad \sum_{l \in \mathcal{L}_p} u^{r}_{fl} \le 1 && \forall f, p \label{eq:tech-one}\\
-& \textstyle\sum_g u^{p}_{fg} + \sum_l u^{r}_{fl} \ge o_f && \forall f \label{eq:tech}\\
 & \underline{Q}_g\, u^{p}_{fg} \le \textstyle\sum_{p \in \mathcal{P}_g} q_{pfgt} \le \overline{Q}_g\, u^{p}_{fg} && \forall f, g, t \label{eq:prod-cap}\\
 & \underline{R}_l\, v_{flt} \le \textstyle\sum_{p \in \mathcal{P}_l} r_{pflt} \le \overline{R}_l\, v_{flt} && \forall f, l, t \label{eq:rem-cap}
 \end{align}
@@ -294,14 +294,15 @@ Construction emissions are amortised over the facilities' 20-year life, as their
 & \textstyle\sum_{i,\, m \in \mathcal{M}^T} \Phi^{m} V_{im} \le \hat{B} \label{eq:budget}\\
 & \textstyle\sum_{n,t} \bigl( \Xin_{nit} + \Xout_{nit} \bigr) \ge o_i && \forall i \in \mathcal{O} \label{eq:use}
 \end{align}
-A facility that already exists has $o_i = 1$ and its area fixed. In the case study, truck and contracted capacities count units rather than kilograms, handling is charged per unit entering a hub from a non-hub node, and truck emissions count the outbound leg only ($\lambda^e_m = 1$), as in \textcite{mota2018sustainable}; elsewhere $\lambda^e_m = \lambda_m$.
+The bounds $B_{ijm} = \overline{V}_{im} = \lceil \bar{F}/\overline{X}_m \rceil + 1$ use an upper bound $\bar{F}$ on the load of an arc in a period: 7{,}000~t on the generated instances, the generator's largest flow through an entity, and on the case study the most units any arc can carry, a supplier's whole supply or the total production capacity plus the initial stock. A facility that already exists has $o_i = 1$ and its area fixed. In the case study, truck and contracted capacities count units rather than kilograms, handling is charged per unit entering a hub from a non-hub node, and truck emissions count the outbound leg only ($\lambda^e_m = 1$), as in \textcite{mota2018sustainable}; elsewhere $\lambda^e_m = \lambda_m$.
 
-\paragraph{Valid inequalities} Three families tighten the linear relaxation of $Y$ without removing an integer point. Recovered products are collected and remanufactured in the same period, so at most
+\paragraph{Valid inequalities} Four families tighten the linear relaxation of $Y$ without removing an integer point. An open factory carries flow \eqref{eq:use}, and its inflows are consumed and its outflows made only by its technologies \eqref{eq:balance-factory}, \eqref{eq:bom}, \eqref{eq:rem-bom}, since no final product enters a factory and no raw material or recovered product leaves one; every open factory therefore installs a technology. Recovered products are collected and remanufactured in the same period, so at most
 \begin{equation}\label{eq:collectable}
 \hat{R}_{pt} = \min_{k:\, b_{kp} > 0} \frac{1}{b_{kp}} \sum_{r \in \mathcal{R}} \sum_{p'} \eta_{kp'}\, \overline{\rho}_{rp't}\, D_{rp',t-\theta_{p'}}
 \end{equation}
 units of $p$ can be remanufactured in period $t$ ($\hat{R}_{pt} = 0$ if no $k$ makes $p$). Let $\mathcal{R}^{+}$ be the retailers with a positive minimum return in some period and $\mathcal{O}^{T}$ the nodes all of whose outgoing arcs are truck arcs. The inequalities are
 \begin{align}
+& \textstyle\sum_g u^{p}_{fg} + \sum_l u^{r}_{fl} \ge o_f && \forall f \label{eq:tech}\\
 & \textstyle\sum_{p \in \mathcal{P}_l} r_{pflt} \le \min\bigl( \overline{R}_l,\, \sum_{p \in \mathcal{P}_l} \hat{R}_{pt} \bigr)\, v_{flt} && \forall f, l, t \label{eq:vi-rem}\\
 & \textstyle\sum_{m} V_{im} \ge 1 && \forall i \in \mathcal{R}^{+} \cap \mathcal{O}^{T} \notag\\
 & \textstyle\sum_{m} V_{im} \ge o_i && \forall i \in (\mathcal{S} \cup \mathcal{F}) \cap \mathcal{O}^{T} \notag\\
@@ -309,7 +310,7 @@ units of $p$ can be remanufactured in period $t$ ($\hat{R}_{pt} = 0$ if no $k$ m
 & \textstyle\sum_{f} \sum_{l \in \mathcal{L}_k} v_{flt} \ge 1 && \forall k, t: \textstyle\sum_{r,p} \eta_{kp}\, \underline{\rho}_{rpt}\, D_{rp,t-\theta_p} > 0 \notag\\
 & \textstyle\sum_{f} \sum_{g \in \mathcal{G}_p} u^{p}_{fg} \ge 1 && \forall p: \textstyle\sum_{r,t} D_{rpt} > \sum_w I^0_{pw} + \sum_t \hat{R}_{pt} \label{eq:vi-tech}
 \end{align}
-Every subproblem of Section~\ref{sec:methods} includes \eqref{eq:vi-rem}--\eqref{eq:vi-tech}, which use the bound \eqref{eq:collectable}.
+Every subproblem of Section~\ref{sec:methods} includes \eqref{eq:tech}--\eqref{eq:vi-tech}, which use the bound \eqref{eq:collectable}.
 
 \subsection{The regulator's problem}\label{sec:leader}
 
@@ -317,7 +318,7 @@ The regulator anticipates the operator's response \eqref{eq:follower} and solves
 \begin{equation}\label{eq:bilevel}
 \min_{\tau,\, y} \; F(\tau, y) = E(y) + \mu\,\tau \quad \text{s.t.} \quad \tmin \le \tau \le \tmax, \quad y \in \arg\min_{y' \in Y} f(\tau, y'). \tag{P1}
 \end{equation}
-Under (A5), when the follower has several optimal responses the one with the least $E$ is taken, which \eqref{eq:bilevel} expresses by minimising $F$ over $y$ as well. The weight $\mu = \xi\,\Eref$, in kg \CO\ per \EUR/t, states how much emission the regulator gives up to lower the tax by \EUR1/t; $\Eref$ is a lower bound on the emissions of any network (Section~\ref{sec:dbp}), and $\xi = 10^{-4}$ reads ``give up 1\% of the least emissions to avoid \EUR100/t of tax''. As $\xi \to 0$ the problem becomes lexicographic: the least emissions any tax in the range induces, then the lowest tax that induces them. A lower tax for the same abatement limits the transfer from the operator and the incentive to move emissions abroad \parencite{gugler2023carbon}. In computation, the follower's optimality holds only to a tolerance $\varepsilon' > 0$, and the $\varepsilon'$-optimistic problem lets the follower choose any response within $\varepsilon'$ of its optimum \parencite{mitsos2008global}.
+Under (A5), when the follower has several optimal responses the one with the least $E$ is taken, which \eqref{eq:bilevel} expresses by minimising $F$ over $y$ as well. The weight $\mu = \xi\,\Eref$, in kg \CO\ per \EUR/t, states how much emission the regulator gives up to lower the tax by \EUR1/t; $\Eref$ is a lower bound on the emissions of any network (Section~\ref{sec:dbp}), and $\xi = 10^{-4}$ reads ``give up 1\% of the least emissions to avoid \EUR100/t of tax''. As $\xi \to 0$ the problem becomes lexicographic: the least emissions any tax in the range induces, then the lowest tax that induces them. A lower tax for the same abatement limits the transfer from the operator. In computation, the follower's optimality holds only to a tolerance $\varepsilon' > 0$, and the $\varepsilon'$-optimistic problem lets the follower choose any response within $\varepsilon'$ of its optimum \parencite{mitsos2008global}.
 
 \subsection{Structure of the solutions}\label{sec:structure}
 
@@ -365,11 +366,11 @@ gives its optimal value, and the optimistic response solves
 \begin{equation}
 \min_{y \in Y} \; E(y) \quad \text{s.t.} \quad f(\tau_k, y) \le f^*_k + \varepsilon' \, |f^*_k|. \tag{P4}\label{P4}
 \end{equation}
-With $\varepsilon' = 0$, the response $y_k$ of \eqref{P4} is optimal for the follower and, among its optimal responses, has the least emissions, so $(\tau_k, y_k)$ is feasible for \eqref{eq:bilevel}. A tolerance $\varepsilon' > 0$ relative to $f^*_k$ avoids losing feasibility to floating-point arithmetic \parencite{mitsos2010global,soares2021deterministic}; the problem solved is then the $\varepsilon'$-optimistic one.
+With $\varepsilon' = 0$, the response $y_k$ of \eqref{P4} is optimal for the follower and, among its optimal responses, has the least emissions, so $(\tau_k, y_k)$ is feasible for \eqref{eq:bilevel}. A tolerance $\varepsilon' > 0$ relative to $f^*_k$ avoids losing feasibility to floating-point arithmetic, as in \textcite{soares2021deterministic}; the problem solved is then the $\varepsilon'$-optimistic one.
 
 \subsection{Enumeration of the switching prices}\label{sec:enumeration}
 
-By Proposition~\ref{prop:structure}(c), the leader evaluates $E^\circ(\tau) + \mu\,\tau$ at $\tmin$ and at the break points of $\phi$ and keeps the best. Each response $y$ defines a line $\tau \mapsto c(y) + \tau\,\beta(y)/1000$, and $\phi$ is their lower envelope. The dichotomic scheme of \textcite{aneja1979bicriteria} finds the break points (Algorithm~\ref{alg:enum}): it evaluates both ends of the tax range, then the tax where the two lines cross. If the response there lies on one of the two lines, the crossing is a break point; otherwise a new line is optimal in between, and the scheme recurses on both halves. The same structure underlies multi-parametric approaches to bilevel MILPs \parencite{avraamidou2019multi} and value functions parameterised by the objective \parencite{tavasloglu2019solving}.
+By Proposition~\ref{prop:structure}(c), the leader evaluates $E^\circ(\tau) + \mu\,\tau$ at $\tmin$ and at the break points of $\phi$ and keeps the best. Each response $y$ defines a line $\tau \mapsto c(y) + \tau\,\beta(y)/1000$, and $\phi$ is their lower envelope. The dichotomic scheme of \textcite{aneja1979bicriteria} finds the break points (Algorithm~\ref{alg:enum}): it evaluates both ends of the tax range, then the tax where the two lines cross. If the response there lies on one of the two lines, the crossing is a break point; otherwise a new line is optimal in between, and the scheme recurses on both halves. The same structure underlies multi-parametric approaches to bilevel MILPs \parencite{avraamidou2019multi}.
 
 \begin{algorithm}[!htbp]
 \caption{Enumeration of the switching prices.}\label{alg:enum}
@@ -620,7 +621,7 @@ Instance & SP & $\tau^*$ (\EUR/t) & At $\tau^*$ & At \EUR74/t & At $\Eref$ & At 
 
 \paragraph{Switches are costly relative to the emissions they avoid} At $\tau^*$, the tax bill is 1.4 to 6.2 times the operator's cost. By Corollary~\ref{cor:bill}, the last switch raises the operator's cost by a larger fraction than it lowers its taxed emissions. This share does not depend on the scale of the emission factors, and it makes switching prices comparable across operators of different emission intensity.
 
-\paragraph{The mechanism} The tax acts through the closed loop and production technology. Remanufacturing rises from at most 5.2\% of production without a tax to 6.0--18.1\% at $\tau^*$ on the 14 instances whose returns arrive within the horizon; the production technology changes on 10 of the 16 instances and the factories on 3, while transport stays below 2\% of emissions. This agrees with \textcite{yenipazarli2016managing} and \textcite{li2024optimal}, for whom a tax encourages remanufacturing where it carries an environmental advantage.
+\paragraph{The mechanism} The tax acts through the closed loop and production technology. Remanufacturing rises from at most 5.2\% of production without a tax to 6.0--18.1\% at $\tau^*$ on the 14 instances whose returns arrive within the horizon; the production technology changes on 10 of the 16 instances and the factories on 3, while transport stays below 2\% of emissions. This agrees with \textcite{yenipazarli2016managing}, who characterises the taxes under which remanufacturing lowers emissions.
 
 \subsection{The case study}\label{sec:sens-case}
 
