@@ -1,7 +1,7 @@
 Highlights
 
 - A regulator sets a carbon tax anticipating how a firm redesigns its supply chain
-- A bounding method closes the gap to stated tolerances on 11 of 16 instances
-- The optimal tax lies where the firm switches to a cleaner network
-- Taxes above that switch point raise the tax bill without cutting emissions
-- Clean-technology cost, more than the tax, sets how much is abated
+- The optimal tax lies at a switching price, where the firm moves to a cleaner network
+- Enumerating switching prices is fastest when they are few, bounding when many
+- Bounding still certifies the tax when the firm's own problem cannot be solved
+- A fixed tax at the European carbon price overpays or falls short of the optimal tax
