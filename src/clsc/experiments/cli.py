@@ -30,7 +30,6 @@ def build_parser() -> argparse.ArgumentParser:
     report = commands.add_parser("report", help="Write the tables to <root>/tables/ from the files that exist.")
     report.add_argument("tables", nargs="*", choices=sorted(TABLES), help="Tables to write (default: all).")
 
-    commands.add_parser("figures", help="Draw the figures to <root>/figures/ from the tables (needs matplotlib).")
     return parser
 
 
@@ -49,12 +48,5 @@ def main(argv: list[str] | None = None) -> int:
             records = run_experiment(EXPERIMENTS[key], args.root, instances=args.instances, threads=args.threads, dry_run=args.dry_run)
             failed += sum(record["status"] != "ok" for record in records)
         return 1 if failed else 0
-    if args.command == "figures":
-        from .figures import tornado_figure
-
-        write_tables(args.root, ["tornado"])
-        for path in tornado_figure(args.root / "tables" / "tornado.csv", args.root / "figures"):
-            print(path.as_posix())
-        return 0
     print(json.dumps(write_tables(args.root, args.tables or None), indent=2))
     return 0

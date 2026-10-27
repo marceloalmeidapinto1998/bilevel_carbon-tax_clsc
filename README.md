@@ -1,6 +1,6 @@
 # Bilevel mixed-integer program for carbon tax setting and closed-loop supply chain network design
 
-Exact and ε-optimal solutions to a bilevel closed-loop supply chain design problem under a carbon tax, computed with the Deterministic Bounding Procedure of Soares et al. (2021).
+Exact and ε-optimal solutions to a bilevel closed-loop supply chain design problem under a carbon tax, computed with two exact methods: an enumeration of the follower's switching prices and the Deterministic Bounding Procedure of Soares et al. (2021).
 
 ![Python](https://img.shields.io/badge/python-%E2%89%A53.12-blue)
 ![Solver](https://img.shields.io/badge/solver-Gurobi%2013-red)
@@ -9,7 +9,7 @@ Exact and ε-optimal solutions to a bilevel closed-loop supply chain design prob
 
 ## Overview
 
-This repository implements a bilevel mixed-integer model of closed-loop supply chain (CLSC) network design under a carbon tax, an exact solution method for it, and a reproducible benchmark set. A leader (the regulator) sets the tax rate; a follower (the CLSC operator) selects facility locations, installed capacities, technologies, and forward and reverse flows to minimise its own cost, inclusive of the tax. The leader anticipates the follower's response when choosing the tax, which makes the problem a bilevel mixed-integer program. The problem is solved with the Deterministic Bounding Procedure (DBP) of Soares et al. (2021), whose overall strategy is to generate a series of convergent upper and lower bounds on the leader's objective until their difference falls below a given threshold. The repository also provides a deterministic instance generator and fifteen instances, built from the sampling rules of Tautenhain et al. (2021).
+This repository implements a bilevel mixed-integer model of closed-loop supply chain (CLSC) network design under a carbon tax, an exact solution method for it, and a reproducible benchmark set. A leader (the regulator) sets the tax rate; a follower (the CLSC operator) selects facility locations, installed capacities, technologies, and forward and reverse flows to minimise its own cost, inclusive of the tax. The leader anticipates the follower's response when choosing the tax, which makes the problem a bilevel mixed-integer program. Two exact methods solve it. The first enumerates the switching prices, the taxes at which the follower changes its network, with the dichotomic scheme of Aneja and Nair (1979); an optimal tax lies at the lower end of the tax range or at one of them. The second is the Deterministic Bounding Procedure (DBP) of Soares et al. (2021), which generates convergent upper and lower bounds on the leader's objective until their difference falls below a given threshold, adapted here to a high-point relaxation in which the tax multiplies a continuous emission aggregate. The repository also provides a deterministic instance generator, fifteen instances built from the sampling rules of Tautenhain et al. (2021), 39 calibrated instances that carry the emission factors and return fractions of the case study of Mota et al. (2018), the case study itself, the experiments of the accompanying manuscript and its LaTeX sources (`paper/`).
 
 ## Installation
 
@@ -142,6 +142,14 @@ Every instance has 3 production and 3 remanufacturing technologies.
 
 **Case study.** `data/case_study/MOTA2018.json` is the case study of Mota et al. (2018): an electronic-components producer in Verona expanding to markets in Europe and Brazil, with 3 suppliers, 3 factories (Verona's already installed), 9 warehouses (Verona's already installed), 7 markets, 4 airports and 2 seaports, 4 raw materials, 2 final and 2 recovered products, 4 production and 2 remanufacturing technologies, trucks of two kinds, planes and ships, and 10 yearly periods. It is built by `python -m clsc.generator.mota2018` from the tables of Mota et al. (2018) and of Tautenhain et al. (2020, section 3), which publishes the case's demand, distances and emission factors; each table is cited in the builder. Where the two sources differ the builder follows Mota et al., and what neither states is assumed; both lists are in the builder and in the instance's metadata. The case's flows are about a hundred times those of the generated instances. Its capacities count units rather than kilograms, its handling is charged per hub and unit, and its truck emissions count the outbound leg only, as in Mota et al.; the optional parameters `capacity_unit_m`, `c_handle_h`, `emission_return_factor_m` and `existing_i` express this, and the generated instances do not use them. The instance differs from Mota et al.'s model in its objective (cost plus the carbon tax, with capital at its rental equivalent, instead of the NPV after profit tax) and in taxing the climate-change category only.
 
+**Calibrated instances.** `data/calibrated/CAL_<size>_r<k>.json` holds 39 instances: three replicates of the twelve standard sizes and one of the three escalation sizes. Each keeps the network, costs, demand and capacities of a generated instance and takes from the case study what it determines: production intensities of 375 to 536 kg CO2e per kg and remanufacturing intensities of 103 to 134, no emissions on purchased raw materials, a maximum return fraction of 1 with a minimum below 15%, and EUR 0.15 per returned unit. On the generated instances remanufacturing has no environmental advantage and stays under 1% of production, so a tax tests the method rather than the closed loop; the calibrated instances test both. They are written by
+
+```bash
+python -c "from clsc.generator.calibrated import write_calibrated_set; write_calibrated_set('data/calibrated')"
+```
+
+and the reasons for each change are in the docstring of `clsc.generator.calibrated`. The manuscript uses replicates 0 and 1 (24 instances).
+
 ## Usage
 
 ### Solving instances
@@ -175,24 +183,26 @@ A run on one instance writes to `results/<instance>/` (`--results-root` changes 
 
 A run has no limit on its total time unless one is given, as in Soares et al., whose run ends on its stopping criteria. `--run-time-limit SECONDS` and `--max-iterations N` bound it: when one is reached the run ends with the incumbent and both bounds, as `bounds` with the termination reason `incumbent_time_limit` or `incumbent_iteration_limit`: an interval with its gap, and no optimality claim. The time budget is checked between subproblems and caps each subproblem's time limit at what remains of it. A follower solve has up to three stages, so the budget can be overrun by up to three subproblem limits. If the budget is spent before the first follower evaluation there is no incumbent and the instance is reported as failed.
 
-### Abatement curve
+### Enumeration of the switching prices
 
-```bash
-python -m clsc.analysis.abatement data/STD_I17_M4_T3.json
+```python
+from clsc.solvers.enumeration import enumerate_break_points, grid_search
+
+result = enumerate_break_points("data/STD_I17_M4_T3.json", run_time_limit=3600)
 ```
 
-The follower's optimal value $f^*(\tau)$ is the lower envelope of one line per response, concave and piecewise linear in $\tau$; its break points are the taxes at which the follower changes response, and between two of them the emissions do not change. `clsc.analysis.abatement` finds every piece with about two follower solves per piece (the Eisner–Severance method), solving the follower as the DBP does, with the optimistic tie-break, at a MIP gap of $10^{-6}$. Since $E$ is constant on each piece and $w > 0$, the leader's optimum is the best of the lower tax bound and the break points, which gives an exact solution of the bilevel problem, up to the follower's MIP gap, that is independent of the DBP. It writes `abatement_curve.csv` (tax, emissions, cost and $F$ at the lower bound, every break point and the upper bound) and `abatement.json` (the leader's optimum on the curve) to `results/<instance>/`, using the weight $w$ of the DBP run found there (`--leader-tax-weight` sets it otherwise). Pieces narrower than $10^{-3}$ EUR/t and lines below the envelope by less than the MIP gap are not resolved.
+The follower's optimal value is the lower envelope of one line per response, concave and piecewise linear in the tax; its break points are the switching prices, and between two of them the emissions do not change. `enumerate_break_points` evaluates the follower at both ends of the tax range and where two lines cross, and recurses until no new line appears: at most 2N - 1 follower solves for N lines. Each evaluation is the DBP's two-stage optimistic solve, and the leader's weight $w$ is set as in the DBP, so the result is directly comparable. Two responses lie on the same line when their cost and tax base agree to round-off ($10^{-6}$ relative), not to the MIP gap. A solve that stops on its time limit, or returns a value above both lines, ends the recursion on its interval, and the result is then not certified (`certified` false); a search stopped by `run_time_limit` returns the candidates found so far (`complete` false). `grid_search` evaluates a grid of taxes instead. Through the experiments (E1, E2, C2, C4, C5) both write `evaluations.csv`, every tax evaluated, and `summary.json`.
 
 ### Experiments
 
 ```bash
 python -m clsc.experiments list          # the experiments, with their jobs done and in total
-python -m clsc.experiments run P1 P2a    # run the jobs not done yet; a killed run resumes where it stopped
-python -m clsc.experiments report        # the paper's tables, from the files that exist
-python -m clsc.experiments figures       # the tornado charts (needs the plots extra: pip install -e ".[plots]")
+python -m clsc.experiments run C1 C2     # run the jobs not done yet; a killed run resumes where it stopped
+python -m clsc.experiments report        # summary tables (CSV) in results/experiments/tables/
+python paper/tools/make_tables.py        # the manuscript's table rows, from results/experiments
 ```
 
-The experiments of the paper (the main table, a one-at-a-time sensitivity analysis of six parameters on the four small instances and the case study, the comparison with a fixed reference tax, and two robustness checks) are declared in [`src/clsc/experiments/plan.py`](src/clsc/experiments/plan.py) and described in [`docs/experiments.md`](docs/experiments.md). Their files go to `results/experiments/`.
+The experiments are declared in [`src/clsc/experiments/plan.py`](src/clsc/experiments/plan.py) and described in [`docs/experiments.md`](docs/experiments.md): the DBP, the sensitivity analysis, the fixed reference tax and the robustness checks on the generated instances and the case study (P1-P3b, R1-R3), the enumeration and the grid (E1, E2), the same questions on the calibrated instances (C1-C5), and two ablations of the DBP (A1, A2). Their files go to `results/experiments/`; `run_campaign.log` there logs the campaign. Figure 1 of the manuscript is drawn by `python paper/tools/make_figure.py` (needs the `plots` extra: `pip install -e ".[plots]"`).
 
 ### Generating instances
 
@@ -249,10 +259,12 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 
 ```text
 .
-├── data/                      # the 15 instances (JSON)
+├── data/                      # the 15 generated instances (JSON)
+│   ├── calibrated/            #   the 39 calibrated instances
+│   └── case_study/            #   the case study of Mota et al. (2018)
 ├── docs/experiments.md        # the experiment plan
+├── paper/                     # the manuscript, its supplement and the scripts that fill its tables and figure
 ├── src/clsc/                  # the Python package
-│   ├── analysis/abatement.py  #   exact abatement curve E(tax) and the leader's optimum on it
 │   ├── config/                #   method defaults and shared constants
 │   ├── experiments/           #   experiment plan, data scenarios, resumable runner and tables
 │   ├── generator/             #   instance generator (CLI: clsc-generate)
@@ -262,9 +274,11 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 │   │   ├── follower.py        #     follower model and its two-stage optimistic solve
 │   │   ├── hpr.py             #     DBP high-point relaxation
 │   │   └── gurobi_utils.py    #     solve wrapper and result types
-│   ├── solvers/dbp.py         #   the Deterministic Bounding Procedure
+│   ├── solvers/               #   the two methods
+│   │   ├── enumeration.py     #     enumeration of the switching prices, and the grid
+│   │   └── dbp.py             #     the Deterministic Bounding Procedure
 │   └── solver_cli/            #   batch solver CLI (clsc-solve): parsing, output files, validation
-├── tests/                     # regression, certificate, run-control, formulation and abatement tests
+├── tests/                     # regression, certificate, run-control, formulation and experiment tests
 ├── pyproject.toml             # metadata, dependencies, console scripts, pytest settings
 └── requirements.txt           # mirrors the dependencies in pyproject.toml
 ```
@@ -275,6 +289,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 - Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2020). Data for: An efficient Lagrangian-based heuristic to solve a multi-objective sustainable supply chain problem. Mendeley Data, V2. https://doi.org/10.17632/f82by28vnm.2
 - Tautenhain, Barbosa-Póvoa, Mota and Nascimento (2021). An efficient Lagrangian-based heuristic to solve a multi-objective sustainable supply chain problem. *European Journal of Operational Research*, 294, 70–90.
 - Mota, Gomes, Carvalho and Barbosa-Póvoa (2018). Sustainable supply chains: An integrated modeling approach under uncertainty. *Omega*, 77, 32–57.
+- Aneja and Nair (1979). Bicriteria transportation problem. *Management Science*, 25(1), 73–78.
 
 ## Licence
 
@@ -288,4 +303,4 @@ University of Coimbra, Centre for Mechanical Engineering, Materials and Processe
 [marcelo.pinto@dem.uc.pt](mailto:marcelo.pinto@dem.uc.pt)  
 ORCID: [0000-0002-6909-3829](https://orcid.org/0000-0002-6909-3829)
 
-<!-- TODO: state project status (e.g. active development, accompanying a submitted paper, archival). Not specified in the source material for this rewrite. -->
+This repository accompanies a manuscript in preparation for the *European Journal of Operational Research* (see [`paper/README.md`](paper/README.md)).

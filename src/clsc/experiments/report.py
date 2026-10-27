@@ -134,32 +134,6 @@ def sensitivity_table(root: Path) -> list[Row]:
     return rows
 
 
-def tornado_table(root: Path) -> list[Row]:
-    """For each instance and parameter, the optimal tax and the emission reduction at the low level,
-    the base and the high level: the data of the tornado charts."""
-    rows = sensitivity_table(root)
-    by_key = {(row["instance"], row["scenario"]): row for row in rows}
-    out = []
-    for instance in dict.fromkeys(row["instance"] for row in rows):
-        base = by_key.get((instance, "base"))
-        if base is None:
-            continue
-        parameters = dict.fromkeys(SCENARIOS[name].parameter for name in SCENARIOS if name != "base")
-        for parameter in parameters:
-            low_name, high_name = (name for name in SCENARIOS if SCENARIOS[name].parameter == parameter)
-            low, high = by_key.get((instance, low_name)), by_key.get((instance, high_name))
-            out.append({
-                "instance": instance, "parameter": parameter,
-                "level_low": SCENARIOS[low_name].level, "level_high": SCENARIOS[high_name].level,
-                "tax_low": low and low["tax"], "tax_base": base["tax"], "tax_high": high and high["tax"],
-                "tax_change_low": low and low["tax"] - base["tax"], "tax_change_high": high and high["tax"] - base["tax"],
-                "reduction_low": low and low["emission_reduction"], "reduction_base": base["emission_reduction"],
-                "reduction_high": high and high["emission_reduction"],
-                "gap_low": low and low["relative_gap"], "gap_base": base["relative_gap"], "gap_high": high and high["relative_gap"],
-            })
-    return out
-
-
 def policy_table(root: Path) -> list[Row]:
     """P3 and P3b: the response without the tax, at the fixed reference tax and at the regulator's
     optimal tax, and the least emissions of any network, E_ref = w / q.
@@ -388,7 +362,7 @@ def calibrated_sensitivity_table(root: Path) -> list[Row]:
 
 
 TABLES = {
-    "main": main_table, "sensitivity": sensitivity_table, "tornado": tornado_table, "policy": policy_table,
+    "main": main_table, "sensitivity": sensitivity_table, "policy": policy_table,
     "robustness": robustness_table, "seeds": seeds_table, "methods": methods_table, "staircase": staircase_table,
     "calibrated_policy": calibrated_policy_table, "calibrated_sensitivity": calibrated_sensitivity_table,
 }

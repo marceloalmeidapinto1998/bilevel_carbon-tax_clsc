@@ -105,7 +105,7 @@ Operation = Scale | CleanTechnologyCost
 class Scenario:
     name: str
     description: str
-    # The parameter the scenario varies (for the tornado chart) and its level, as shown.
+    # The parameter the scenario varies (for the sensitivity tables) and its level, as shown.
     parameter: str = ""
     level: str = ""
     operations: tuple[Operation, ...] = ()

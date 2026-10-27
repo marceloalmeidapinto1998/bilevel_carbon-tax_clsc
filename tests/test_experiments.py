@@ -133,16 +133,13 @@ def test_tables_are_written_from_dbp_runs(tmp_path) -> None:
     name = "STD_I17_M4_T3"
     _fake_run(tmp_path / "P1" / "seed0" / name, tax=30.0, emissions=150.0, cost=1100.0, follower_objective=1104.5, weight=0.01)
     _fake_run(tmp_path / "P2a" / "seed0" / f"{name}__q_1e-5", tax=50.0, emissions=140.0, cost=1150.0, follower_objective=1157.0, weight=0.001)
-    counts = write_tables(tmp_path, ["sensitivity", "tornado", "policy"])
+    counts = write_tables(tmp_path, ["sensitivity", "policy"])
     assert counts["sensitivity"] == 2
     with (tmp_path / "tables" / "sensitivity.csv").open(encoding="utf-8") as handle:
         rows = {row["scenario"]: row for row in csv.DictReader(handle)}
     assert float(rows["base"]["emission_reduction"]) == pytest.approx(0.25)
     assert float(rows["base"]["cost_increase"]) == pytest.approx(0.1)
     assert float(rows["base"]["tax_paid"]) == pytest.approx(4.5)
-    with (tmp_path / "tables" / "tornado.csv").open(encoding="utf-8") as handle:
-        q = next(row for row in csv.DictReader(handle) if row["instance"] == name and row["parameter"] == "q")
-    assert float(q["tax_change_low"]) == pytest.approx(20.0) and q["tax_high"] == ""
     with (tmp_path / "tables" / "policy.csv").open(encoding="utf-8") as handle:
         points = {row["point"]: row for row in csv.DictReader(handle) if row["instance"] == name}
     assert float(points["least_emissions"]["emissions"]) == pytest.approx(0.01 / 1e-4)
