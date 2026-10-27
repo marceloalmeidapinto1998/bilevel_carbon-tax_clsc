@@ -41,7 +41,7 @@ result = enumerate_break_points("data/STD_I17_M4_T3.json", run_time_limit=3600)
 | `src/clsc/` | the package: `models/` (the Gurobi models), `solvers/` (`dbp.py`, `enumeration.py`), `solver_cli/` (`clsc-solve`), `generator/` (`clsc-generate`), `experiments/` (the experiment runner and tables) |
 | `data/` | 15 generated instances (`STD_*`), 39 calibrated instances (`calibrated/CAL_*`), the case study (`case_study/MOTA2018.json`) |
 | `paper/` | the manuscript, its supplement and the scripts that fill its tables and figure |
-| `docs/` | [`method.md`](docs/method.md) (model and methods in detail), [`instances.md`](docs/instances.md) (how the instances are built), [`experiments.md`](docs/experiments.md) (the experiment plan, in Portuguese) |
+| `docs/` | [`method.md`](docs/method.md) (model and methods in detail), [`instances.md`](docs/instances.md) (how the instances are built), [`experiments.md`](docs/experiments.md) (the experiment plan) |
 | `tests/` | regression, certificate, run-control, formulation and experiment tests |
 
 ## Instances
