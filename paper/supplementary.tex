@@ -1,6 +1,6 @@
-%% supplementary.tex -- Supplementary Material of the EJOR manuscript
+%% supplementary.tex -- Supplementary Material of the manuscript
 %% Class: elsarticle, option `review' (single column, 1.5 line spacing, no line numbers), 11 pt.
-%% References: biblatex-apa (APA 7th edition, as the EJOR Guide for Authors requires), compiled with biber.
+%% References: biblatex-apa (APA 7th edition), compiled with biber.
 %% Compile: latexmk -pdf main.tex   (or: pdflatex, biber, pdflatex, pdflatex)
 \documentclass[11pt]{article}
 
@@ -24,7 +24,7 @@
 \usepackage{xr-hyper}
 \usepackage[hidelinks,hypertexnames=false]{hyperref}
 \externaldocument{main}
-% The text is set at 1.5 line spacing (option `review'), as EJOR asks; tables and the algorithm are single-spaced.
+% The text is set at 1.5 line spacing (option `review'); tables and the algorithm are single-spaced.
 \AtBeginEnvironment{table}{\linespread{1}\selectfont}
 \AtBeginEnvironment{algorithm}{\linespread{1}\selectfont}
 

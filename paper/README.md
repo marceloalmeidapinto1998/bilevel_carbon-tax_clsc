@@ -1,6 +1,6 @@
-# EJOR manuscript
+# Manuscript
 
-The manuscript for the *European Journal of Operational Research*, its Supplementary Material and highlights. This LaTeX source is the reference version; the Paper tab of the Claude Doc mirrors it.
+The manuscript, its Supplementary Material and highlights. This LaTeX source is the reference version; the Paper tab of the Claude Doc mirrors it.
 
 ## Compile
 
@@ -28,22 +28,22 @@ Both documents compile with no errors, no overfull or underfull boxes and no und
 | `tools/make_tables.py` | Writes the rows of Tables 5, 6 and 7 and of Table S4 from `results/experiments`; run from the repository root |
 | `tools/make_figure.py` | Draws Figure 1 from `results/experiments`; run from the repository root (needs matplotlib, the `plots` extra) |
 
-No separate title page: EJOR uses single-anonymized review, so the author details stay in the manuscript.
+No separate title page: the review is single-anonymized, so the author details stay in the manuscript.
 
 ## Where the numbers come from
 
 Every number in Section 4 comes from `results/experiments` (experiments P1, E1, E2, C1, C2 and C3 of `src/clsc/experiments/plan.py`, described in `docs/experiments.md`). `python paper/tools/make_tables.py` rewrites the table rows between their `%% BEGIN table` and `%% END table` markers and prints the aggregates the text quotes; `python paper/tools/make_figure.py` draws Figure 1. The calibrated set in the manuscript is replicates 0 and 1 (24 instances); replicate 2, the escalation sizes and experiments C4, C5, A1 and A2 are for a revision. The case study's enumeration figures (seven taxes in 1 h, six follower solves on their time limit, the best value 0.85% above the DBP's upper bound) are those of the pilot run logged in `results/experiments/run_E1E2_pilot.log`. The Supplementary Material's Sections S1-S3 report the first version's experiments (P1-P3b, R1-R3).
 
-## EJOR requirements checked
+## Format requirements checked
 
-Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 February 2024 (the live page refuses scripted access). Check the live guide before submitting: https://www.sciencedirect.com/journal/european-journal-of-operational-research/publish/guide-for-authors
+Source: the journal's Guide for Authors, read from the Wayback Machine capture of 10 February 2024 (the live page refuses scripted access). Check the live guide before submitting.
 
 | Requirement | Status |
 | --- | --- |
 | At most 30 pages, including abstract, figures, tables and references | 24 pages |
 | Single column, 11 pt, 1.5 line spacing, no line numbers | Done |
 | Abstract of 50 to 250 words, no formulae, references or unexplained acronyms | 180 words, no numbers, only CLSC as acronym |
-| First keyword from the EJOR list, at most 5 | "OR in environment and climate change" plus 4 |
+| First keyword from the journal's list, at most 5 | "OR in environment and climate change" plus 4 |
 | Highlights: 3 to 5 bullets, at most 85 characters, no acronyms | Done |
 | APA references with DOIs | Done (biblatex-apa) |
 | Declarations of interest, funding, CRediT, data availability | Removed for now; the last version is in commit 36e1978 (Zenodo DOI still TODO) |

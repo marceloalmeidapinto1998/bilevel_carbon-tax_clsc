@@ -301,4 +301,4 @@ University of Coimbra, Centre for Mechanical Engineering, Materials and Processe
 [marcelo.pinto@dem.uc.pt](mailto:marcelo.pinto@dem.uc.pt)  
 ORCID: [0000-0002-6909-3829](https://orcid.org/0000-0002-6909-3829)
 
-This repository accompanies a manuscript in preparation for the *European Journal of Operational Research* (see [`paper/README.md`](paper/README.md)).
+This repository accompanies a manuscript in preparation (see [`paper/README.md`](paper/README.md)).

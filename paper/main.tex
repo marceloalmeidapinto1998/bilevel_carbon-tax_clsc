@@ -1,6 +1,6 @@
-%% main.tex -- manuscript for the European Journal of Operational Research (EJOR)
+%% main.tex -- manuscript
 %% Class: elsarticle, option `review' (single column, 1.5 line spacing, no line numbers), 11 pt.
-%% References: biblatex-apa (APA 7th edition, as the EJOR Guide for Authors requires), compiled with biber.
+%% References: biblatex-apa (APA 7th edition), compiled with biber.
 %% Compile: latexmk -pdf main.tex   (or: pdflatex, biber, pdflatex, pdflatex)
 \documentclass[review,11pt,nonatbib]{elsarticle}
 
@@ -22,11 +22,11 @@
 \usepackage{etoolbox}
 \usepackage{xurl}
 \usepackage[hidelinks,hypertexnames=false]{hyperref}
-% The text is set at 1.5 line spacing (option `review'), as EJOR asks; tables and the algorithm are single-spaced.
+% The text is set at 1.5 line spacing (option `review'); tables and the algorithm are single-spaced.
 \AtBeginEnvironment{table}{\linespread{1}\selectfont}
 \AtBeginEnvironment{algorithm}{\linespread{1}\selectfont}
 
-\journal{European Journal of Operational Research}
+\journal{}
 
 % ---------------------------------------------------------------- theorems
 \newtheorem{proposition}{Proposition}
@@ -56,7 +56,7 @@
 
 \title{Carbon taxation under anticipated network redesign: a mixed-integer bilevel approach for closed-loop supply chains}
 
-%% Authors and affiliations as in Pinto et al. (2024, Computers & Operations Research 165, 106592) and Nascimento et al. (2024, EJOR 317, 92--110).
+%% Authors and affiliations as in Pinto et al. (2024, Computers & Operations Research 165, 106592) and Nascimento et al. (2024).
 %% TODO(author): ORCID iDs.
 \author[uc]{Marcelo Pinto\corref{cor1}}
 \ead{marcelo.pinto@dem.uc.pt}
