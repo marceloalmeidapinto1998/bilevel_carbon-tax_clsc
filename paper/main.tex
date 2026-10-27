@@ -463,7 +463,7 @@ searches for a better response from the incumbent; such a response is not proven
 with $\Lambda = 10\,\Ebar$ per euro of violation, more than the range of $F$; points with $\zeta = 0$ keep their value, so the lower bound is not weakened. The run also stops after $s_{\max} = 10$ iterations in which neither bound changes, or when its budget is spent.
 
 \begin{algorithm}[!htbp]
-\caption{The DBP of \textcite{soares2021deterministic} for a minimising leader, as implemented.}\label{alg:dbp}
+\caption{Deterministic bounding procedure (DBP) for the tax problem \eqref{eq:bilevel}, adapted from \textcite{soares2021deterministic}.}\label{alg:dbp}
 \begin{algorithmic}[1]
 \Require tolerances $\varepsilon$, $\varepsilon'$, $\delta_\tau$; relative weight $\xi$; stagnation limit $s_{\max}$; run budget
 \State Solve \eqref{P2} without $\mu\,\tau$; $\Eref \gets$ its dual bound; $\mu \gets \xi\,\Eref$; add \eqref{eq:hpr-bounds}
