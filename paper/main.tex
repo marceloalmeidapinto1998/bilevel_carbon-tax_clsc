@@ -398,7 +398,7 @@ Let every follower solve be exact with $\varepsilon' = 0$, let $N$ lines be opti
 Two evaluations are made at the ends. Each later evaluation either reveals a line not seen before, at most $N - 2$ times, or certifies that the crossing of two lines adjacent on the envelope is a break point, at most $N - 1$ times. Every break point is the crossing of two adjacent lines, and the recursion reaches every such pair. At each candidate the evaluation returns the optimistic response, hence $E^\circ$, and Proposition~\ref{prop:structure}(c) completes the proof.
 \end{proof}
 
-Two responses lie on the same line when their costs and tax bases agree to round-off ($10^{-6}$ relative), not to the MIP gap: lines whose values differ by less than the gap can differ widely in emissions. When a follower solve stops on its time limit, its line is not proven optimal; Algorithm~\ref{alg:enum} keeps the crossing as a candidate without recursing, and the result is not certified. A search stopped by its budget returns the best of every tax evaluated, a feasible point without a lower bound. The candidates and their emissions form the staircase from which a regulator reads what each tax level buys.
+Two responses lie on the same line when their costs and tax bases agree to round-off ($10^{-6}$ relative), not to the MIP gap, which can hide lines with very different emissions. A follower solve that stops on its time limit proves no line: Algorithm~\ref{alg:enum} keeps the crossing as a candidate without recursing, and the result is not certified. A search stopped by its budget returns the best tax evaluated, without a lower bound. The candidates form the staircase of emissions against the tax.
 
 \subsection{The deterministic bounding procedure}\label{sec:dbp}
 
