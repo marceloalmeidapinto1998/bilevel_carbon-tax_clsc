@@ -1,6 +1,6 @@
 # EJOR manuscript
 
-The manuscript for the *European Journal of Operational Research*, its Supplementary Material, highlights and cover letter. This LaTeX source is the reference version; the Claude Doc of 22 October 2026 is older.
+The manuscript for the *European Journal of Operational Research*, its Supplementary Material and highlights. This LaTeX source is the reference version; the Claude Doc of 22 October 2026 is older.
 
 ## Compile
 
@@ -8,7 +8,6 @@ The manuscript for the *European Journal of Operational Research*, its Supplemen
 latexmk -pdf main.tex           # manuscript first: the supplement reads its .aux for cross-references
 latexmk -pdf supplementary.tex
 latexmk -pdf highlights.tex
-latexmk -pdf cover_letter.tex
 ```
 
 Do not run `latexmk -c` between the manuscript and the supplement: `supplementary.tex` takes the numbers of the manuscript's equations, tables and sections from `main.aux` (package `xr-hyper`).
@@ -22,12 +21,10 @@ Both documents compile with no errors and no overfull or underfull boxes. Four h
 | File | What it is |
 | --- | --- |
 | `main.tex` | Manuscript, 24 pages: elsarticle, option `review` (single column, 1.5 line spacing), 11 pt, A4 with 2.5 cm margins. The model is complete in Section 2 (notation, cost, emissions, every constraint and valid inequality) |
-| `supplementary.tex` | Supplementary Material, 9 pages: the original instances' fixed-tax and sensitivity analyses (S1), the case study's sensitivity (S2), the robustness checks (S3) and the enumeration on all 24 calibrated instances (S4) |
+| `supplementary.tex` | Supplementary Material, 8 pages: the original instances' fixed-tax and sensitivity analyses (S1), the case study's sensitivity (S2), the robustness checks (S3) and the enumeration on all 24 calibrated instances (S4) |
 | `references.bib` | Verified Crossref and DataCite records; biblatex prints only the cited ones (45 in the manuscript) |
 | `highlights.tex`, `highlights.txt` | Highlights (5 bullets, at most 85 characters, no acronyms) |
-| `cover_letter.tex` | Cover letter to the editor |
 | `figures/staircase.pdf` | Figure 1, from `python paper/tools/make_figure.py` |
-| `figures/sensitivity_tornado.pdf` | Figure S1 (original instances), from `python -m clsc.experiments figures` |
 | `tools/make_tables.py` | Writes the rows of Tables 5, 6 and 7 and of Table S4 from `results/experiments`; run from the repository root |
 
 No separate title page: EJOR uses single-anonymized review, so the author details stay in the manuscript.
@@ -52,5 +49,5 @@ Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 Febr
 
 ## To fill in before submission (`TODO` in the files)
 
-- ORCID iDs of the authors (`main.tex`). Authors and affiliation follow Pinto et al. (2024); the corresponding author is Marcelo Pinto, who also signs the cover letter.
+- ORCID iDs of the authors (`main.tex`). Authors and affiliation follow Pinto et al. (2024); the corresponding author is Marcelo Pinto.
 - Zenodo DOI for the data statement (the GitHub URL is in place): make the repository public, link it to Zenodo, publish a release for the submitted version.

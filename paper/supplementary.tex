@@ -113,7 +113,7 @@ These patterns agree with prior studies of carbon pricing. Emissions fall in ste
 
 \subsection{Sensitivity analysis on the original small instances}\label{sup:sens-small}
 
-The regulator's weight $\xi$ is the only parameter that moves the optimal tax by more than \EUR3/t, while the cost of the cleanest production technology and the production emission intensity are the parameters that move the emission reduction (Figure~\ref{fig:tornado}). We vary six parameters one at a time, each to a low and a high level, on the four small instances (Table~\ref{tab:scenarios}), and solve each of the 48 variants with the DBP; all close their gap.
+The regulator's weight $\xi$ is the only parameter that moves the optimal tax by more than \EUR3/t, while the cost of the cleanest production technology and the production emission intensity are the parameters that move the emission reduction. We vary six parameters one at a time, each to a low and a high level, on the four small instances (Table~\ref{tab:scenarios}), and solve each of the 48 variants with the DBP; all close their gap.
 
 \begin{table}[!htbp]
 \centering
@@ -134,12 +134,6 @@ Interest rate & 5\% & 20\% & Discounts the tax paid but not the emissions; weigh
 \end{table}
 
 Scaling every emission factor by the same factor $k$ is not among the scenarios: by Proposition~\ref{prop:scale} it divides every switching price by $k$ and acts on the regulator's choice as the weight $\xi/k$, which the scenarios vary directly.
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=\textwidth]{figures/sensitivity_tornado.pdf}
-\caption{Change of the optimal tax (left, \EUR/t) and of the emission reduction (right, percentage points) from the base case when one parameter is set to its low level (blue, hatched) or its high level (orange); for the regulator's weight the levels are $\xi = 10^{-5}$ and $10^{-3}$. Rows: the four small instances and the case study; scales differ between rows. The case study's tax changes are not determined: its runs end with gaps of 0.2--2.4\% (Table~\ref{sup:case}).}\label{fig:tornado}
-\end{figure}
 
 \paragraph{On most generated instances, the tax acts mainly through the choice of suppliers} We compare each network without a tax with the network at $\tau^*$ on the eleven closed instances. On nine of them, raw-material emissions fall by 2.7 to 97.3~kt \CO\ and account for 55--100\% of the reduction. On the other two, \inst{STD_I25_M4_T6} and \inst{STD_I25_M8_T12}, a change of production technology accounts for 86\% and 85\% of it. On the four small instances, the production technology changes on two (\inst{STD_I17_M4_T3} and \inst{STD_I17_M4_T6}) and the factory opened on two (\inst{STD_I17_M4_T3} and \inst{STD_I25_M4_T3}). Every network computed at \EUR0 and at \EUR74/t ships by truck only: transport makes up 0.1--0.6\% of the emissions, and the tax induces no modal shift. This agrees with \textcite{waltho2019green}, who find that carbon policies cut emissions mostly by moving the supply chain to lower-emitting resources, and with \textcite{palak2014analyzing}, where carbon regulation changes supplier selection. The case study behaves differently (Section~\ref{sec:sens-case}).
 
