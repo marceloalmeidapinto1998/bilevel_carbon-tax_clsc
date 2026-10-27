@@ -21,7 +21,7 @@ Both documents compile with no errors and no overfull or underfull boxes. Four h
 
 | File | What it is |
 | --- | --- |
-| `main.tex` | Manuscript, 25 pages: elsarticle, option `review` (single column, 1.5 line spacing), 11 pt, A4 with 2.5 cm margins. The model is complete in Section 2 (notation, cost, emissions, every constraint and valid inequality) |
+| `main.tex` | Manuscript, 26 pages: elsarticle, option `review` (single column, 1.5 line spacing), 11 pt, A4 with 2.5 cm margins. The model is complete in Section 2 (notation, cost, emissions, every constraint and valid inequality) |
 | `supplementary.tex` | Supplementary Material, 9 pages: the original instances' fixed-tax and sensitivity analyses (S1), the case study's sensitivity (S2), the robustness checks (S3) and the enumeration on all 24 calibrated instances (S4) |
 | `references.bib` | Verified Crossref and DataCite records; biblatex prints only the cited ones (45 in the manuscript) |
 | `highlights.tex`, `highlights.txt` | Highlights (5 bullets, at most 85 characters, no acronyms) |
@@ -42,7 +42,7 @@ Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 Febr
 
 | Requirement | Status |
 | --- | --- |
-| At most 30 pages, including abstract, figures, tables and references | 25 pages |
+| At most 30 pages, including abstract, figures, tables and references | 26 pages |
 | Single column, 11 pt, 1.5 line spacing, no line numbers | Done |
 | Abstract of 50 to 250 words, no formulae, references or unexplained acronyms | 161 words, no numbers, only CLSC as acronym |
 | First keyword from the EJOR list, at most 5 | "OR in environment and climate change" plus 4 |
