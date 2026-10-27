@@ -48,13 +48,9 @@ Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 Febr
 | First keyword from the EJOR list, at most 5 | "OR in environment and climate change" plus 4 |
 | Highlights: 3 to 5 bullets, at most 85 characters, no acronyms | Done |
 | APA references with DOIs | Done (biblatex-apa) |
-| Declarations of interest, funding, data, generative AI | Sections present, to be completed |
+| Declarations of interest, funding, CRediT, data availability | Done, except the data repository (TODO) |
 
 ## To fill in before submission (`TODO` in the files)
 
 - ORCID iDs of the authors (`main.tex`). Authors and affiliation follow Pinto et al. (2024); the corresponding author is Marcelo Pinto, who also signs the cover letter.
-- Confirm the CRediT roles of every author (filled in from the author's list).
-- FCT grant reference, or the no-funding sentence.
 - Repository URL and archived DOI for the data statement.
-- The generative AI declaration: say what the tool was used for.
-- Confirm "Declarations of interest: none".
