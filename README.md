@@ -4,8 +4,7 @@ Exact and ε-optimal solutions to a bilevel closed-loop supply chain design prob
 
 ![Python](https://img.shields.io/badge/python-%E2%89%A53.12-blue)
 ![Solver](https://img.shields.io/badge/solver-Gurobi%2013-red)
-![License](https://img.shields.io/badge/license-TBD-lightgrey)
-<!-- TODO: choose a licence (e.g. MIT / Apache-2.0 / BSD-3-Clause), add a LICENSE file, and set `license` in pyproject.toml. No licence has been chosen yet; until one is added, the code is not licensed for reuse. -->
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ## Overview
 
@@ -293,8 +292,7 @@ Instance generation is deterministic given a seed (see "Usage"). The DBP solve i
 
 ## Licence
 
-<!-- TODO: choose a licence, add a LICENSE file and set `license` in pyproject.toml. -->
-No licence has been chosen. Until one is added, the code is not licensed for reuse.
+Released under the [MIT licence](LICENSE). Gurobi is not distributed with the code and needs its own licence (a free academic licence exists).
 
 ## Contact
 

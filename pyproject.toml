@@ -8,8 +8,8 @@ version = "0.1.0"
 description = "Bilevel optimization of a Closed-Loop Supply Chain under a carbon tax (DBP solver)."
 readme = "README.md"
 requires-python = ">=3.12"
-# TODO(publication): choose a license (MIT / Apache-2.0 / BSD-3-Clause) and add a LICENSE
-# file, then set:  license = "MIT"   (or license = { file = "LICENSE" })
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Marcelo Pinto", email = "marceloalmeidapinto1998@gmail.com" },
 ]
