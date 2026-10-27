@@ -112,11 +112,15 @@ def run_enumeration(instance_path: Path, directory: Path, *, seed: int, method: 
     best = result.best
     profile = {}
     if best is not None:
-        # The network at the best tax: the same two-stage solve again, keeping the solution.
-        response = solve_follower_lexicographic(build_follower_model(instance), best.tax, threads=threads, seed=seed,
-                                                capture_solution=True)
-        if response.has_solution:
-            profile = response_profile(instance, response.variable_values or {})
+        # The network at the best tax: the same two-stage solve again, keeping the solution, with the
+        # subproblems' time limit. A failure here loses the profile, not the enumeration.
+        try:
+            response = solve_follower_lexicographic(build_follower_model(instance), best.tax, threads=threads, seed=seed,
+                                                    capture_solution=True, time_limit=DEFAULT.time_limit)
+            if response.has_solution:
+                profile = response_profile(instance, response.variable_values or {})
+        except Exception as error:  # noqa: BLE001 -- recorded in the summary
+            profile = {"error": f"{type(error).__name__}: {error}"}
     summary = {
         "method": result.method, "complete": result.complete, "certified": result.certified,
         "follower_solves": result.follower_solves, "break_points": result.break_points,
