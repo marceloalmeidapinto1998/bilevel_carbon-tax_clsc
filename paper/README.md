@@ -53,4 +53,4 @@ Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 Febr
 ## To fill in before submission (`TODO` in the files)
 
 - ORCID iDs of the authors (`main.tex`). Authors and affiliation follow Pinto et al. (2024); the corresponding author is Marcelo Pinto, who also signs the cover letter.
-- Repository URL and archived DOI for the data statement.
+- Zenodo DOI for the data statement (the GitHub URL is in place): make the repository public, link it to Zenodo, publish a release for the submitted version.
