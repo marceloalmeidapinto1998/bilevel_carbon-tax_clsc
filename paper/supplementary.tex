@@ -65,136 +65,6 @@
 
 The sections below complete the manuscript. Equations, propositions, tables and sections without the prefix S refer to the manuscript.
 
-\section{The operator's problem: constraints and parameters}\label{sup:parameters}
-
-The constraints below define the operator's feasible set $Y$; the cost and the emissions are equations~\eqref{eq:cost} and~\eqref{eq:emissions} of the manuscript, and Tables~\ref{tab:sets} and~\ref{tab:variables} of the manuscript give the sets and the variables.
-
-\paragraph{Flow balances} Final products at factories, warehouses and retailers; every item is conserved at hubs, and recovered products pass through warehouses without being stored:
-\begin{align}
-& \Xin_{pft} + \sum_{g \in \mathcal{G}_p} q_{pfgt} + \sum_{l \in \mathcal{L}_p} r_{pflt} = \Xout_{pft} && \forall p, f, t \label{eq:balance-factory}\\
-& I_{pwt} = I_{pw,t-1} + \Xin_{pwt} - \Xout_{pwt}, \quad I_{pw0} = I^0_{pw} && \forall p, w, t \label{eq:inventory}\\
-& \Xin_{prt} = D_{rpt} && \forall p, r, t \label{eq:demand}\\
-& \Xin_{nht} = \Xout_{nht}, \quad \Xin_{kwt} = \Xout_{kwt} && \forall n, h, k, w, t \label{eq:transit}
-\end{align}
-
-\paragraph{Supply and returns} A selected supplier ships between its minimum order and its capacity of every raw material in every period \parencite[eqs.~10--11]{mota2018sustainable}; factories consume raw materials by their bills of materials; retailers return a fraction of past sales, which factories consume by the remanufacturing bills of materials (with $D_{rp,t'} = 0$ for $t' \le 0$):
-\begin{align}
-& \underline{S}_{su}\, o_s \le \Xout_{ust} \le \overline{S}_{su}\, o_s && \forall s, u, t \label{eq:supply}\\
-& \textstyle\sum_{p} \sum_{g \in \mathcal{G}_p} a_{upg}\, q_{pfgt} = \Xin_{uft} && \forall u, f, t \label{eq:bom}\\
-& \textstyle\sum_{p} \eta_{kp}\, \underline{\rho}_{rpt}\, D_{rp,t-\theta_p} \le \Xout_{krt} \le \sum_{p} \eta_{kp}\, \overline{\rho}_{rpt}\, D_{rp,t-\theta_p} && \forall k, r, t \label{eq:returns}\\
-& \textstyle\sum_{p} \sum_{l \in \mathcal{L}_p} b_{kp}\, r_{pflt} = \Xin_{kft} && \forall k, f, t \label{eq:rem-bom}
-\end{align}
-
-\paragraph{Technologies} A technology is installed only at an open factory, at most one per product, and every open factory installs one; a remanufacturing technology meets its minimum use only in the periods in which it operates (the one departure from \textcite{mota2018sustainable}):
-\begin{align}
-& u^{p}_{fg} \le o_f, \quad u^{r}_{fl} \le o_f, \quad v_{flt} \le u^{r}_{fl} && \forall f, g, l, t \notag\\
-& \textstyle\sum_{g \in \mathcal{G}_p} u^{p}_{fg} \le 1, \quad \sum_{l \in \mathcal{L}_p} u^{r}_{fl} \le 1 && \forall f, p \notag\\
-& \textstyle\sum_g u^{p}_{fg} + \sum_l u^{r}_{fl} \ge o_f && \forall f \label{eq:tech}\\
-& \underline{Q}_g\, u^{p}_{fg} \le \textstyle\sum_{p \in \mathcal{P}_g} q_{pfgt} \le \overline{Q}_g\, u^{p}_{fg} && \forall f, g, t \label{eq:prod-cap}\\
-& \underline{R}_l\, v_{flt} \le \textstyle\sum_{p \in \mathcal{P}_l} r_{pflt} \le \overline{R}_l\, v_{flt} && \forall f, l, t \label{eq:rem-cap}
-\end{align}
-
-\paragraph{Facilities} Stock and floor area are bounded at open facilities, and the floor area covers the items entering the facility in each period, at their area per unit over the stock rotation, plus the stock held \parencite[eq.~16]{mota2018sustainable}:
-\begin{align}
-& \underline{I}_{pw}\, o_w \le I_{pwt} \le \overline{I}_{pw}\, o_w && \forall p, w, t \label{eq:stock}\\
-& \underline{A}_i\, o_i \le A_i \le \overline{A}_i\, o_i && \forall i \in \mathcal{F} \cup \mathcal{W} \label{eq:area}\\
-& \textstyle\sum_{n} \frac{\alpha_n}{\kappa} \Xin_{nit} + [i \in \mathcal{W}] \sum_{p} \alpha_p I_{pit} \le A_i && \forall i \in \mathcal{F} \cup \mathcal{W}, t \label{eq:area-use}
-\end{align}
-
-\paragraph{Transport} Trucks carry what their integer trips allow, and trips require both endpoints to be open \parencite[eqs.~24--27]{mota2018sustainable}; air and sea carry at most the contracted capacity (eq.~28); goods change between road and air or sea only at hubs of that mode:
-\begin{align}
-& \underline{X}_m\, z_{ijmt} \le \textstyle\sum_n \omega_n x_{nijmt} \le \overline{X}_m\, z_{ijmt}, \notag\\
-& z_{ijmt} \le B_{ijm}\, o_i, \quad z_{ijmt} \le B_{ijm}\, o_j && \forall (i,j),\, m \in \mathcal{M}_{ij} \cap \mathcal{M}^T,\, t \label{eq:trucks}\\
-& \textstyle\sum_n \omega_n x_{nijmt} \le \overline{C}_m\, o_i, \quad \sum_n \omega_n x_{nijmt} \le \overline{C}_m\, o_j && \forall (i,j),\, m \in \mathcal{M}_{ij} \setminus \mathcal{M}^T,\, t \label{eq:contracted}\\
-& \textstyle\sum_{i \notin \mathcal{H}^{\chi},\, m \notin \mathcal{M}^{\chi}} x_{nihmt} = \sum_{j \in \mathcal{H}^{\chi},\, m \in \mathcal{M}^{\chi}} x_{nhjmt}, \notag\\
-& \textstyle\sum_{i \in \mathcal{H}^{\chi},\, m \in \mathcal{M}^{\chi}} x_{nihmt} = \sum_{j \notin \mathcal{H}^{\chi},\, m \notin \mathcal{M}^{\chi}} x_{nhjmt} && \forall \chi \in \{A, S\},\, h \in \mathcal{H}^{\chi},\, n,\, t \label{eq:hubs}
-\end{align}
-
-\paragraph{Fleet} Trucks are based at open nodes that send trips, their driving hours cover the trips (outbound and return), and their purchase fits the investment budget:
-\begin{align}
-& V_{im} \le \overline{V}_{im}\, o_i, \quad V_{im} \le \overline{V}_{im} \textstyle\sum_{j, t} z_{ijmt}, \quad \sum_{j} \frac{\lambda_m \delta_{ij}}{\nu_m} z_{ijmt} \le \hat{H}_m V_{im} \notag\\
-& && \forall i,\, m \in \mathcal{M}^T,\, t \label{eq:fleet}\\
-& \textstyle\sum_{i,\, m \in \mathcal{M}^T} \Phi^{m} V_{im} \le \hat{B} \label{eq:budget}
-\end{align}
-
-\paragraph{Use of open nodes and domains} Every open node carries some flow, and the variables take the domains of Table~\ref{tab:variables}; a facility that already exists, as in the case study, has $o_i = 1$ and its area fixed:
-\begin{equation}\label{eq:use}
-\textstyle\sum_{n,t} \bigl( \Xin_{nit} + \Xout_{nit} \bigr) \ge o_i \qquad \forall i \in \mathcal{O}
-\end{equation}
-
-The follower's feasible set $Y$ is defined by \eqref{eq:balance-factory}--\eqref{eq:use} and the domains of the variables; it does not involve $\tau$. In the case study, truck capacities count units rather than kilograms, handling is charged per unit entering a hub, and truck emissions count the outbound leg only ($\lambda^e_m = 1$), as in \textcite{mota2018sustainable}.
-
-\paragraph{Valid inequalities} Three families of valid inequalities tighten the linear relaxation without changing the integer solutions. The throughput of a remanufacturing technology is also bounded by what can be collected in the period, since recovered products are not stored. A node that must send trips (a retailer with a positive minimum return, an open supplier, an open factory) holds at least one truck. A period with a positive minimum return runs a remanufacturing technology, and a product whose demand exceeds its initial stock and what can be remanufactured installs a production technology.
-
-\subsection{Parameters}
-
-\begin{table}[!htbp]
-\centering
-\caption{Parameters of the operator's problem.}\label{tab:parameters}
-\footnotesize
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.4cm}L>{\raggedright\arraybackslash}p{3.2cm}@{}}
-\toprule
-Parameter & Description & Unit \\
-\midrule
-$D_{rpt}$ & Demand for product $p$ at retailer $r$ in period $t$ & units \\
-$\underline{\rho}_{rpt}$, $\overline{\rho}_{rpt}$ & Minimum and maximum fraction of the sales of $p$ at $r$ that return, $\theta_p$ periods later & -- \\
-$\eta_{kp}$ & Units of recovered product $k$ obtained per unit of $p$ returned & -- \\
-$b_{kp}$ & Units of recovered product $k$ used per unit of $p$ remanufactured & -- \\
-$a_{upg}$ & Units of raw material $u$ per unit of $p$ made with technology $g$ & -- \\
-$\underline{S}_{su}$, $\overline{S}_{su}$ & Minimum order and capacity of supplier $s$ for raw material $u$, per period & units \\
-$\underline{Q}_g$, $\overline{Q}_g$ & Minimum use and capacity of production technology $g$, per period & units \\
-$\underline{R}_l$, $\overline{R}_l$ & Minimum use and capacity of remanufacturing technology $l$, per period & units \\
-$\underline{A}_i$, $\overline{A}_i$ & Minimum and maximum floor area of factory or warehouse $i$ & m$^2$ \\
-$\alpha_n$, $\kappa$ & Floor area per unit of item $n$; stock rotations per period & m$^2$/unit; -- \\
-$\underline{I}_{pw}$, $\overline{I}_{pw}$, $I^0_{pw}$ & Minimum and maximum stock, initial stock of $p$ at warehouse $w$ & units \\
-$\omega_n$ & Weight of a unit of item $n$ & kg \\
-$\delta_{ij}$ & Distance from $i$ to $j$ & km \\
-$\underline{X}_m$, $\overline{X}_m$ & Minimum and maximum load of a truck trip of mode $m$ & kg \\
-$\overline{C}_m$ & Capacity contracted per arc and period for air or sea mode $m$ & kg \\
-$B_{ijm}$ & Upper bound on the trips of truck mode $m$ on arc $(i, j)$ in a period & trips \\
-$\nu_m$, $\hat{H}_m$, $\lambda_m$ & Speed, driving hours per truck and period, and distance factor (outbound plus return) of truck mode $m$ & km/h; h; -- \\
-$\overline{V}_{im}$, $\hat{B}$ & Maximum trucks of mode $m$ at node $i$; investment budget for trucks & trucks; \EUR \\
-$c^{\mathrm{raw}}_{su}$, $c^{\mathrm{rec}}_k$ & Purchase cost of raw material $u$ from $s$; acquisition cost of a returned unit of $k$ & \EUR/unit \\
-$c^{p}_g$, $c^{r}_l$ & Variable cost of production with $g$ and remanufacturing with $l$ & \EUR/unit \\
-$h_p$ & Holding cost of $p$ per period & \EUR/unit \\
-$c^{s}_m$, $c^{t}_m$, $c^{h}_m$ & Air or sea freight; truck trip cost; hub handling & \EUR/(kg$\cdot$km); \EUR/km; \EUR/kg \\
-$c^{a}_i$, $\Phi^{g}_g$, $\Phi^{l}_l$, $\Phi^{m}$, $f_h$ & Construction cost; technology investment; truck price; hub fee per period & \EUR/m$^2$; \EUR; \EUR; \EUR; \EUR \\
-$\pi_i$, $\gamma_i$, $\gamma^{s}_i$, $\gamma_g$, $\gamma_l$, $\gamma_m$, $\Omega$ & Wage at node $i$; workers per open facility, per m$^2$, per technology and per truck; working hours per period & \EUR/h; workers; h \\
-$r$, $d_t$, $\Delta$, $\varphi^f$, $\varphi^t$, $\varphi^v$ & Annual interest rate; discount factor $(1+r)^{-t\ell}$, with $\ell$ the period length in years; annuity $\sum_t d_t$; capital multipliers of facilities, technologies and vehicles & -- \\
-$e^{\mathrm{raw}}_{su}$, $e^{p}_g$, $e^{r}_l$ & Emissions of raw material $u$ from $s$; of production with $g$; of remanufacturing with $l$ & kg \CO/kg \\
-$e^{s}_m$, $\lambda^{e}_m$ & Transport emissions of mode $m$; their distance factor & kg \CO/(kg$\cdot$km); -- \\
-$e^{o}_i$, $\sigma$ & Construction emissions of facility $i$; share charged per period, $\ell/20$ & kg \CO/m$^2$; -- \\
-$\tmin$, $\tmax$, $\xi$, $\mu$ & Tax range; relative weight and weight of the tax in $F$ & \EUR/t; --; kg \CO\ per \EUR/t \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-The capital multipliers $\varphi^c = \Delta \cdot \mathrm{CRF}(i_\ell, \mathit{life}_c/\ell)$, with $i_\ell = (1 + r)^\ell - 1$ and $\mathrm{CRF}(i, n) = i / (1 - (1 + i)^{-n})$, charge each asset at its rental equivalent over its life (20 years for facilities, 8 for technologies, 5 for vehicles) instead of its full price.
-
-
-\section{Subproblems that stop with a MIP gap}\label{sup:gaps}
-
-On the larger instances, subproblems reach their time limit before their MIP gap target. We follow the remedies of \textcite[Section~7]{soares2021deterministic}, which build on their bound estimates for followers that cannot be solved exactly \parencite{soares2020designing}, so that every bound reported remains a bound.
-
-\paragraph{Lower bound} LB is the HPR's proven dual bound, not the value of its incumbent, so it remains valid whatever the HPR's gap. \textcite{soares2021deterministic} estimate the corresponding bound as the incumbent's value corrected by the MIP gap; the dual bound gives the same guarantee directly. An HPR that stops on its time limit with a point still proposes its tax.
-
-\paragraph{Follower with a gap} If \eqref{P3} stops on its time limit with value $\bar f$ and relative gap $g$, the subproblem
-\begin{equation}
-\min_{y \in Y,\, \zeta \ge 0} \; \zeta \quad \text{s.t.} \quad f(\tau_k, y) \le \bar f\,(1 - g) + \zeta \tag{P6}\label{P6}
-\end{equation}
-searches for a better response, started from the incumbent of \eqref{P3}; $\bar f(1 - g)$ is the solver's bound on the follower's optimum, so a response with $\zeta$ close to zero is nearly optimal. Its response replaces that of \eqref{P3} if it improves $f$. If \eqref{P4} then finds no point within its budget, the response of \eqref{P3} or \eqref{P6} is kept. Such a response is not proven optimal, so the UB it gives is reported as not certified, and the result can be $\varepsilon$-optimal at best.
-
-\paragraph{Relaxation without a point} The first time \eqref{P5} returns no point within its budget, its cuts are made elastic, as in (P5-D) of \textcite{soares2021deterministic}:
-\begin{equation}
-\begin{aligned}
-\min_{\tau,\, y,\, \zeta} \; & F(\tau, y) + \Lambda \sum_{k} \zeta_k \\
-\text{s.t.} \; & \tmin \le \tau \le \tmax, \; y \in Y, \; f(\tau, y) \le f(\tau, y_k) + \zeta_k, \; \zeta_k \ge 0, \; k = 1, \dots, K.
-\end{aligned} \tag{P5-D}\label{P5D}
-\end{equation}
-The penalty $\Lambda$ exceeds the whole range of $F$, so a positive $\zeta_k$ is chosen only where no point satisfies every cut within the solver's reach; it never weakens the lower bound, because points with $\zeta = 0$ keep their value. A result whose last relaxation has an active slack cannot be classified as optimal.
-
-\paragraph{Stopping} Because elastic variables and gaps can prevent convergence, the procedure also stops after 10 consecutive iterations in which neither bound changes \parencite{soares2021deterministic}, or when a run budget is spent; the budget is checked between subproblems and caps each subproblem's time limit.
-
 \section{The original instances}\label{sup:original}
 
 The tables below are those of the first version of this study, on the instances of the original generator, in which the tax base includes the emissions of purchased raw materials (Section~\ref{sec:instances}).
@@ -279,17 +149,6 @@ Scaling every emission factor by the same factor $k$ is not among the scenarios:
 
 \paragraph{Remanufacturing plays no role in the generated instances} Its share of production is at most 0.6\% in every variant, because remanufacturing emits about as much as production there (Section~\ref{sec:instances}). Its emission intensity and the return fractions change the reduction by at most 0.03 percentage points, and the return fractions only scale the share, from 0.29\% to 0.14\% and 0.58\% on \inst{STD_I17_M4_T3}. The case study, where remanufacturing is 16\% of production at the incumbent, is the test of these two parameters.
 
-\section{Robustness checks}\label{sup:robustness}
-
-The sensitivity results on the small instances do not depend on the solver's tolerance. Re-solved at a MIP gap of $10^{-6}$ instead of $10^{-4}$, 51 of the 52 runs return the same optimal tax, to within \EUR0.05/t, and the same reduction, to within 0.1 percentage points. The 52 runs are the four base cases and the 48 variants of Section~\ref{sup:sens-small}; each took 8 to 178~s.
-
-The exception is \inst{STD_I17_M8_T3} with twice the production intensity. At the tighter tolerance the run stalls after 15 iterations with its incumbent at \EUR8.77/t, against an optimal \EUR16.48/t at $10^{-4}$. Its lower bound is unchanged (259,574,947 against 259,574,944~kg), and the reduction differs by 0.1 points (17.4\% against 17.5\%). The optimum lies at a break point, where the operator is indifferent between two networks and the optimistic tie-break decides; which response it selects there depends on the follower's tolerance. This is the tax resolution of Proposition~\ref{prop:certificate} at work: the regulator's emissions are determined, the tax at the break point less so.
-
-The results on the small instances do not depend on the solver's seed either. With seeds 0 to 4, 19 of the 20 runs on the four small instances return the same optimal tax, to within \EUR0.00001/t, the same reduction, the same result class and the same number of iterations; each run took 15 to 48~s. The exception is \inst{STD_I17_M4_T6} with seed 3, which ends $\varepsilon$-optimal after 4 iterations at \EUR7.55/t instead of \EUR7.17/t, with the same reduction. The two taxes lie on the same plateau, \EUR0.39/t apart, within the resolution of Proposition~\ref{prop:certificate}.
-
-Giving the case study 3~h instead of 1~h narrows its gap from 1.2\% to 0.8\% over 10 iterations instead of 3. The incumbent's tax moves by \EUR36/t, while its emissions change by 0.07\% (31.873 against 31.894~Mt \CO) and the operator's cost by 0.05\%. This confirms Section~\ref{sec:sens-case}: on the case study the method determines the emissions and the network, but not the tax that induces them.
-
-
 \section{Sensitivity analysis on the case study}\label{sup:case-section}
 
 The table below completes Section~\ref{sec:sens-case} of the manuscript.
@@ -325,6 +184,60 @@ Interest rate 20\% & 22.6 & 21.7--24.8 & 1.5 & 16.0 & 2.1 \\
 
 \paragraph{The network is robust} In every scenario the operator opens the same two factories and installs the same production technologies, the lower-emission alternative for each of the two products. The scenarios change volumes and the remanufacturing share, not the factories or the production technologies. The share responds to the return fractions asymmetrically because the case study already lets every unit sold return (a maximum return fraction of 1). Halving the fractions halves that ceiling and the share, from 16.0\% to 8.0\%. Doubling them leaves the ceiling at 1 and only doubles the minimum return, from 15\% to 30\% of sales, which raises the share to 16.8\%. Neither returns nor capacity bind: in the base case the operator collects 78\% of what could return and uses at most 47\% of the remanufacturing capacity in any period, so the volume remanufactured is an economic choice. That remanufacturing responds to the tax only where it carries an environmental advantage is consistent with \textcite{yenipazarli2016managing}, who characterises the taxes under which remanufacturing lowers emissions, and with \textcite{li2024optimal}, who find that a carbon tax does not always encourage remanufacturing.
 
+
+\section{Robustness checks}\label{sup:robustness}
+
+The sensitivity results on the small instances do not depend on the solver's tolerance. Re-solved at a MIP gap of $10^{-6}$ instead of $10^{-4}$, 51 of the 52 runs return the same optimal tax, to within \EUR0.05/t, and the same reduction, to within 0.1 percentage points. The 52 runs are the four base cases and the 48 variants of Section~\ref{sup:sens-small}; each took 8 to 178~s.
+
+The exception is \inst{STD_I17_M8_T3} with twice the production intensity. At the tighter tolerance the run stalls after 15 iterations with its incumbent at \EUR8.77/t, against an optimal \EUR16.48/t at $10^{-4}$. Its lower bound is unchanged (259,574,947 against 259,574,944~kg), and the reduction differs by 0.1 points (17.4\% against 17.5\%). The optimum lies at a break point, where the operator is indifferent between two networks and the optimistic tie-break decides; which response it selects there depends on the follower's tolerance. This is the tax resolution of Proposition~\ref{prop:certificate} at work: the regulator's emissions are determined, the tax at the break point less so.
+
+The results on the small instances do not depend on the solver's seed either. With seeds 0 to 4, 19 of the 20 runs on the four small instances return the same optimal tax, to within \EUR0.00001/t, the same reduction, the same result class and the same number of iterations; each run took 15 to 48~s. The exception is \inst{STD_I17_M4_T6} with seed 3, which ends $\varepsilon$-optimal after 4 iterations at \EUR7.55/t instead of \EUR7.17/t, with the same reduction. The two taxes lie on the same plateau, \EUR0.39/t apart, within the resolution of Proposition~\ref{prop:certificate}.
+
+Giving the case study 3~h instead of 1~h narrows its gap from 1.2\% to 0.8\% over 10 iterations instead of 3. The incumbent's tax moves by \EUR36/t, while its emissions change by 0.07\% (31.873 against 31.894~Mt \CO) and the operator's cost by 0.05\%. This confirms Section~\ref{sec:sens-case}: on the case study the method determines the emissions and the network, but not the tax that induces them.
+
+
+\section{Enumeration on the calibrated instances}\label{sup:calibrated}
+
+Table~\ref{sup:calibrated-table} reports Algorithm~\ref{alg:enum} on the 24 calibrated instances of Section~\ref{sec:instances}, within 1~h each. Section~\ref{sec:anticipation} of the manuscript analyses the 16 on which it is exact.
+
+\begin{table}[!htbp]
+\centering
+\caption{Enumeration of the switching prices on the calibrated instances. Exact: complete, every follower solve to its MIP gap; complete, not certified: a follower solve stopped on its time limit; budget spent: stopped by the 1~h budget. SP: switching prices certified or found. Intensity: emissions per euro of cost without a tax.}\label{sup:calibrated-table}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.6cm}*{4}{>{\raggedleft\arraybackslash}X}@{}}
+\toprule
+Instance & Result & Solves & SP & Time (s) & Intensity (kg \CO/\EUR) \\
+\midrule
+%% BEGIN table calibrated_status
+\inst{CAL_I17_M4_T3_r0} & Exact & 41 & 9 & 22 & 24.2 \\
+\inst{CAL_I17_M4_T6_r0} & Exact & 59 & 17 & 203 & 76.6 \\
+\inst{CAL_I17_M4_T12_r0} & Exact & 65 & 10 & 269 & 24.8 \\
+\inst{CAL_I17_M8_T3_r0} & Exact & 9 & 4 & 19 & 95.2 \\
+\inst{CAL_I17_M8_T6_r0} & Budget spent & 118 & 26 & 3,613 & 99.9 \\
+\inst{CAL_I17_M8_T12_r0} & Complete, not certified & 35 & 7 & 1,611 & 74.5 \\
+\inst{CAL_I25_M4_T3_r0} & Exact & 3 & 1 & 3 & 26.6 \\
+\inst{CAL_I25_M4_T6_r0} & Exact & 49 & 13 & 175 & 51.4 \\
+\inst{CAL_I25_M4_T12_r0} & Complete, not certified & 73 & 10 & 2,730 & 32.8 \\
+\inst{CAL_I25_M8_T3_r0} & Exact & 55 & 11 & 231 & 188.2 \\
+\inst{CAL_I25_M8_T6_r0} & Complete, not certified & 55 & 15 & 1,996 & 53.3 \\
+\inst{CAL_I25_M8_T12_r0} & Exact & 105 & 14 & 2,053 & 144.9 \\
+\midrule
+\inst{CAL_I17_M4_T3_r1} & Exact & 56 & 20 & 84 & 31.0 \\
+\inst{CAL_I17_M4_T6_r1} & Exact & 55 & 17 & 114 & 25.8 \\
+\inst{CAL_I17_M4_T12_r1} & Exact & 69 & 13 & 788 & 50.1 \\
+\inst{CAL_I17_M8_T3_r1} & Exact & 93 & 28 & 751 & 96.8 \\
+\inst{CAL_I17_M8_T6_r1} & Exact & 75 & 11 & 155 & 83.2 \\
+\inst{CAL_I17_M8_T12_r1} & Complete, not certified & 3 & 1 & 1,017 & 60.6 \\
+\inst{CAL_I25_M4_T3_r1} & Exact & 26 & 9 & 340 & 33.5 \\
+\inst{CAL_I25_M4_T6_r1} & Exact & 49 & 11 & 971 & 30.0 \\
+\inst{CAL_I25_M4_T12_r1} & Budget spent & 33 & 3 & 3,625 & 9.5 \\
+\inst{CAL_I25_M8_T3_r1} & Budget spent & 40 & 4 & 3,620 & 98.6 \\
+\inst{CAL_I25_M8_T6_r1} & Exact & 73 & 7 & 1,532 & 64.6 \\
+\inst{CAL_I25_M8_T12_r1} & Budget spent & 37 & 7 & 3,631 & 111.6 \\
+%% END table calibrated_status
+\bottomrule
+\end{tabularx}
+\end{table}
 
 \printbibliography
 

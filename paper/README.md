@@ -21,19 +21,20 @@ Both documents compile with no errors and no overfull or underfull boxes. Four h
 
 | File | What it is |
 | --- | --- |
-| `main.tex` | Manuscript, 30 pages: elsarticle, option `review` (single column, 1.5 line spacing), 11 pt, A4 with 2.5 cm margins |
-| `supplementary.tex` | Supplementary Material: the operator's constraints and parameters (S1), the subproblems that stop with a MIP gap (S2), the policy and sensitivity analyses on the original instances (S3), the robustness checks (S4) and the case study's sensitivity table (S5) |
+| `main.tex` | Manuscript, 25 pages: elsarticle, option `review` (single column, 1.5 line spacing), 11 pt, A4 with 2.5 cm margins. The model is complete in Section 2 (notation, cost, emissions, every constraint and valid inequality) |
+| `supplementary.tex` | Supplementary Material, 9 pages: the original instances' fixed-tax and sensitivity analyses (S1), the case study's sensitivity (S2), the robustness checks (S3) and the enumeration on all 24 calibrated instances (S4) |
 | `references.bib` | Verified Crossref and DataCite records; biblatex prints only the cited ones (45 in the manuscript) |
 | `highlights.tex`, `highlights.txt` | Highlights (5 bullets, at most 85 characters, no acronyms) |
 | `cover_letter.tex` | Cover letter to the editor |
+| `figures/staircase.pdf` | Figure 1, from `python paper/tools/make_figure.py` |
 | `figures/sensitivity_tornado.pdf` | Figure S1 (original instances), from `python -m clsc.experiments figures` |
-| `tools/make_tables.py` | Writes the rows of Tables 6 and 7 of the manuscript from `results/experiments`; run from the repository root |
+| `tools/make_tables.py` | Writes the rows of Tables 5, 6 and 7 and of Table S4 from `results/experiments`; run from the repository root |
 
 No separate title page: EJOR uses single-anonymized review, so the author details stay in the manuscript.
 
 ## Where the numbers come from
 
-Every number in Sections 5.2 and 5.3 comes from `results/experiments` (experiments P1, E1, E2, C1, C2 and C3 of `src/clsc/experiments/plan.py`). `python paper/tools/make_tables.py` rewrites the rows of Tables 6 and 7 between their `%% BEGIN table` and `%% END table` markers and prints the aggregates the text quotes. The calibrated set in the manuscript is replicates 0 and 1 (24 instances); replicate 2 and the escalation sizes are generated in `data/calibrated` for a revision. The case study's enumeration figures (seven taxes in 1 h, six follower solves on their time limit, the best value 0.85% above the DBP's upper bound) are those of the pilot run logged in `results/experiments/run_E1E2_pilot.log`.
+Every number in Section 4 comes from `results/experiments` (experiments P1, E1, E2, C1, C2 and C3 of `src/clsc/experiments/plan.py`). `python paper/tools/make_tables.py` rewrites the table rows between their `%% BEGIN table` and `%% END table` markers and prints the aggregates the text quotes; `python paper/tools/make_figure.py` draws Figure 1. The calibrated set in the manuscript is replicates 0 and 1 (24 instances); replicate 2 and the escalation sizes are generated in `data/calibrated` for a revision. The case study's enumeration figures (seven taxes in 1 h, six follower solves on their time limit, the best value 0.85% above the DBP's upper bound) are those of the pilot run logged in `results/experiments/run_E1E2_pilot.log`.
 
 ## EJOR requirements checked
 
@@ -41,9 +42,9 @@ Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 Febr
 
 | Requirement | Status |
 | --- | --- |
-| At most 30 pages, including abstract, figures, tables and references | 30 pages |
+| At most 30 pages, including abstract, figures, tables and references | 25 pages |
 | Single column, 11 pt, 1.5 line spacing, no line numbers | Done |
-| Abstract of 50 to 250 words, no formulae, references or unexplained acronyms | 249 words |
+| Abstract of 50 to 250 words, no formulae, references or unexplained acronyms | 161 words, no numbers, only CLSC as acronym |
 | First keyword from the EJOR list, at most 5 | "OR in environment and climate change" plus 4 |
 | Highlights: 3 to 5 bullets, at most 85 characters, no acronyms | Done |
 | APA references with DOIs | Done (biblatex-apa) |

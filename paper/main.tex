@@ -31,6 +31,7 @@
 % ---------------------------------------------------------------- theorems
 \newtheorem{proposition}{Proposition}
 \newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
 \theoremstyle{remark}
 \newtheorem*{remark}{Remark}
 
@@ -67,7 +68,7 @@
             country={Portugal}}
 
 \begin{abstract}
-A carbon tax reduces emissions only through the decisions it changes. We study how a regulator should set a carbon tax when the operator responds by redesigning a closed-loop supply chain, choosing suppliers, facilities, production and remanufacturing technologies and transport modes. The regulator minimises the operator's emissions plus a weight on the tax rate; the operator minimises its cost plus the tax on its discounted emissions. The result is a bilevel program with a continuous tax and a mixed-integer follower. We show that an optimal tax exists and lies at one of the operator's switching prices, the taxes at which it switches networks; these prices scale inversely with its emission intensity while the tax bill as a share of cost does not. Two exact methods follow: enumeration of the switching prices, and a deterministic bounding procedure adapted to a relaxation in which the tax multiplies a continuous emission aggregate. Enumeration is faster when switching prices are few, bounding when they are many; bounding also certifies the optimum within a gap when the operator's problem does not solve, as on a published case study. On 16 instances calibrated to that case study and solved exactly, operators have a median of 11 switching prices and optimal taxes of 0 to 196 euros per tonne. A fixed tax at the 2025 European emission allowance price, 74 euros per tonne, overpays where the optimal tax lies below it and abates less where it lies above. The tax acts through remanufacturing and cleaner technology.
+A carbon tax reduces emissions only through the decisions it changes, and a firm that redesigns its supply chain responds in discrete steps. We study how a regulator should set a carbon tax that anticipates the redesign of a closed-loop supply chain (CLSC): its suppliers, facilities, production and remanufacturing technologies, and transport. Existing models either take the tax as given or treat the firm's response as continuous. We formulate a bilevel program in which the regulator sets a continuous tax and the firm solves a mixed-integer CLSC design problem. We prove that an optimal tax exists at one of the firm's switching prices, the taxes at which it changes its network, and develop two exact methods: an enumeration of the switching prices and a bounding procedure with a bilinear relaxation. The optimal tax captures nearly all attainable abatement, mainly through remanufacturing and cleaner technology, whereas a tax set without anticipating the firm pays more for the same abatement or abates less.
 \end{abstract}
 
 \begin{keyword}
@@ -83,417 +84,434 @@ A regulator who anticipates how an operator redesigns its supply chain can choos
 
 In most studies of carbon pricing in supply chain planning and design, the price is a parameter, and the studies describe how the supply chain responds to it \parencite{fahimnia2015tactical,zakeri2015carbon,haddadsisakht2018closed,waltho2019green}. That response is not smooth. \textcite{zakeri2015carbon} observe an erratic, non-linear reduction in emissions, with inflection points, as the price rises, and \textcite{krass2013environmental} show that a firm's technology choice can even reverse as the tax rises. A regulator that wants to set the tax well must therefore anticipate how the supply chain will react, not merely observe it.
 
-Choosing the tax is then a leader--follower problem, a bilevel program \parencite{kleinert2021survey}. The regulator sets the tax anticipating the operator's best response, and the operator designs its network given the tax. Existing bilevel models of environmental taxes either let the follower choose continuous quantities, so that it can be replaced by its optimality conditions \parencite{almutairi2014carbon}, or search over the policy on a grid \parencite{bard2000bilevel}, or solve integer followers by problem-specific branch-and-bound \parencite{liu2023optimal}. When the follower designs a closed-loop network with location, technology and fleet decisions, its problem is a mixed-integer linear program (MILP) whose objective contains the product of the tax and the emissions. General exact methods for mixed-integer bilevel programs either exclude this structure or do not exploit it. \textcite{fischetti2017new} exclude continuous leader variables from the lower level, and \textcite{lozano2017value} require the leader's variables to be integer. The bounding algorithm of \textcite{mitsos2008global} and the decomposition of \textcite{merkert2022exact} do admit products of leader and follower variables, but treat them in general, without using the fact that the tax leaves the operator's feasible set unchanged.
+Choosing the tax is a leader--follower problem, a bilevel program \parencite{kleinert2021survey}: the regulator sets the tax anticipating the operator's best response. Bilevel models of environmental taxes replace a continuous follower by its optimality conditions \parencite{almutairi2014carbon}, search over the policy on a grid \parencite{bard2000bilevel}, or solve an integer follower by problem-specific branch-and-bound \parencite{liu2023optimal}. A closed-loop supply chain (CLSC) design follower is a mixed-integer linear program (MILP) whose objective contains the product of the tax and the emissions. General exact methods for mixed-integer bilevel programs either exclude continuous leader variables from the follower's problem \parencite{fischetti2017new,lozano2017value} or treat products of leader and follower variables in general \parencite{mitsos2008global,merkert2022exact}, without exploiting that the tax leaves the follower's feasible set unchanged.
 
-This paper sets a single carbon tax for an operator that designs a closed-loop supply chain (CLSC) with the multi-period, multi-product model of \textcite{mota2018sustainable}. The regulator minimises the operator's physical emissions plus a small weight on the tax rate, so that among taxes that abate the same, the lowest is chosen. We make four contributions.
+This paper sets a carbon tax for an operator that designs a multi-period, multi-product CLSC with the model of \textcite{mota2018sustainable}. It makes three contributions.
 \begin{enumerate}
-\item A bilevel model in which a continuous carbon tax enters a mixed-integer CLSC design problem, with the operator taxed on its discounted emissions and the regulator counting physical ones. Using classical properties of parametric integer programs, we show that an optimal tax exists and lies at the lower end of the tax range or at one of the operator's switching prices, the break points of its value function (Proposition~\ref{prop:structure}), and that scaling the emission factors scales every switching price while leaving the tax bill as a share of cost unchanged (Proposition~\ref{prop:scale}).
-\item Two exact methods and a comparison of when each applies: enumeration of the switching prices by a dichotomic scheme (Section~\ref{sec:enumeration}), and an adaptation of the deterministic bounding procedure (DBP) of \textcite{soares2021deterministic} to a high-point relaxation in which the tax multiplies a continuous emission aggregate, with valid bounds on that product and a statement of what each result certifies at the solver's tolerances (Proposition~\ref{prop:certificate}). Enumeration is faster when the switching prices are few and the operator's problem solves to its gap; the DBP is faster when they are many, and still certifies the optimum within a gap when the operator's problem does not solve.
-\item Instances calibrated to the case study of \textcite{mota2018sustainable}: the networks of the generator of \textcite{tautenhain2021efficient} with the case study's emission factors, return fractions and recovery cost, on which the tax acts through the closed loop. The original generator's instances, on which remanufacturing plays no role, serve to test the methods.
-\item Policy findings, each stated with the instances that support it: the number and spread of the switching prices, how a fixed tax at the 2025 EU allowance price compares with the optimal tax, and the mechanism through which the tax abates.
+\item \emph{A bilevel model and its structure.} The regulator minimises the emissions it induces plus a small weight on the tax; the operator minimises its cost plus the tax on its discounted emissions. We prove that an optimal tax exists and lies at one of the operator's switching prices, the break points of its value function (Proposition~\ref{prop:structure}), and that scaling the emission factors scales every switching price while the tax bill as a share of cost stays unchanged (Proposition~\ref{prop:scale}).
+\item \emph{Two exact methods.} An enumeration of the switching prices (Algorithm~\ref{alg:enum}), exact by Lemma~\ref{lem:enum}, and an adaptation of the deterministic bounding procedure (DBP) of \textcite{soares2021deterministic} to a high-point relaxation in which the tax multiplies a continuous emission aggregate, with valid bounds on that product and a certificate at the solver's tolerances (Proposition~\ref{prop:certificate}). Enumeration is faster when switching prices are few; the DBP is faster when they are many and still bounds the optimum when the operator's problem cannot be solved to optimality.
+\item \emph{Policy insights.} On instances calibrated to the case study of \textcite{mota2018sustainable}, the optimal tax captures nearly all the abatement any network allows, mainly through remanufacturing and cleaner production technology, and a fixed tax at the 2025 EU allowance price either pays more for the same abatement or abates less.
 \end{enumerate}
 
-Section~\ref{sec:literature} reviews the literature. Section~\ref{sec:bilevel} recalls bilevel optimisation and characterises the problem's solutions. Section~\ref{sec:dbp} presents the DBP, its high-point relaxation and what each result certifies. Section~\ref{sec:model} states the model and the instances, Section~\ref{sec:results} reports the results, and Section~\ref{sec:conclusions} concludes.
+Section~\ref{sec:model} states the model and its structure, Section~\ref{sec:methods} the two methods, Section~\ref{sec:results} the computational study, and Section~\ref{sec:conclusions} concludes.
 
 \subsection{Related literature}\label{sec:literature}
 
-Four streams meet in this paper: carbon pricing in supply chain planning and design, where the price is exogenous; closed-loop supply chains under emissions regulation; bilevel models of environmental policy and pricing, where the price is a decision; and exact methods for mixed-integer bilevel programs.
+\paragraph{Carbon pricing and closed-loop supply chains} Carbon caps, offsets, cap-and-trade and taxes reduce supply chain emissions mostly by moving the supply chain to lower-emitting resources \parencite{waltho2019green}. Cap, tax, cap-and-trade and offsets change supplier, transport-mode and facility decisions \parencite{palak2014analyzing,marufuzzaman2014environmentally} and the choice of technology and capacity \parencite{drake2016technology}; \textcite{fahimnia2015tactical} ask which price gives the best environmental return per unit of added cost. CLSC network design models under a carbon tax take the tax as given \parencite{govindan2015reverse,haddadsisakht2018closed,govindan2023location}, and \textcite{yenipazarli2016managing} characterises the taxes under which remanufacturing lowers emissions. \textcite{mota2018sustainable} integrate facility location, supplier selection, technology choice, intermodal transport and remanufacturing in one model, which \textcite{tautenhain2021efficient} solve with a Lagrangian matheuristic.
 
-\paragraph{Carbon pricing in supply chain planning and design} A review of green supply chain design finds that carbon caps, offsets, cap-and-trade and taxes all achieve substantial reductions at a slight increase in cost, mostly by moving the supply chain to lower-emitting resources \parencite{waltho2019green}. \textcite{palak2014analyzing} and \textcite{marufuzzaman2014environmentally} show how cap, tax, cap-and-trade and offset mechanisms change supplier, transport-mode and facility decisions. \textcite{fahimnia2015tactical} ask which carbon price gives the best environmental return per unit of added supply chain cost, and \textcite{drake2016technology} compare a tax with cap-and-trade in the choice of technology and capacity. \textcite{mota2018sustainable} integrate facility location and capacity, supplier selection, technology choice, intermodal transport and remanufacturing in one model, which \textcite{tautenhain2021efficient} solve with a Lagrangian matheuristic on generated instances. In all of these the price of carbon is a parameter.
-
-\paragraph{Closed-loop supply chains under emissions regulation} Closed-loop supply chain research has grown from a technical niche into a subfield of supply chain management \parencite{govindan2015reverse}. Network design models under a carbon tax take the tax as given \parencite{haddadsisakht2018closed,govindan2023location}. A game-theoretic study asks how emissions taxes interact with remanufacturing: \textcite{yenipazarli2016managing} characterises the taxes under which remanufacturing lowers emissions and raises profit.
-
-\paragraph{Bilevel models of environmental policy and pricing} \textcite{labbe1998bilevel} formulate the bilevel taxation problem, in which a leader sets taxes on a network and the follower reacts, and show that it is NP-complete in general. \textcite{bard2000bilevel} set biofuel tax credits for a farm sector modelled as a linear program, searching over a grid of credits. \textcite{almutairi2014carbon} set a carbon tax on an industry's emission factor and replace the continuous follower by its optimality conditions. \textcite{krass2013environmental} and \textcite{rustico2022environmental} analyse regulators who set taxes to induce green technology, and \textcite{liu2023optimal} solve a bilevel integer program with a government leader by branch-and-bound. \textcite{caselli2026bilevel} survey bilevel models with a sustainability perspective, many of them pricing problems.
-
-\paragraph{Exact methods for mixed-integer bilevel programs} When the follower has integer variables, its optimality cannot be expressed by optimality conditions, and the relaxation obtained by dropping it is weak \parencite{moore1990mixed}. Exact methods work instead with the follower's optimal value function \parencite{kleinert2021survey}. They include branch-and-cut \parencite{fischetti2017new}, value-function reformulations \parencite{lozano2017value,tavasloglu2019solving}, projection-based decomposition \parencite{merkert2022exact}, multi-parametric programming \parencite{avraamidou2019multi}, and bounding procedures that alternate a relaxation with the follower's response \parencite{mitsos2008global}. \textcite{soares2021deterministic} propose the DBP for a retailer that sets time-of-use tariffs while consumers schedule their appliances. \textcite{soares2023deterministic} apply a deterministic bounding algorithm to a mixed-integer nonlinear version. In these pricing problems the prices multiply binary follower variables, so the high-point relaxation is a MILP. \textcite{merkert2022exact} solve problems with products of leader and follower variables exactly in general.
+\paragraph{Bilevel tax models and exact methods} \textcite{labbe1998bilevel} formulate the bilevel taxation problem and show that it is NP-complete. Regulators set taxes to induce green technology in stylised models \parencite{krass2013environmental,rustico2022environmental}, and \textcite{caselli2026bilevel} survey bilevel models with a sustainability perspective. When the follower has integer variables, exact methods work with its optimal value function \parencite{moore1990mixed,kleinert2021survey}: branch-and-cut \parencite{fischetti2017new}, value-function reformulations \parencite{lozano2017value,tavasloglu2019solving}, multi-parametric programming \parencite{avraamidou2019multi}, projection \parencite{merkert2022exact} and bounding procedures that alternate a relaxation with the follower's response \parencite{mitsos2008global,soares2021deterministic,soares2023deterministic}. In the pricing problems of \textcite{soares2021deterministic}, prices multiply binary follower variables and the high-point relaxation is a MILP; here the tax multiplies a continuous aggregate. Table~\ref{tab:positioning} positions this paper.
 
 \begin{table}[!htbp]
 \centering
-\caption{Bilevel models in which a public or pricing leader steers a follower, and this paper.}\label{tab:positioning}
+\caption{Bilevel models in which a public or pricing leader steers a follower.}\label{tab:positioning}
 \footnotesize
-\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.35cm}LLLLL@{}}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.3cm}LLLL@{}}
 \toprule
-Study & Leader's decision & Follower's problem & How the leader's decision enters the follower & Method & Guarantee \\
+Study & Leader's decision & Follower's problem & Coupling & Method and guarantee \\
 \midrule
-\textcite{bard2000bilevel} & Biofuel tax credits & Crop and set-aside choice of a farm sector (linear program) & Crop prices & Grid search over the credits; approximate nonlinear program & Up to the grid \\
-\textcite{krass2013environmental} & Tax, subsidy and rebate & Technology, quantity and price of a monopolist & Costs & Analytical & Closed form, stylised model \\
-\textcite{almutairi2014carbon} & Tax on the emission factor & Output of an industry (continuous) & Costs & Optimality conditions, then a MILP & Exact for a continuous follower \\
-\textcite{soares2021deterministic} & Time-of-use prices & Appliance scheduling (MILP) & Prices times binary variables & DBP with a MILP relaxation & Bounds; optimal to tolerances \\
-\textcite{merkert2022exact} & General & Mixed-integer, with nonlinear terms & Products of leader and follower variables & Projection-based decomposition & Exact under an assumption \\
-\textcite{liu2023optimal} & Subsidy & Trauma care network redesign (integer) & Subsidy & Branch-and-bound & Exact \\
-This paper & Carbon tax & Multi-period CLSC network design (MILP) & Tax times a continuous emission aggregate & Enumeration of the switching prices; DBP with a bilinear relaxation & Exact (enumeration, Lemma~\ref{lem:enum}); bounds, optimal to stated tolerances (DBP, Proposition~\ref{prop:certificate}) \\
+\textcite{bard2000bilevel} & Biofuel tax credits & Farm sector (linear program) & Crop prices & Grid search; up to the grid \\
+\textcite{krass2013environmental} & Tax, subsidy, rebate & Monopolist's technology and output & Costs & Analytical; stylised \\
+\textcite{almutairi2014carbon} & Carbon tax & Industry output (continuous) & Costs & Optimality conditions; exact \\
+\textcite{soares2021deterministic} & Time-of-use prices & Appliance scheduling (MILP) & Prices times binaries & DBP; optimal to tolerances \\
+\textcite{liu2023optimal} & Subsidy & Network redesign (integer) & Subsidy & Branch-and-bound; exact \\
+This paper & Carbon tax & Multi-period CLSC design (MILP) & Tax times a continuous emission aggregate & Enumeration, exact; DBP with a bilinear relaxation, optimal to tolerances \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-This paper takes the operator's problem from the first two streams, the leader--follower view from the third and the method from the fourth. It differs from the bilevel tax models in its follower, a full CLSC design problem, and in solving the problem with bounds. It differs from \textcite{soares2021deterministic,soares2023deterministic} in that the tax multiplies a continuous emission aggregate, so the high-point relaxation is bilinear in two continuous quantities.
-
 % =====================================================================================
-\section{Bilevel optimisation}\label{sec:bilevel}
+\section{The bilevel model}\label{sec:model}
 
-A bilevel problem couples two optimisation problems in a hierarchy: the leader decides first, anticipating the follower's response, and the follower then optimises its own objective over a feasible set that may depend on the leader's decision. With both levels minimising, the general problem reads
-\begin{equation*}
-\text{``}\min_{x \in X}\text{''} \; F(x, y) \quad \text{s.t.} \quad G(x, y) \le 0, \quad y \in \arg\min_{y' \in Y} \bigl\{ f(x, y') : g(x, y') \le 0 \bigr\},
-\end{equation*}
-where $x$ and $y$ are the leader's and the follower's decisions, $X$ and $Y$ may impose integrality, $F$ and $f$ are their objectives and $G$ and $g$ their constraints; $\Psi(x)$ denotes the follower's set of optimal responses. Even linear bilevel problems are hard \parencite{jeroslow1985polynomial}, the bilevel taxation problem is NP-complete \parencite{labbe1998bilevel}, and with continuous leader and discrete follower variables an optimal solution may fail to exist \parencite{soares2021deterministic}. The quotation marks express an ambiguity when $\Psi(x)$ has several elements. We adopt the optimistic convention, as \textcite{soares2021deterministic} do: the follower chooses, among its optimal responses, the one best for the leader. In computation the follower's optimality holds only to a tolerance, and the $\varepsilon'$-optimistic problem lets the follower choose any response within $\varepsilon' > 0$ of its optimum, as in the bounding algorithms of \textcite{mitsos2008global}.
+\subsection{Problem and assumptions}\label{sec:assumptions}
 
-The DBP addresses problems in which the leader's constraints do not involve the follower's variables and the follower's constraints do not involve the leader's: $G(x, y) = G(x)$ and $g(x, y) = g(y)$. Pricing problems belong to this class, and so does ours. The leader's decision is a single continuous tax rate $x = \tau \in [\tmin, \tmax]$. The follower's feasible set $Y$, given by the network design constraints of Section~\ref{sec:model}, does not depend on $\tau$. The tax enters only the follower's objective, $f(\tau, y) = c(y) + \tau\,\beta(y)/1000$, where $c(y)$ is the operator's cost in \EUR\ and $\beta(y)$ its discounted emissions in kg; the leader minimises $F(\tau, y) = E(y) + \mu\,\tau$, with $E(y)$ the physical emissions and $\mu > 0$ a weight. The following result collects properties of the follower's value function that are classical in parametric integer programming \parencite{geoffrion1977parametric,jenkins1982parametric} and draws their consequences for the leader: existence, and a finite set of candidate taxes.
+A regulator (the leader) sets a carbon tax rate $\tau \in [\tmin, \tmax]$, in \EUR\ per tonne of CO\textsubscript{2}-equivalent (\CO). An operator (the follower) then designs and plans a CLSC over $|\mathcal{T}|$ periods. Raw materials are bought from suppliers and turned into final products at factories; products flow through warehouses to retailers; a fraction of the units sold returns as recovered products, which are collected and remanufactured at factories. Goods move by truck, and by air or sea between hubs. The operator chooses suppliers, factories and warehouses with their floor areas, production and remanufacturing technologies, a truck fleet, and per period the purchases, production, remanufacturing, inventories and flows. The model rests on six assumptions.
+\begin{enumerate}
+\item[(A1)] One operator responds to the tax; demand is given and must be met.
+\item[(A2)] The operator minimises its discounted cost plus the tax on its discounted emissions; the regulator counts physical, undiscounted emissions.
+\item[(A3)] The tax base comprises the emissions of production, remanufacturing, transport and the construction of facilities, and of purchased raw materials where the data assign them; on the calibrated instances these are zero, so the operator is taxed on its own operations (Section~\ref{sec:instances}).
+\item[(A4)] All data are deterministic, and the operator's feasible set does not depend on the tax.
+\item[(A5)] Among the operator's optimal responses, the one with the least emissions is taken (the optimistic convention).
+\item[(A6)] The regulator minimises its emissions plus a weight $\mu > 0$ on the tax rate, which selects the lowest tax among those that induce the same emissions.
+\end{enumerate}
+The feasible set follows \textcite{mota2018sustainable}, whose equation numbers we cite, with one departure: an installed remanufacturing technology meets its minimum use only in the periods in which it operates, because no returns arrive before the first return lag. The operator's objective departs from theirs in that it minimises cost plus the tax rather than maximising net present value, and prices only the climate-change category of ReCiPe 2008, the one a carbon tax targets.
+
+\subsection{Notation}\label{sec:notation}
+
+Tables~\ref{tab:sets}--\ref{tab:variables} list the sets, the parameters and the variables. All parameters are non-negative reals. For an item $n$, node $i$ and period $t$, the inflow and the outflow are
+\begin{equation}\label{eq:flows}
+\Xin_{nit} = \sum_{(j,i) \in \mathcal{A}_n} \sum_{m \in \mathcal{M}_{ji}} x_{njimt}, \qquad \Xout_{nit} = \sum_{(i,j) \in \mathcal{A}_n} \sum_{m \in \mathcal{M}_{ij}} x_{nijmt}.
+\end{equation}
+
+\begin{table}[!htbp]
+\centering
+\caption{Sets and indices.}\label{tab:sets}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}lL@{}}
+\toprule
+Set & Description \\
+\midrule
+$\mathcal{S}, \mathcal{F}, \mathcal{W}, \mathcal{R}$ & Suppliers $s$, factories $f$, warehouses $w$, retailers $r$ \\
+$\mathcal{H} = \mathcal{H}^A \cup \mathcal{H}^S$ & Hubs $h$: airports and seaports \\
+$\mathcal{O} = \mathcal{S} \cup \mathcal{F} \cup \mathcal{W} \cup \mathcal{H}$ & Nodes that can be selected or opened $i$ \\
+$\mathcal{U}, \mathcal{P}, \mathcal{K}$ & Raw materials $u$, final products $p$, recovered products $k$; items $n \in \mathcal{U} \cup \mathcal{P} \cup \mathcal{K}$ \\
+$\mathcal{G}, \mathcal{L}$ & Production technologies $g$, remanufacturing technologies $l$; $\mathcal{G}_p$, $\mathcal{L}_p$ those that make $p$; $\mathcal{P}_g$, $\mathcal{P}_l$ the products of $g$, $l$; $\mathcal{L}_k$ the technologies that use $k$ \\
+$\mathcal{M} = \mathcal{M}^T \cup \mathcal{M}^A \cup \mathcal{M}^S$ & Transport modes $m$: trucks, air, sea \\
+$\mathcal{A}_n$, $\mathcal{M}_{ij}$ & Arcs $(i,j)$ on which item $n$ may travel; modes of arc $(i,j)$: air between airports, sea between seaports, trucks otherwise \\
+$\mathcal{T}$ & Periods $t = 1, \dots, |\mathcal{T}|$, each of $\ell$ years \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{Parameters. A unit is one unit of an item (one thousand units in the case study).}\label{tab:parameters}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.3cm}L>{\raggedright\arraybackslash}p{2.6cm}@{}}
+\toprule
+Parameter & Description & Unit \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Demand, returns and bills of materials}} \\
+$D_{rpt}$; $I^0_{pw}$ & Demand for $p$ at $r$ in $t$; initial stock of $p$ at $w$ & units \\
+$\underline{\rho}_{rpt}$, $\overline{\rho}_{rpt}$; $\theta_p$ & Minimum and maximum fraction of the sales of $p$ at $r$ that return, $\theta_p$ periods later & --; periods \\
+$\eta_{kp}$; $b_{kp}$; $a_{upg}$ & Units of $k$ recovered per unit of $p$ returned; used per unit of $p$ remanufactured; units of $u$ per unit of $p$ made with $g$ & -- \\
+\multicolumn{3}{@{}l}{\emph{Capacities}} \\
+$\underline{S}_{su}$, $\overline{S}_{su}$ & Minimum order and capacity of $s$ for $u$, per period & units \\
+$\underline{Q}_g$, $\overline{Q}_g$; $\underline{R}_l$, $\overline{R}_l$ & Minimum use and capacity of $g$ and of $l$, per period & units \\
+$\underline{I}_{pw}$, $\overline{I}_{pw}$ & Minimum and maximum stock of $p$ at an open $w$ & units \\
+$\underline{A}_i$, $\overline{A}_i$; $\alpha_n$; $\kappa$ & Minimum and maximum floor area; area per unit of $n$; stock rotations per period & m$^2$; m$^2$/unit; -- \\
+$\omega_n$; $\delta_{ij}$ & Weight of a unit of $n$; distance from $i$ to $j$ & kg; km \\
+$\underline{X}_m$, $\overline{X}_m$; $\overline{C}_m$ & Minimum and maximum load of a truck trip; air or sea capacity contracted per arc and period & kg \\
+$B_{ijm}$; $\overline{V}_{im}$ & Upper bounds on the trips per period and on the trucks at $i$ (from the capacities) & trips; trucks \\
+$\nu_m$, $\hat{H}_m$, $\lambda_m$ & Truck speed, driving hours per truck and period, distance factor (outbound and return) & km/h; h; -- \\
+\multicolumn{3}{@{}l}{\emph{Costs}} \\
+$c^{\mathrm{raw}}_{su}$; $c^{\mathrm{rec}}_k$; $c^{p}_g$; $c^{r}_l$; $h_p$ & Purchase of $u$ from $s$; acquisition of a returned unit of $k$; production; remanufacturing; holding per period & \EUR/unit \\
+$c^{s}_m$; $c^{t}_m$; $c^{h}_m$ & Air or sea freight; truck trip; hub handling & \EUR/(kg$\cdot$km); \EUR/km; \EUR/kg \\
+$c^{a}_i$; $\Phi^{g}_g$, $\Phi^{l}_l$, $\Phi^{m}$; $f_h$; $\hat{B}$ & Construction; technology investment; truck price; hub fee per period; truck budget & \EUR/m$^2$; \EUR \\
+$\pi_i$; $\gamma_i$, $\gamma^{s}_i$, $\gamma_g$, $\gamma_l$, $\gamma_m$; $\Omega$ & Wage at $i$; workers per open facility, per m$^2$, per technology, per truck; working hours per period & \EUR/h; workers; h \\
+$r$; $d_t$; $\Delta$ & Annual interest rate; discount factor $(1+r)^{-t\ell}$; annuity $\Delta = \sum_t d_t$ & -- \\
+$\varphi^{f}$, $\varphi^{t}$, $\varphi^{v}$ & Capital multipliers of facilities, technologies, vehicles, $\varphi^c = \Delta\, \mathrm{CRF}\bigl((1+r)^\ell - 1, L_c/\ell\bigr)$ with lives $L_c$ of 20, 8 and 5 years and $\mathrm{CRF}(i, n) = i/(1 - (1+i)^{-n})$ & -- \\
+\multicolumn{3}{@{}l}{\emph{Emissions (climate change, ReCiPe 2008) and policy}} \\
+$e^{\mathrm{raw}}_{su}$; $e^{p}_g$; $e^{r}_l$ & Raw material $u$ from $s$; production with $g$; remanufacturing with $l$ & kg \CO/kg \\
+$e^{s}_m$; $\lambda^{e}_m$ & Transport emissions of $m$; their distance factor & kg \CO/(kg$\cdot$km); -- \\
+$e^{o}_i$; $\sigma$ & Construction emissions per m$^2$; share charged per period, $\sigma = \ell/20$ & kg \CO/m$^2$; -- \\
+$\tmin$, $\tmax$; $\xi$; $\mu$ & Tax range; relative and absolute weight of the tax in the regulator's objective & \EUR/t; --; kg per \EUR/t \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\caption{Decision variables. The leader's is $\tau$; the follower's is $y = (o, u^p, u^r, v, A, q, r, I, x, z, V)$.}\label{tab:variables}
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}lllL@{}}
+\toprule
+Variable & Domain & Unit & Description \\
+\midrule
+$\tau$ & $[\tmin, \tmax]$ & \EUR/t & Carbon tax rate (leader) \\
+$o_i$ & $\{0, 1\}$ & -- & Node $i \in \mathcal{O}$ is selected (supplier) or opened (factory, warehouse, hub); $o_i = 1$ for $i \in \mathcal{R}$ \\
+$u^p_{fg}$, $u^r_{fl}$ & $\{0, 1\}$ & -- & Technology $g$ or $l$ is installed at factory $f$ \\
+$v_{flt}$ & $\{0, 1\}$ & -- & Remanufacturing technology $l$ operates at $f$ in period $t$ \\
+$A_i$ & $\mathbb{R}_+$ & m$^2$ & Floor area of factory or warehouse $i$ \\
+$q_{pfgt}$, $r_{pflt}$ & $\mathbb{R}_+$ & units & Production and remanufacturing of $p$ at $f$ with $g$ or $l$ in $t$ \\
+$I_{pwt}$ & $\mathbb{R}_+$ & units & Stock of $p$ at $w$ at the end of $t$ \\
+$x_{nijmt}$ & $\mathbb{R}_+$ & units & Flow of item $n$ on arc $(i,j)$ by mode $m$ in $t$ \\
+$z_{ijmt}$, $V_{im}$ & $\mathbb{Z}_+$ & trips; trucks & Trips of truck mode $m$ on $(i,j)$ in $t$; trucks of mode $m$ based at $i$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The operator's problem}\label{sec:follower}
+
+At a tax $\tau$, the operator solves
+\begin{equation}\label{eq:follower}
+\min_{y \in Y} \; f(\tau, y) = c(y) + \frac{\tau}{1000}\,\beta(y),
+\end{equation}
+where $c$ is the discounted cost \eqref{eq:cost}, $\beta$ the discounted emissions \eqref{eq:emissions}, both written with the flows \eqref{eq:flows}, and $Y$ the set defined by \eqref{eq:balance-factory}--\eqref{eq:use}. Capital is charged at its rental equivalent, recurring fixed costs over the annuity $\Delta$, and flows at their discounted value; selecting a supplier carries no fixed cost:
+\begin{equation}\label{eq:cost}
+\begin{aligned}
+c(y) ={}& \varphi^{f} \sum_{i \in \mathcal{F} \cup \mathcal{W}} c^{a}_i A_i + \varphi^{t} \sum_{f \in \mathcal{F}} \Bigl( \sum_{g} \Phi^{g}_g u^{p}_{fg} + \sum_{l} \Phi^{l}_l u^{r}_{fl} \Bigr) + \varphi^{v} \sum_{i,\, m \in \mathcal{M}^T} \Phi^{m} V_{im} + \Delta \sum_{h \in \mathcal{H}} f_h\, o_h \\
+&+ \Delta\, \Omega \Bigl[ \sum_{i \in \mathcal{F} \cup \mathcal{W}} \pi_i \bigl( \gamma_i o_i + \gamma^{s}_i A_i \bigr) + \sum_{f \in \mathcal{F}} \pi_f \Bigl( \sum_g \gamma_g u^{p}_{fg} + \sum_l \gamma_l u^{r}_{fl} \Bigr) + \sum_{i,\, m \in \mathcal{M}^T} \pi_i \gamma_m V_{im} \Bigr] \\
+&+ \sum_{t \in \mathcal{T}} d_t \Bigl[ \sum_{p,f,g} c^{p}_g q_{pfgt} + \sum_{p,f,l} c^{r}_l r_{pflt} + \sum_{p,w} h_p I_{pwt} + \sum_{s,u} c^{\mathrm{raw}}_{su} \Xout_{ust} + \sum_{r,k} c^{\mathrm{rec}}_{k} \Xout_{krt} \\
+&\qquad + \sum_{n,(i,j),\, m \in \mathcal{M}^A \cup \mathcal{M}^S} c^{s}_m \omega_n \delta_{ij} x_{nijmt} + \sum_{(i,j),\, m \in \mathcal{M}^T} c^{t}_m \lambda_m \delta_{ij} z_{ijmt} \\
+&\qquad + \sum_{n,(i,j),m} c^{h}_m \omega_n \bigl( [i \in \mathcal{H}] + [j \in \mathcal{H}] \bigr) x_{nijmt} \Bigr].
+\end{aligned}
+\end{equation}
+The emissions of period $t$, the physical total $E$ and the discounted tax base $\beta$, all in kg \CO, are
+\begin{equation}\label{eq:emissions}
+\begin{aligned}
+E_t(y) ={}& \sigma \sum_{i \in \mathcal{F} \cup \mathcal{W}} e^{o}_i A_i + \sum_{p,f,g} e^{p}_g \omega_p q_{pfgt} + \sum_{p,f,l} e^{r}_l \omega_p r_{pflt} \\
+&+ \sum_{s,u} e^{\mathrm{raw}}_{su} \omega_u \Xout_{ust} + \sum_{n,(i,j),m} e^{s}_m \lambda^{e}_m \omega_n \delta_{ij} x_{nijmt}, \\
+E(y) ={}& \sum_{t \in \mathcal{T}} E_t(y), \qquad \beta(y) = \sum_{t \in \mathcal{T}} d_t\, E_t(y).
+\end{aligned}
+\end{equation}
+Construction emissions are amortised over the facilities' 20-year life, as their capital is. The feasible set $Y$ consists of the following constraints and the domains of Table~\ref{tab:variables}.
+
+\paragraph{Flow balances} Final products at factories, warehouses and retailers, every item at hubs, and recovered products, which pass through warehouses without being stored:
+\begin{align}
+& \Xin_{pft} + \textstyle\sum_{g \in \mathcal{G}_p} q_{pfgt} + \sum_{l \in \mathcal{L}_p} r_{pflt} = \Xout_{pft} && \forall p, f, t \label{eq:balance-factory}\\
+& I_{pwt} = I_{pw,t-1} + \Xin_{pwt} - \Xout_{pwt}, \quad I_{pw0} = I^0_{pw} && \forall p, w, t \label{eq:inventory}\\
+& \Xin_{prt} = D_{rpt} && \forall p, r, t \label{eq:demand}\\
+& \Xin_{nht} = \Xout_{nht}, \quad \Xin_{kwt} = \Xout_{kwt} && \forall n, h, k, w, t \label{eq:transit}
+\end{align}
+
+\paragraph{Supply, bills of materials and returns} A selected supplier ships between its minimum order and its capacity \parencite[eqs.~10--11]{mota2018sustainable}; retailers return between a minimum and a maximum fraction of lagged sales, with $D_{rp,t'} = 0$ for $t' \le 0$:
+\begin{align}
+& \underline{S}_{su}\, o_s \le \Xout_{ust} \le \overline{S}_{su}\, o_s && \forall s, u, t \label{eq:supply}\\
+& \textstyle\sum_{p} \sum_{g \in \mathcal{G}_p} a_{upg}\, q_{pfgt} = \Xin_{uft} && \forall u, f, t \label{eq:bom}\\
+& \textstyle\sum_{p} \eta_{kp}\, \underline{\rho}_{rpt}\, D_{rp,t-\theta_p} \le \Xout_{krt} \le \sum_{p} \eta_{kp}\, \overline{\rho}_{rpt}\, D_{rp,t-\theta_p} && \forall k, r, t \label{eq:returns}\\
+& \textstyle\sum_{p} \sum_{l \in \mathcal{L}_p} b_{kp}\, r_{pflt} = \Xin_{kft} && \forall k, f, t \label{eq:rem-bom}
+\end{align}
+
+\paragraph{Technologies} A technology is installed only at an open factory, at most one per product, and every open factory installs one:
+\begin{align}
+& u^{p}_{fg} \le o_f, \quad u^{r}_{fl} \le o_f, \quad v_{flt} \le u^{r}_{fl} && \forall f, g, l, t \label{eq:tech-open}\\
+& \textstyle\sum_{g \in \mathcal{G}_p} u^{p}_{fg} \le 1, \quad \sum_{l \in \mathcal{L}_p} u^{r}_{fl} \le 1 && \forall f, p \label{eq:tech-one}\\
+& \textstyle\sum_g u^{p}_{fg} + \sum_l u^{r}_{fl} \ge o_f && \forall f \label{eq:tech}\\
+& \underline{Q}_g\, u^{p}_{fg} \le \textstyle\sum_{p \in \mathcal{P}_g} q_{pfgt} \le \overline{Q}_g\, u^{p}_{fg} && \forall f, g, t \label{eq:prod-cap}\\
+& \underline{R}_l\, v_{flt} \le \textstyle\sum_{p \in \mathcal{P}_l} r_{pflt} \le \overline{R}_l\, v_{flt} && \forall f, l, t \label{eq:rem-cap}
+\end{align}
+
+\paragraph{Facilities} Stock and floor area are bounded at open facilities, and the floor area covers the items entering the facility, at their area per unit over the stock rotation, plus the stock held \parencite[eq.~16]{mota2018sustainable}:
+\begin{align}
+& \underline{I}_{pw}\, o_w \le I_{pwt} \le \overline{I}_{pw}\, o_w && \forall p, w, t \label{eq:stock}\\
+& \underline{A}_i\, o_i \le A_i \le \overline{A}_i\, o_i && \forall i \in \mathcal{F} \cup \mathcal{W} \label{eq:area}\\
+& \textstyle\sum_{n} \frac{\alpha_n}{\kappa} \Xin_{nit} + [i \in \mathcal{W}] \sum_{p} \alpha_p I_{pit} \le A_i && \forall i \in \mathcal{F} \cup \mathcal{W}, t \label{eq:area-use}
+\end{align}
+
+\paragraph{Transport} A truck mode carries what its integer trips allow, and trips require both endpoints to be open \parencite[eqs.~24--27]{mota2018sustainable}; air and sea carry at most the contracted capacity (eq.~28); goods change between road and air or sea only at hubs of that mode:
+\begin{align}
+& \underline{X}_m\, z_{ijmt} \le \textstyle\sum_n \omega_n x_{nijmt} \le \overline{X}_m\, z_{ijmt}, \notag\\
+& z_{ijmt} \le B_{ijm}\, o_i, \quad z_{ijmt} \le B_{ijm}\, o_j && \forall (i,j),\, m \in \mathcal{M}_{ij} \cap \mathcal{M}^T,\, t \label{eq:trucks}\\
+& \textstyle\sum_n \omega_n x_{nijmt} \le \overline{C}_m\, o_i, \quad \sum_n \omega_n x_{nijmt} \le \overline{C}_m\, o_j && \forall (i,j),\, m \in \mathcal{M}_{ij} \setminus \mathcal{M}^T,\, t \label{eq:contracted}\\
+& \textstyle\sum_{i \notin \mathcal{H}^{\chi},\, m \notin \mathcal{M}^{\chi}} x_{nihmt} = \sum_{j \in \mathcal{H}^{\chi},\, m \in \mathcal{M}^{\chi}} x_{nhjmt}, \notag\\
+& \textstyle\sum_{i \in \mathcal{H}^{\chi},\, m \in \mathcal{M}^{\chi}} x_{nihmt} = \sum_{j \notin \mathcal{H}^{\chi},\, m \notin \mathcal{M}^{\chi}} x_{nhjmt} && \forall \chi \in \{A, S\},\, h \in \mathcal{H}^{\chi},\, n,\, t \label{eq:hubs}
+\end{align}
+
+\paragraph{Fleet and use of open nodes} Trucks are based at open nodes that send trips, their driving hours cover the trips, their purchase fits the budget, and every open node carries some flow:
+\begin{align}
+& V_{im} \le \overline{V}_{im}\, o_i, \quad V_{im} \le \overline{V}_{im} \textstyle\sum_{j, t} z_{ijmt}, \notag\\
+& \textstyle\sum_{j} \frac{\lambda_m \delta_{ij}}{\nu_m} z_{ijmt} \le \hat{H}_m V_{im} && \forall i,\, m \in \mathcal{M}^T,\, t \label{eq:fleet}\\
+& \textstyle\sum_{i,\, m \in \mathcal{M}^T} \Phi^{m} V_{im} \le \hat{B} \label{eq:budget}\\
+& \textstyle\sum_{n,t} \bigl( \Xin_{nit} + \Xout_{nit} \bigr) \ge o_i && \forall i \in \mathcal{O} \label{eq:use}
+\end{align}
+A facility that already exists has $o_i = 1$ and its area fixed. In the case study, truck and contracted capacities count units rather than kilograms, handling is charged per unit entering a hub from a non-hub node, and truck emissions count the outbound leg only ($\lambda^e_m = 1$), as in \textcite{mota2018sustainable}; elsewhere $\lambda^e_m = \lambda_m$.
+
+\paragraph{Valid inequalities} Three families tighten the linear relaxation of $Y$ without removing an integer point. Recovered products are collected and remanufactured in the same period, so at most
+\begin{equation}\label{eq:collectable}
+\hat{R}_{pt} = \min_{k:\, b_{kp} > 0} \frac{1}{b_{kp}} \sum_{r \in \mathcal{R}} \sum_{p'} \eta_{kp'}\, \overline{\rho}_{rp't}\, D_{rp',t-\theta_{p'}}
+\end{equation}
+units of $p$ can be remanufactured in period $t$ ($\hat{R}_{pt} = 0$ if no $k$ makes $p$). Let $\mathcal{R}^{+}$ be the retailers with a positive minimum return in some period and $\mathcal{O}^{T}$ the nodes all of whose outgoing arcs are truck arcs. The inequalities are
+\begin{align}
+& \textstyle\sum_{p \in \mathcal{P}_l} r_{pflt} \le \min\bigl( \overline{R}_l,\, \sum_{p \in \mathcal{P}_l} \hat{R}_{pt} \bigr)\, v_{flt} && \forall f, l, t \label{eq:vi-rem}\\
+& \textstyle\sum_{m} V_{im} \ge 1 && \forall i \in \mathcal{R}^{+} \cap \mathcal{O}^{T} \notag\\
+& \textstyle\sum_{m} V_{im} \ge o_i && \forall i \in (\mathcal{S} \cup \mathcal{F}) \cap \mathcal{O}^{T} \notag\\
+& \textstyle\sum_{f, m} V_{fm} \ge 1 && \text{if } \mathcal{F} \subseteq \mathcal{O}^{T},\ \textstyle\sum_{r,p,t} D_{rpt} > \sum_{p,w} I^0_{pw} \label{eq:vi-truck}\\
+& \textstyle\sum_{f} \sum_{l \in \mathcal{L}_k} v_{flt} \ge 1 && \forall k, t: \textstyle\sum_{r,p} \eta_{kp}\, \underline{\rho}_{rpt}\, D_{rp,t-\theta_p} > 0 \notag\\
+& \textstyle\sum_{f} \sum_{g \in \mathcal{G}_p} u^{p}_{fg} \ge 1 && \forall p: \textstyle\sum_{r,t} D_{rpt} > \sum_w I^0_{pw} + \sum_t \hat{R}_{pt} \label{eq:vi-tech}
+\end{align}
+Every subproblem of Section~\ref{sec:methods} includes \eqref{eq:vi-rem}--\eqref{eq:vi-tech}, which use the bound \eqref{eq:collectable}.
+
+\subsection{The regulator's problem}\label{sec:leader}
+
+The regulator anticipates the operator's response \eqref{eq:follower} and solves the optimistic bilevel program
+\begin{equation}\label{eq:bilevel}
+\min_{\tau,\, y} \; F(\tau, y) = E(y) + \mu\,\tau \quad \text{s.t.} \quad \tmin \le \tau \le \tmax, \quad y \in \arg\min_{y' \in Y} f(\tau, y'). \tag{P1}
+\end{equation}
+Under (A5), when the follower has several optimal responses the one with the least $E$ is taken, which \eqref{eq:bilevel} expresses by minimising $F$ over $y$ as well. The weight $\mu = \xi\,\Eref$, in kg \CO\ per \EUR/t, states how much emission the regulator gives up to lower the tax by \EUR1/t; $\Eref$ is a lower bound on the emissions of any network (Section~\ref{sec:dbp}), and $\xi = 10^{-4}$ reads ``give up 1\% of the least emissions to avoid \EUR100/t of tax''. As $\xi \to 0$ the problem becomes lexicographic: the least emissions any tax in the range induces, then the lowest tax that induces them. A lower tax for the same abatement limits the transfer from the operator and the incentive to move emissions abroad \parencite{gugler2023carbon}. In computation, the follower's optimality holds only to a tolerance $\varepsilon' > 0$, and the $\varepsilon'$-optimistic problem lets the follower choose any response within $\varepsilon'$ of its optimum \parencite{mitsos2008global}.
+
+\subsection{Structure of the solutions}\label{sec:structure}
+
+The leader's variable appears only in the follower's objective, and the follower's feasible set does not depend on it. The properties of the follower's value function below are classical in parametric integer programming \parencite{geoffrion1977parametric,jenkins1982parametric}; Proposition~\ref{prop:structure} draws their consequences for the leader.
 
 \begin{proposition}\label{prop:structure}
-Let $Y$ be nonempty and bounded, with integer variables taking finitely many values, and let $c$, $\beta$ and $E$ be linear in $y$. Let $\phi(\tau) = \min \{f(\tau, y) : y \in Y\}$, let $\Psi(\tau)$ be its set of minimisers, and let $E^\circ(\tau) = \min \{E(y) : y \in \Psi(\tau)\}$ be the emissions of the optimistic response.
+Let $Y$ be nonempty and bounded, with integer variables taking finitely many values. Let $\phi(\tau) = \min \{f(\tau, y) : y \in Y\}$, let $\Psi(\tau)$ be its set of minimisers, and let $E^\circ(\tau) = \min \{E(y) : y \in \Psi(\tau)\}$.
 \begin{enumerate}
 \item[(a)] $\phi$ is concave, continuous and piecewise linear on $[\tmin, \tmax]$, with finitely many break points $b_1 < \dots < b_m$ in $(\tmin, \tmax)$.
-\item[(b)] On each open interval between consecutive points of $\{\tmin, b_1, \dots, b_m, \tmax\}$, $\Psi(\tau)$ and $E^\circ(\tau)$ are constant. At each end of such an interval, $\Psi$ contains the interval's set, so $E^\circ$ at a break point is at most its value on either adjacent interval.
-\item[(c)] The optimistic problem $\min \{E^\circ(\tau) + \mu\,\tau : \tau \in [\tmin, \tmax]\}$ has an optimal solution, and every optimal tax lies in $\{\tmin, b_1, \dots, b_m\}$.
+\item[(b)] On each open interval between consecutive points of $\{\tmin, b_1, \dots, b_m, \tmax\}$, $\Psi$ and $E^\circ$ are constant; at each end of such an interval, $\Psi$ contains the interval's set, so $E^\circ$ at a break point is at most its value on either adjacent interval.
+\item[(c)] Problem \eqref{eq:bilevel} has an optimal solution, and every optimal tax lies in $\{\tmin, b_1, \dots, b_m\}$.
 \item[(d)] For $\varepsilon' > 0$, the $\varepsilon'$-optimistic problem $\min \{E(y) + \mu\,\tau : \tau \in [\tmin, \tmax],\ y \in Y,\ f(\tau, y) \le \phi(\tau) + \varepsilon'\}$ has an optimal solution.
 \end{enumerate}
 \end{proposition}
-
 \begin{proof}
-(a) Fixing the integer variables at one of their finitely many values leaves a bounded polyhedron, on which a linear function attains its minimum at one of finitely many vertices. Hence $\phi$ is the minimum of finitely many affine functions $\tau \mapsto c(v) + \tau\,\beta(v)/1000$, one per vertex $v$, which proves (a). (b) Let $J$ be such an interval, on which $\phi$ is affine, and let $y \in \Psi(\tau_0)$ for some $\tau_0$ in $J$. The affine function $\tau \mapsto f(\tau, y)$ lies above $\phi$ and touches it at the interior point $\tau_0$, so it coincides with $\phi$ on $J$ and, by continuity, at both ends of $J$. Hence $y \in \Psi(\tau)$ for every $\tau$ in the closure of $J$. Each $\Psi(\tau)$ is a finite union of faces of bounded polyhedra, so the minimum that defines $E^\circ$ is attained. (c) On $J$ the leader's objective equals $E^\circ(J) + \mu\,\tau$. Since $\mu > 0$, it exceeds its value at the left end $a$ of $J$, where $E^\circ(a) \le E^\circ(J)$ by (b). The minimum over $[\tmin, \tmax]$ is therefore the least of finitely many values, taken at $\tmin$ or at a break point. (d) Since $f$ and $\phi$ are continuous and $Y$ is closed and bounded, the feasible set is nonempty and compact, and the objective is continuous.
+(a) Fixing the integer variables at one of their finitely many values leaves a bounded polyhedron, on which a linear function attains its minimum at one of finitely many vertices; $\phi$ is therefore the minimum of finitely many affine functions $\tau \mapsto c(v) + \tau\,\beta(v)/1000$. (b) Let $J$ be such an interval, on which $\phi$ is affine, and let $y \in \Psi(\tau_0)$ with $\tau_0 \in J$. The affine function $\tau \mapsto f(\tau, y)$ lies above $\phi$ and touches it at the interior point $\tau_0$, so it coincides with $\phi$ on $J$ and, by continuity, at both ends of $J$; hence $y \in \Psi(\tau)$ on the closure of $J$. Each $\Psi(\tau)$ is a finite union of faces of bounded polyhedra, so the minimum that defines $E^\circ$ is attained. (c) On $J$ the leader's objective equals $E^\circ(J) + \mu\,\tau$, which, since $\mu > 0$, exceeds its value at the left end $a$ of $J$, where $E^\circ(a) \le E^\circ(J)$ by (b). The minimum over $[\tmin, \tmax]$ is the least of finitely many values, taken at $\tmin$ or at a break point. (d) The feasible set is nonempty and compact, since $f$ and $\phi$ are continuous and $Y$ is closed and bounded, and the objective is continuous.
 \end{proof}
 
-Two remarks follow. First, responses in $\Psi(\tau)$ share the cost and the tax base but can differ in $E$, because $\beta$ discounts emissions and $E$ does not; the optimistic tie-break is therefore needed even between break points. Second, under the pessimistic convention $E$ at a break point would take the larger of the adjacent values, and the infimum would in general not be attained. Proposition~\ref{prop:structure}(c) reduces the leader's choice to finitely many candidates; Section~\ref{sec:enumeration} discusses what this implies for the choice of method.
-
-The break points are the operator's \emph{switching prices}: the taxes at which it moves from one network to another. Their level depends on how emission-intensive the operator is, in a simple way.
+The break points are the operator's \emph{switching prices}: the taxes at which it moves from one network to another. Between two of them a higher tax changes nothing. Their level depends on the operator's emission intensity in a simple way.
 
 \begin{proposition}\label{prop:scale}
-Let every emission factor be multiplied by $k > 0$, so that $E$ and $\beta$ become $kE$ and $k\beta$ while $c$ is unchanged, and let $\phi_k$, $\Psi_k$ be the follower's value function and response set after scaling. Then
-\begin{enumerate}
-\item[(a)] $\Psi_k(\tau) = \Psi(k\tau)$ and $\phi_k(\tau) = \phi(k\tau)$, so every break point is divided by $k$;
-\item[(b)] at $\tau$ after scaling and at $k\tau$ before, each response has the same cost and the same tax bill, $\tau\,k\beta(y)/1000$, so the tax bill as a share of the operator's cost is the same;
-\item[(c)] with $\mu = \xi\,\Eref$, the regulator's problem after scaling is the problem before scaling with the weight $\xi/k$ on the range $[k\tmin, k\tmax]$, its optimal tax divided by $k$.
-\end{enumerate}
+Multiply every emission factor by $k > 0$, so that $E$ and $\beta$ become $kE$ and $k\beta$ while $c$ is unchanged, and let $\phi_k$ and $\Psi_k$ be the follower's value function and response set after scaling. Then (a) $\Psi_k(\tau) = \Psi(k\tau)$ and $\phi_k(\tau) = \phi(k\tau)$, so every switching price is divided by $k$; (b) at $\tau$ after scaling and $k\tau$ before, each response has the same cost and the same tax bill, so the tax bill as a share of cost is the same; and (c) with $\mu = \xi\,\Eref$, the regulator's problem after scaling is the problem before scaling with weight $\xi/k$ on the range $[k\tmin, k\tmax]$, its optimal tax divided by $k$.
 \end{proposition}
 \begin{proof}
-(a) and (b): $c(y) + \tau\,k\beta(y)/1000 = f(k\tau, y)$ for every $y \in Y$. (c) $\Eref$ scales by $k$, hence so does $\mu$, and $kE(y) + k\mu\,\tau = k\,[E(y) + (\mu/k)\,(k\tau)]$; substituting $\tau' = k\tau$ gives the problem before scaling with weight $\mu/k$ over $\tau' \in [k\tmin, k\tmax]$.
+(a) and (b): $c(y) + \tau\,k\beta(y)/1000 = f(k\tau, y)$ for every $y \in Y$. (c) $\Eref$, and hence $\mu$, scale by $k$, and $kE(y) + k\mu\,\tau = k\,[E(y) + (\mu/k)\,(k\tau)]$; substituting $\tau' = k\tau$ gives the problem before scaling with weight $\mu/k$ on $\tau' \in [k\tmin, k\tmax]$.
 \end{proof}
 
-Proposition~\ref{prop:scale} separates what a tax level means from the data that set it. A switching price found on an operator that emits $\iota$ kg \CO\ per euro of cost corresponds to a tax $\iota/\iota'$ times higher on an otherwise identical operator that emits $\iota'$, at the same tax bill relative to cost. We use the bill share, $\tau\,\beta(y)/(1000\,c(y))$, to compare switching prices across instances and with an observed carbon price (Section~\ref{sec:anticipation}).
+\begin{corollary}\label{cor:bill}
+Let $b$ be a switching price between networks $y^-$ and $y^+$ with $\beta(y^+) < \beta(y^-)$. The tax bill of $y^+$ at $b$ as a share of its cost is $\bigl[(c(y^+) - c(y^-))/c(y^+)\bigr] \big/ \bigl[(\beta(y^-) - \beta(y^+))/\beta(y^+)\bigr]$: the relative cost increase of the switch over its relative reduction of the tax base.
+\end{corollary}
+\begin{proof}
+At $b$ the two responses have equal follower value, $c(y^+) + b\,\beta(y^+)/1000 = c(y^-) + b\,\beta(y^-)/1000$, so $b/1000 = (c(y^+) - c(y^-))/(\beta(y^-) - \beta(y^+))$; multiply by $\beta(y^+)/c(y^+)$.
+\end{proof}
+
+The bill share at a switching price is therefore a property of the operator's cost structure, invariant to the scale of the emission factors (Proposition~\ref{prop:scale}(b)). We use it to compare switching prices across operators of different emission intensity and with an observed carbon price.
 
 % =====================================================================================
-\section{The deterministic bounding procedure}\label{sec:dbp}
+\section{Solution methods}\label{sec:methods}
 
-\subsection{Foundations}\label{sec:foundations}
-
-The DBP of \textcite{soares2021deterministic} generates lower and upper bounds on the leader's optimal value until they meet. Like the bounding algorithms of \textcite{mitsos2008global} and \textcite{mitsos2010global}, it alternates a relaxation, tightened by cuts on the follower's value function, with the follower's response at the relaxation's proposal. Their leader maximises and ours minimises, so the roles of the bounds are swapped: here the relaxation gives the lower bound and the follower's response the upper bound. The optimistic bilevel problem is
-\begin{equation}
-\min_{\tau,\, y} \; F(\tau, y) = E(y) + \mu\,\tau \quad \text{s.t.} \quad \tmin \le \tau \le \tmax, \quad y \in \arg\min_{y' \in Y} f(\tau, y'), \tag{P1}\label{P1}
-\end{equation}
-with $f(\tau, y) = c(y) + \tau\,\beta(y)/1000$. Dropping the follower's optimality gives the high-point relaxation (HPR)
-\begin{equation}
-\min_{\tau,\, y} \; F(\tau, y) \quad \text{s.t.} \quad \tmin \le \tau \le \tmax, \quad y \in Y, \tag{P2}\label{P2}
-\end{equation}
-whose optimal value is a lower bound LB on that of \eqref{P1}. For a tax $\tau_k$, the follower's problem
+Both methods evaluate a tax $\tau_k$ by the same two-stage solve. The follower's problem
 \begin{equation}
 f^*_k = \min_{y \in Y} f(\tau_k, y) \tag{P3}\label{P3}
 \end{equation}
-gives its optimal value, and its optimistic response solves
+gives its optimal value, and the optimistic response solves
 \begin{equation}
 \min_{y \in Y} \; E(y) \quad \text{s.t.} \quad f(\tau_k, y) \le f^*_k + \varepsilon' \, |f^*_k|. \tag{P4}\label{P4}
 \end{equation}
+With $\varepsilon' = 0$, the response $y_k$ of \eqref{P4} is optimal for the follower and, among its optimal responses, has the least emissions, so $(\tau_k, y_k)$ is feasible for \eqref{eq:bilevel}. A tolerance $\varepsilon' > 0$ relative to $f^*_k$ avoids losing feasibility to floating-point arithmetic \parencite{mitsos2010global,soares2021deterministic}; the problem solved is then the $\varepsilon'$-optimistic one.
 
-\begin{lemma}\label{lem:ub}
-Let $y_k$ solve \eqref{P4} with $\varepsilon' = 0$. Then $(\tau_k, y_k)$ is feasible for \eqref{P1}, and $F(\tau_k, y_k)$ is an upper bound UB on its optimal value.
+\subsection{Enumeration of the switching prices}\label{sec:enumeration}
+
+By Proposition~\ref{prop:structure}(c), the leader evaluates $E^\circ(\tau) + \mu\,\tau$ at $\tmin$ and at the break points of $\phi$ and keeps the best. Each response $y$ defines a line $\tau \mapsto c(y) + \tau\,\beta(y)/1000$, and $\phi$ is their lower envelope. The dichotomic scheme of \textcite{aneja1979bicriteria} finds the break points (Algorithm~\ref{alg:enum}): it evaluates both ends of the tax range, then the tax where the two lines cross. If the response there lies on one of the two lines, the crossing is a break point; otherwise a new line is optimal in between, and the scheme recurses on both halves. The same structure underlies multi-parametric approaches to bilevel MILPs \parencite{avraamidou2019multi} and value functions parameterised by the objective \parencite{tavasloglu2019solving}.
+
+\begin{algorithm}[!htbp]
+\caption{Enumeration of the switching prices.}\label{alg:enum}
+\begin{algorithmic}[1]
+\Require tolerances $\varepsilon'$, $\delta_\tau$; weight $\mu$; run budget
+\State Evaluate $\tmin$ and $\tmax$ by \eqref{P3}--\eqref{P4}, giving $y_{\min}$ and $y_{\max}$; candidates $\gets \{(\tmin, y_{\min})\}$; pending $\gets \{(\tmin, y_{\min}, \tmax, y_{\max})\}$
+\While{pending is not empty and the budget is not spent}
+  \State Take $(a, y_a, b, y_b)$ from pending
+  \If{$c(y_a) = c(y_b)$ and $\beta(y_a) = \beta(y_b)$, or $b - a \le \delta_\tau$} \textbf{continue} \EndIf
+  \State $\tau_\times \gets 1000\,(c(y_b) - c(y_a))/(\beta(y_a) - \beta(y_b))$; evaluate $\tau_\times$, giving $y_\times$
+  \If{$y_\times$ lies on the line of $y_a$ or of $y_b$, or its solve stopped on its time limit}
+     \State Add $(\tau_\times, y_\times)$ to the candidates \Comment{a switching price}
+  \Else
+     \State Add $(a, y_a, \tau_\times, y_\times)$ and $(\tau_\times, y_\times, b, y_b)$ to pending
+  \EndIf
+\EndWhile
+\State \Return the candidate with the least $E(y) + \mu\,\tau$ (ties: the lower tax), and all candidates
+\end{algorithmic}
+\end{algorithm}
+
+\begin{lemma}\label{lem:enum}
+Let every follower solve be exact with $\varepsilon' = 0$, let $N$ lines be optimal somewhere in $[\tmin, \tmax]$, and let the budget not bind. Then Algorithm~\ref{alg:enum} stops after at most $2N - 1$ evaluations, its candidates are $\tmin$ and every break point of $\phi$, and the candidate it returns is optimal for \eqref{eq:bilevel}.
 \end{lemma}
 \begin{proof}
-The constraint of \eqref{P4} makes $y_k$ optimal for \eqref{P3}; its objective selects, among the follower's optimal responses, the one with the least emissions, which minimises $F$ at $\tau_k$.
+Two evaluations are made at the ends. Each later evaluation either reveals a line not seen before, at most $N - 2$ times, or certifies that the crossing of two lines adjacent on the envelope is a break point, at most $N - 1$ times. Every break point is the crossing of two adjacent lines, and the recursion reaches every such pair. At each candidate the evaluation returns the optimistic response, hence $E^\circ$, and Proposition~\ref{prop:structure}(c) completes the proof.
 \end{proof}
 
-A small tolerance $\varepsilon' > 0$, relative to the follower's objective, avoids losing feasibility to floating-point arithmetic, as in \textcite{soares2021deterministic} and \textcite{mitsos2010global}; the problem solved is then the $\varepsilon'$-optimistic one of Section~\ref{sec:bilevel}. Given the responses $y_1, \dots, y_K$ obtained so far, the HPR with value-function cuts is
+Two responses lie on the same line when their costs and tax bases agree to round-off ($10^{-6}$ relative), not to the MIP gap: lines whose values differ by less than the gap can differ widely in emissions. When a follower solve stops on its time limit, its line is not proven optimal; Algorithm~\ref{alg:enum} keeps the crossing as a candidate without recursing, and the result is not certified. A search stopped by its budget returns the best of every tax evaluated, a feasible point without a lower bound. The candidates and their emissions form the staircase from which a regulator reads what each tax level buys.
+
+\subsection{The deterministic bounding procedure}\label{sec:dbp}
+
+The DBP of \textcite{soares2021deterministic} generates lower and upper bounds on the leader's value until they meet. Like the bounding algorithms of \textcite{mitsos2008global,mitsos2010global}, it alternates a relaxation, tightened by cuts on the follower's value function, with the follower's response at the relaxation's proposal. Our leader minimises, so the relaxation gives the lower bound and the response the upper bound. Dropping the follower's optimality from \eqref{eq:bilevel} gives the high-point relaxation (HPR)
 \begin{equation}
-\begin{aligned}
-\min_{\tau,\, y} \; & F(\tau, y) \\
-\text{s.t.} \; & \tmin \le \tau \le \tmax, \quad y \in Y, \quad f(\tau, y) \le f(\tau, y_k), \; k = 1, \dots, K.
-\end{aligned} \tag{P5}\label{P5}
+\min_{\tau,\, y} \; F(\tau, y) \quad \text{s.t.} \quad \tmin \le \tau \le \tmax, \quad y \in Y, \tag{P2}\label{P2}
+\end{equation}
+and, given the responses $y_1, \dots, y_K$ obtained so far, the HPR with value-function cuts
+\begin{equation}
+\min_{\tau,\, y} \; F(\tau, y) \quad \text{s.t.} \quad \tmin \le \tau \le \tmax, \quad y \in Y, \quad f(\tau, y) \le f(\tau, y_k), \; k = 1, \dots, K. \tag{P5}\label{P5}
 \end{equation}
 
 \begin{lemma}\label{lem:lb}
-The optimal value of \eqref{P5} is a lower bound on that of \eqref{P1}.
+The optimal value of \eqref{P5} is a lower bound on that of \eqref{eq:bilevel}.
 \end{lemma}
 \begin{proof}
-$Y$ does not depend on $\tau$, so every $y_k$ is feasible for the follower at every tax. For any $\tau$, the follower's optimal value is therefore at most $f(\tau, y_k)$, and every optimal response satisfies the cuts. No feasible point of \eqref{P1} is removed, and \eqref{P5} is a relaxation of \eqref{P1}.
+$Y$ does not depend on $\tau$, so every $y_k$ is feasible for the follower at every tax; the follower's optimal value at $\tau$ is at most $f(\tau, y_k)$, and every optimal response satisfies the cuts. \eqref{P5} thus relaxes \eqref{eq:bilevel}.
 \end{proof}
 
 \begin{lemma}\label{lem:stop}
-Let $\tau_{K+1}$ be the tax of an optimal solution $(\tau_{K+1}, y')$ of \eqref{P5} with $K$ cuts, and let every subproblem be solved exactly with $\varepsilon' = 0$. If $\tau_{K+1} = \tau_K$, an optimal solution of \eqref{P1} has been found.
+Let every subproblem be solved exactly with $\varepsilon' = 0$, and let $(\tau_{K+1}, y')$ solve \eqref{P5} with $K$ cuts. If $\tau_{K+1} = \tau_K$, then $(\tau_K, y_K)$ is optimal for \eqref{eq:bilevel}.
 \end{lemma}
 \begin{proof}
-\eqref{P5} contains $f(\tau, y) \le f(\tau, y_K)$, so at $\tau_K$ the point $y'$ is optimal for the follower. Its value $F(\tau_K, y')$ is the optimum of a relaxation, hence at most the optimum of \eqref{P1}, and at least $F(\tau_K, y_K)$ by the choice of $y_K$ in \eqref{P4}. The bounds coincide.
+The cut $f(\tau, y) \le f(\tau, y_K)$ makes $y'$ optimal for the follower at $\tau_K$. Its value $F(\tau_K, y')$ is the optimum of a relaxation, hence at most the optimum of \eqref{eq:bilevel}, and at least $F(\tau_K, y_K)$ by \eqref{P4}.
 \end{proof}
-
-Unlike \textcite{soares2021deterministic}, we add no $\varepsilon'$ to the right-hand side of the cuts. The response $y_k$ already lies up to $\varepsilon'$ above the follower's optimum, and a second tolerance in the cut would let \eqref{P5} propose a tax at which a lower-emission response lies outside the tie-break set of \eqref{P4}; the follower would never return it, and the procedure would stall. Since the tax is continuous, \eqref{P5} returns $\tau_K$ again only up to the solver's tolerances; we apply the test of Lemma~\ref{lem:stop} when $|\tau_{K+1} - \tau_K| \le \delta_\tau = 0.001$~\EUR/t.
 
 \begin{lemma}\label{lem:finite}
 Let every subproblem be solved exactly with $\varepsilon' = 0$, and let \eqref{P4} return an extreme point of its feasible set. Then the bounds meet after finitely many iterations.
 \end{lemma}
 \begin{proof}
-For a fixed value of the integer variables, the feasible set of \eqref{P4} is empty or a face of a bounded polyhedron, so its extreme points are vertices of that polyhedron; the responses therefore belong to a finite set. Suppose the response $y_{K+1}$ at $\tau_{K+1}$ equals an earlier response $y_j$, $j \le K$. The point $(\tau_{K+1}, y')$ proposed by \eqref{P5} satisfies $f(\tau_{K+1}, y') \le f(\tau_{K+1}, y_j) = \phi(\tau_{K+1})$, so $y'$ is optimal for the follower at $\tau_{K+1}$, and $E(y') \ge E(y_{K+1})$ by \eqref{P4}. Hence $\mathrm{LB} \ge F(\tau_{K+1}, y') \ge F(\tau_{K+1}, y_{K+1}) \ge \mathrm{UB}$, and the bounds meet. A new response appears at every iteration until then, which can happen only finitely often.
+For fixed integer variables, the feasible set of \eqref{P4} is empty or a face of a bounded polyhedron, so the responses belong to a finite set of vertices. If the response $y_{K+1}$ at $\tau_{K+1}$ equals an earlier $y_j$, the point $(\tau_{K+1}, y')$ proposed by \eqref{P5} satisfies $f(\tau_{K+1}, y') \le f(\tau_{K+1}, y_j) = \phi(\tau_{K+1})$, so $y'$ is optimal for the follower and $E(y') \ge E(y_{K+1})$; hence $\mathrm{LB} \ge F(\tau_{K+1}, y') \ge F(\tau_{K+1}, y_{K+1}) \ge \mathrm{UB}$. A new response appears at every iteration until then, which can happen only finitely often.
 \end{proof}
 
-Lemmas~\ref{lem:ub} and~\ref{lem:stop} assume exact solves, whereas every subproblem is solved to a relative mixed-integer programming (MIP) gap. The next result states what the bounds certify at the tolerances actually used.
+Unlike \textcite{soares2021deterministic}, we add no $\varepsilon'$ to the cuts: $y_k$ already lies up to $\varepsilon'$ above the follower's optimum, and a second tolerance would let \eqref{P5} propose a tax at which a lower-emission response lies outside the tie-break set of \eqref{P4}, so the procedure would stall. Since the tax is continuous, \eqref{P5} re-proposes $\tau_K$ only up to the solver's tolerances, and we apply Lemma~\ref{lem:stop} when $|\tau_{K+1} - \tau_K| \le \delta_\tau$. Every subproblem is solved to a relative MIP gap, and the next result states what the bounds then certify.
 
 \begin{proposition}\label{prop:certificate}
-Suppose each solve of \eqref{P3} at $\tau_k$ returns a value $\bar f_k$ with relative MIP gap at most $\bar g$, so that $\phi(\tau_k) \ge \bar f_k - \bar g\,|\bar f_k|$, and that its tie-break response satisfies $f(\tau_k, y_k) \le \bar f_k + \varepsilon'\,|\bar f_k|$. Let LB be a dual bound of \eqref{P5}, let $\mathrm{UB} = F(\hat\tau, \hat y)$ be the least value evaluated, attained by the incumbent $(\hat\tau, \hat y)$, and let $v^*$ be the optimal value of \eqref{P1}. Then
-\begin{enumerate}
-\item[(i)] $\mathrm{LB} \le v^*$;
-\item[(ii)] $f(\hat\tau, \hat y) \le \phi(\hat\tau) + (\bar g + \varepsilon')\,|\bar f|$, where $\bar f$ is the follower's value at $\hat\tau$; and
-\item[(iii)] if $(\mathrm{UB} - \mathrm{LB})/\max(1, |\mathrm{UB}|) \le \varepsilon$, then $F(\hat\tau, \hat y) \le v^* + \varepsilon \max(1, |\mathrm{UB}|)$.
-\end{enumerate}
+Let each solve of \eqref{P3} at $\tau_k$ return a value $\bar f_k$ with relative MIP gap at most $\bar g$, so that $\phi(\tau_k) \ge \bar f_k - \bar g\,|\bar f_k|$, and let its response satisfy $f(\tau_k, y_k) \le \bar f_k + \varepsilon'\,|\bar f_k|$. Let LB be a dual bound of \eqref{P5}, $\mathrm{UB} = F(\hat\tau, \hat y)$ the least value evaluated, and $v^*$ the optimal value of \eqref{eq:bilevel}. Then (i) $\mathrm{LB} \le v^*$; (ii) $f(\hat\tau, \hat y) \le \phi(\hat\tau) + (\bar g + \varepsilon')\,|\bar f|$, with $\bar f$ the follower's value at $\hat\tau$; and (iii) if $(\mathrm{UB} - \mathrm{LB})/\max(1, |\mathrm{UB}|) \le \varepsilon$, then $F(\hat\tau, \hat y) \le v^* + \varepsilon \max(1, |\mathrm{UB}|)$.
 \end{proposition}
 \begin{proof}
-(i) The proof of Lemma~\ref{lem:lb} uses only $y_k \in Y$, so \eqref{P5} relaxes \eqref{P1} whatever the quality of the responses $y_k$; a dual bound of \eqref{P5} is at most its optimal value, hence at most $v^*$. (ii) Combine the two assumptions at $\hat\tau$. (iii) $\mathrm{UB} \le \mathrm{LB} + \varepsilon \max(1, |\mathrm{UB}|) \le v^* + \varepsilon \max(1, |\mathrm{UB}|)$ by (i).
+(i) Lemma~\ref{lem:lb} uses only $y_k \in Y$, so \eqref{P5} relaxes \eqref{eq:bilevel} whatever the quality of the responses, and a dual bound is at most its optimal value. (ii) Combine the two assumptions at $\hat\tau$. (iii) $\mathrm{UB} \le \mathrm{LB} + \varepsilon \max(1, |\mathrm{UB}|) \le v^* + \varepsilon \max(1, |\mathrm{UB}|)$ by (i).
 \end{proof}
 
-The incumbent is thus a response that is optimal for the operator to within the MIP gap plus $\varepsilon'$, and whose leader value exceeds the exact optimistic optimum by at most $\varepsilon$ in relative terms. This is what ``optimal to stated tolerances'' means in this paper. The two bounds refer to slightly different problems: LB to the exact one, UB to a nearly optimal response. The gap can therefore be negative by a round-off amount, as on \inst{STD_I25_M4_T12} (Table~\ref{tab:main}). With $\bar g = \varepsilon = 10^{-4}$ (Section~\ref{sec:results}), the final gap may coincide with the HPR's own MIP gap.
+The incumbent is thus optimal for the operator to within the MIP gap plus $\varepsilon'$, and its leader value exceeds the exact optimum by at most $\varepsilon$ in relative terms: this is what ``optimal to stated tolerances'' means here. The certificate bounds $F$, not $\tau$. Two taxes on the same plateau of $E^\circ$ differ in $F$ by $\mu\,|\Delta\tau|$, so the stopping test cannot separate taxes closer than $\varepsilon \max(1, |\mathrm{UB}|)/\mu \approx \varepsilon/\xi$, which is \EUR1/t at the settings of Section~\ref{sec:settings}.
 
-Proposition~\ref{prop:certificate} bounds $F$, not $\tau$. Two taxes on the same plateau of $E^\circ$ differ in $F$ by $\mu\,|\Delta\tau|$, so the stopping test cannot separate taxes closer than $\varepsilon \max(1, |\mathrm{UB}|)/\mu$. With $\mu = \xi\,\Eref$ (Section~\ref{sec:model}) and UB close to $\Eref$, this resolution is about $\varepsilon/\xi$, which is \EUR1/t for the settings of Section~\ref{sec:results}. The reported taxes are more stable than this worst case. When the MIP gap is tightened to $10^{-6}$, 51 of 52 small-instance runs return the same tax to within \EUR0.05/t, and with five solver seeds 19 of 20 runs return the same tax (Section~\ref{sec:robustness}).
+\paragraph{The bilinear relaxation} In \textcite{soares2021deterministic} prices multiply binary variables and the product is linearised exactly. Here the tax multiplies the continuous aggregate $\beta(y)$, so \eqref{P2} and \eqref{P5} contain $\tau\,\beta(y)$. We write it as one equality $p = \tau\,\beta$, shared by all cuts, which the solver relaxes by the envelopes of \textcite{mccormick1976computability} inside a spatial branch-and-bound. The envelopes are exact only at the corners of the operands' box, so we add the bounds
+\begin{equation}\label{eq:hpr-bounds}
+E(y) \ge (1 - \varepsilon')\,\Eref, \qquad d_{\min}\, (1 - \varepsilon')\,\Eref \le \beta(y) \le d_{\max}\, \Ebar, \qquad \tmin\, \beta_{\min} \le p \le \tmax\, \beta_{\max},
+\end{equation}
+where $\Eref$ is the dual bound of \eqref{P2} solved without the term $\mu\,\tau$, $\Ebar$ the emissions with every facility, technology, supplier and arc at capacity, $d_{\min}$ and $d_{\max}$ the smallest and largest discount factors, and $\beta_{\min}$, $\beta_{\max}$ the bounds on $\beta$. None of them removes a point of the HPR. With $\tmin = 0$, the lower McCormick inequality becomes $p \ge \beta_{\min}\,\tau$ instead of $p \ge 0$.
 
-\subsection{The algorithm}\label{sec:algorithm}
-
-The procedure follows the steps of \textcite[Section~3.2]{soares2021deterministic}, with the lower and upper bounds exchanged for a minimising leader (Algorithm~\ref{alg:dbp}). Step~1 first solves \eqref{P2} without the term $\mu\,\tau$; its dual bound $\Eref$ is a lower bound on the emissions of any network and sets $\mu = \xi\,\Eref$. When the gap closes, the incumbent satisfies Proposition~\ref{prop:certificate}(iii); it is classed as optimal if, in addition, $|\tau_{k+1} - \tau_k| \le \delta_\tau$ and no subproblem behind the bounds stopped on its time limit (Lemma~\ref{lem:stop}), and as $\varepsilon$-optimal if not.
+\paragraph{Subproblems that stop with a MIP gap} On the larger instances, subproblems reach their time limit before their MIP gap target, and we follow \textcite[Section~7]{soares2021deterministic} so that every bound reported remains a bound. LB is the HPR's proven dual bound, valid whatever its gap. If \eqref{P3} stops with value $\bar f$ and gap $g$, the subproblem
+\begin{equation}
+\min_{y \in Y,\, \zeta \ge 0} \; \zeta \quad \text{s.t.} \quad f(\tau_k, y) \le \bar f\,(1 - g) + \zeta \tag{P6}\label{P6}
+\end{equation}
+searches for a better response from the incumbent; such a response is not proven optimal, and the upper bound it supports is reported as not certified. The first time \eqref{P5} returns no point within its budget, its cuts become elastic:
+\begin{equation}
+\begin{aligned}
+\min_{\tau,\, y,\, \zeta} \; & F(\tau, y) + \Lambda \textstyle\sum_{k} \zeta_k \\
+\text{s.t.} \; & \tmin \le \tau \le \tmax, \; y \in Y, \; f(\tau, y) \le f(\tau, y_k) + \zeta_k, \; \zeta_k \ge 0, \; k = 1, \dots, K,
+\end{aligned} \tag{P5-D}\label{P5D}
+\end{equation}
+with $\Lambda = 10\,\Ebar$ per euro of violation, more than the range of $F$; points with $\zeta = 0$ keep their value, so the lower bound is not weakened. The run also stops after $s_{\max} = 10$ iterations in which neither bound changes, or when its budget is spent.
 
 \begin{algorithm}[!htbp]
-\caption{The DBP of \textcite{soares2021deterministic} as implemented here, for a minimising leader.}\label{alg:dbp}
+\caption{The DBP of \textcite{soares2021deterministic} for a minimising leader, as implemented.}\label{alg:dbp}
 \begin{algorithmic}[1]
-\Require tolerances $\varepsilon$, $\varepsilon'$, $\delta_\tau$; relative weight $\xi$; stagnation limit $s_{\max} = 10$; run budget
-\State Solve \eqref{P2} without $\mu\,\tau$; set $\Eref \gets$ its dual bound and $\mu \gets \xi\,\Eref$
-\State Solve \eqref{P2}; set LB $\gets$ its dual bound, $\tau_1 \gets$ its tax, UB $\gets +\infty$, $k \gets 1$
+\Require tolerances $\varepsilon$, $\varepsilon'$, $\delta_\tau$; relative weight $\xi$; stagnation limit $s_{\max}$; run budget
+\State Solve \eqref{P2} without $\mu\,\tau$; $\Eref \gets$ its dual bound; $\mu \gets \xi\,\Eref$; add \eqref{eq:hpr-bounds}
+\State Solve \eqref{P2}; LB $\gets$ its dual bound; $\tau_1 \gets$ its tax; UB $\gets +\infty$; $k \gets 1$
 \Loop
-  \State Solve \eqref{P3} at $\tau_k$ to obtain $f^*_k$ \Comment{follower}
-  \State Solve \eqref{P4} at $\tau_k$ to obtain $y_k$ \Comment{optimistic response}
-  \If{$F(\tau_k, y_k) < \mathrm{UB}$}
-     \State UB $\gets F(\tau_k, y_k)$; incumbent $\gets (\tau_k, y_k)$ \Comment{ties keep the lower tax}
-  \EndIf
-  \State Add the cut $f(\tau, y) \le f(\tau, y_k)$ to \eqref{P5} and solve it
-  \State $\tau_{k+1} \gets$ its tax; LB $\gets \max(\mathrm{LB}, \text{its dual bound})$
+  \State Solve \eqref{P3} at $\tau_k$ (and \eqref{P6} if it stops on its time limit), then \eqref{P4}, giving $y_k$
+  \If{$F(\tau_k, y_k) < \mathrm{UB}$} UB $\gets F(\tau_k, y_k)$; incumbent $\gets (\tau_k, y_k)$ \EndIf
+  \State Add the cut $f(\tau, y) \le f(\tau, y_k)$ to \eqref{P5} (or \eqref{P5D}) and solve it; $\tau_{k+1} \gets$ its tax; LB $\gets \max(\mathrm{LB}, \text{its dual bound})$
   \If{$(\mathrm{UB} - \mathrm{LB})/\max(1, |\mathrm{UB}|) \le \varepsilon$}
-     \If{$|\tau_{k+1} - \tau_k| \le \delta_\tau$ and no subproblem stopped on its time limit}
-        \State \Return incumbent, classed \emph{optimal}
-     \Else
-        \State \Return incumbent, classed \emph{$\varepsilon$-optimal}
-     \EndIf
+     \State \Return the incumbent: \emph{optimal} if $|\tau_{k+1} - \tau_k| \le \delta_\tau$, no subproblem stopped on its time limit and no slack of \eqref{P5D} is active; \emph{$\varepsilon$-optimal} otherwise
   \EndIf
-  \If{neither bound has moved for $s_{\max}$ iterations, or the budget is spent}
-     \State \Return incumbent and [LB, UB], classed \emph{bounds}
-  \EndIf
+  \If{neither bound moved for $s_{\max}$ iterations, or the budget is spent} \Return the incumbent and [LB, UB] (\emph{bounds}) \EndIf
   \State $k \gets k + 1$
 \EndLoop
 \end{algorithmic}
 \end{algorithm}
 
-Each iteration solves one follower problem in two stages and one relaxation. The relaxation only gains constraints, so its optimum can only rise; its dual bound, read at a MIP gap, can fluctuate within that gap, so LB is kept monotone by taking the maximum over iterations.
+Both classes \emph{optimal} and \emph{$\varepsilon$-optimal} certify Proposition~\ref{prop:certificate}(iii); they differ only in the test of Lemma~\ref{lem:stop}. A result in the class \emph{bounds} is the interval [LB, UB] and its incumbent. Every incumbent is re-evaluated in a fresh model, which must reproduce its feasibility, cost, emissions and leader value.
 
-\subsection{The bilinear high-point relaxation}\label{sec:hpr}
-
-The HPR is where our problem departs from that of \textcite{soares2021deterministic}. Their prices multiply binary variables, and the product is linearised exactly. Here the tax multiplies the continuous aggregate $\beta(y)$, so the HPR contains the bilinear term $\tau\,\beta(y)$. We keep it as a single non-convex equality, $p = \tau\,\beta$, shared by all cuts, and solve the HPR by the spatial branch-and-bound of Gurobi 13.0.1. The solver relaxes $p$ by the envelopes of \textcite{mccormick1976computability}, which are exact only at the corners of the box of the operands, so we keep that box as narrow as the run allows:
-\begin{equation*}
-E(y) \ge \Eref, \qquad d_{\min}\, \Eref \le \beta(y) \le d_{\max}\, \Ebar, \qquad \tmin\, \beta_{\min} \le p \le \tmax\, \beta_{\max}.
-\end{equation*}
-Here $\Eref$ is the dual bound of the HPR solved without cuts and without the term $\mu\,\tau$, $\Ebar$ bounds the emissions with every facility and technology at capacity, $d_{\min}$ and $d_{\max}$ are the smallest and largest discount factors, and $\beta_{\min}$ and $\beta_{\max}$ are the bounds on $\beta$. None of these bounds removes a point of the HPR. The lower bound on $\beta$ matters. With $\tmin = 0$ and $\beta_{\min} = 0$, the first lower McCormick inequality reduces to $p \ge 0$, whereas $\beta_{\min} > 0$ turns it into $p \ge \beta_{\min}\,\tau$.
-
-Relaxations that discretise one operand of the product, such as the multiparametric disaggregation technique \parencite{kolodziej2013global}, would give a MILP instead of spatial branching. We keep the solver's spatial branch-and-bound, which leaves the HPR exact. Section~\ref{sec:performance} shows that the HPR dominates the computing time, which makes such relaxations the first candidates for speeding up the method.
-
-\subsection{Subproblems that stop with a MIP gap}\label{sec:gaps}
-
-On the larger instances, subproblems reach their time limit before their MIP gap target. We follow the remedies of \textcite[Section~7]{soares2021deterministic}, so that every bound reported remains a bound. LB is the HPR's proven dual bound, valid whatever its gap. A follower that stops on its time limit is improved by a subproblem that searches below its incumbent, and the UB it supports is reported as not certified. A relaxation that returns no point has its cuts made elastic with a penalty larger than the range of $F$, which never weakens the lower bound (problem (P5-D)). The run also stops after 10 consecutive iterations in which neither bound changes, or when its budget is spent. Section~S2 of the Supplementary Material states these subproblems.
-
-\subsection{What a result certifies}\label{sec:classes}
-
-Every result reports both bounds and the incumbent and is assigned one of four classes (Table~\ref{tab:classes}). The first two classes certify Proposition~\ref{prop:certificate}(iii); they differ only in the test of Lemma~\ref{lem:stop}, which asks whether the HPR has any other tax to propose at the tolerances used.
-
-\begin{table}[!htbp]
-\centering
-\caption{Result classes. All conditions hold up to the solver's tolerances and $\varepsilon'$. The classes certify the leader's value; the tax itself is determined only to the resolution $\varepsilon \max(1, |\mathrm{UB}|)/\mu$ of Section~\ref{sec:foundations}, whatever the class.}\label{tab:classes}
-\small
-\begin{tabularx}{\textwidth}{@{}lL@{}}
-\toprule
-Class & Condition \\
-\midrule
-Optimal & Gap at most $\varepsilon$; the HPR re-proposes the evaluated tax within $\delta_\tau = 0.001$~\EUR/t; no subproblem behind the bounds stopped on its time limit; no elastic slack of (P5-D) is active \\
-$\varepsilon$-optimal & Gap at most $\varepsilon$, but one of the other conditions fails \\
-Bounds & The run ended before the gap closed (budget, iteration cap or stagnation); the result is the interval [LB, UB] and the incumbent. UB is certified when every follower solve behind it reached its MIP gap \\
-Inconsistent & LB exceeds UB by more than $\varepsilon$, so one of them is not a bound \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-The lower bound is the HPR's proven dual bound, valid whether or not the HPR reaches its own gap. Every saved incumbent is re-evaluated in a fresh model: it must satisfy every constraint, be integral where required and reproduce the reported cost, emissions and leader objective. In the runs of Section~\ref{sec:results}, every $\varepsilon$-optimal result has a certified UB.
-
-\subsection{Enumerating the switching prices}\label{sec:enumeration}
-
-With a single tax, Proposition~\ref{prop:structure}(c) reduces the leader's problem to a finite comparison: evaluate $E^\circ(\tau) + \mu\,\tau$ at $\tmin$ and at the break points of $\phi$, and keep the best. The break points are the taxes at which the minimiser of $c(y) + \tau\,\beta(y)/1000$ moves from one extreme supported point of the biobjective problem $\min\, (c(y), \beta(y))$ to the next, and the dichotomic scheme of \textcite{aneja1979bicriteria} finds them (Algorithm~\ref{alg:enum}). Solve the follower at both ends of the tax range; each response defines a line $\tau \mapsto c(y) + \tau\,\beta(y)/1000$. Solve it again where the two lines cross. If the response there lies on one of the two lines, the crossing is a break point; otherwise its line is optimal somewhere in between, and the search recurses on both halves. Every evaluation is the two-stage solve \eqref{P3}--\eqref{P4}, so the value recorded at a candidate is the one the DBP would record there. The same structure underlies multi-parametric approaches to bilevel MILPs \parencite{avraamidou2019multi} and value functions parameterised by the objective \parencite{tavasloglu2019solving}.
-
-\begin{algorithm}[!htbp]
-\caption{Enumeration of the switching prices, after \textcite{aneja1979bicriteria}.}\label{alg:enum}
-\begin{algorithmic}[1]
-\Require tolerances $\varepsilon'$ and $\delta_\tau$; weight $\mu$; run budget
-\State Evaluate $\tmin$ and $\tmax$: solve \eqref{P3} and \eqref{P4}, giving $y_{\min}$ and $y_{\max}$; candidates $\gets \{(\tmin, y_{\min})\}$
-\State Pending $\gets \{(\tmin, y_{\min}, \tmax, y_{\max})\}$
-\While{pending is not empty and the budget is not spent}
-  \State Take $(a, y_a, b, y_b)$ from pending
-  \If{$y_a$ and $y_b$ have the same cost and tax base, or $b - a \le \delta_\tau$}
-     \State \textbf{continue}
-  \EndIf
-  \State $\tau_\times \gets 1000\,(c(y_b) - c(y_a))/(\beta(y_a) - \beta(y_b))$ \Comment{the two lines cross}
-  \State Evaluate $\tau_\times$, giving $y_\times$
-  \If{$y_\times$ lies on the line of $y_a$ or of $y_b$, or its solve stopped on its time limit}
-     \State Add $(\tau_\times, y_\times)$ to the candidates \Comment{a break point}
-  \Else
-     \State Add $(a, y_a, \tau_\times, y_\times)$ and $(\tau_\times, y_\times, b, y_b)$ to pending
-  \EndIf
-\EndWhile
-\State \Return the candidate with the least $E(y) + \mu\,\tau$ (ties: the lower tax), and every candidate
-\end{algorithmic}
-\end{algorithm}
-
-\begin{lemma}\label{lem:enum}
-Let every follower solve be exact with $\varepsilon' = 0$, let $N$ lines be optimal somewhere in $[\tmin, \tmax]$, and let the budget not bind. Then Algorithm~\ref{alg:enum} stops after at most $2N - 1$ evaluations, its candidates are $\tmin$ and every break point of $\phi$ in $(\tmin, \tmax)$, and the candidate it returns is optimal for \eqref{P1}.
-\end{lemma}
-\begin{proof}
-Two evaluations are made at the ends. Each later evaluation either reveals a line not seen before, at most $N - 2$ times, or certifies that the crossing of two lines adjacent on the envelope is a break point, at most $N - 1$ times. Every break point is the crossing of two lines that are adjacent on the envelope, and the recursion reaches every such pair. At each candidate the evaluation returns the optimistic response, so $E^\circ$ there, and Proposition~\ref{prop:structure}(c) completes the proof.
-\end{proof}
-
-Two responses are taken to lie on the same line when their costs and tax bases agree to round-off, not to the MIP gap. Lines whose values differ by less than the gap can differ widely in emissions, and merging them misses switching prices. When a follower solve stops on its time limit, its line is not proven optimal; Algorithm~\ref{alg:enum} then keeps the crossing as a candidate without recursing, and the result is not certified. A search stopped by its budget returns the best of every tax it evaluated: a feasible point, but no lower bound.
-
-The two methods are complementary. Enumeration needs no bilinear relaxation and returns every switching price with the emissions it induces, the staircase from which a regulator can read what each tax level buys; its cost grows with their number. The DBP needs a few iterations whatever their number, returns a valid lower bound at every iteration, even when follower solves cannot be completed, and extends in principle to a vector of taxes, whose linearity regions a one-dimensional search cannot enumerate. Section~\ref{sec:methods} compares them.
+\paragraph{When each method applies} Enumeration needs no bilinear relaxation, returns every switching price, and costs $2N - 1$ follower solves. The DBP needs a few iterations whatever $N$, each with a non-convex relaxation, bounds the optimum at every iteration even when follower solves cannot be completed, and extends in principle to a vector of taxes, whose linearity regions a one-dimensional search cannot enumerate. Section~\ref{sec:methods-results} compares them; \textcite{merkert2022exact} give a general exact method for products of leader and follower variables, whereas both methods here exploit that the tax leaves $Y$ unchanged.
 
 % =====================================================================================
-\section{A bilevel model for carbon tax setting in closed-loop supply chain design}\label{sec:model}
+\section{Computational study}\label{sec:results}
 
-A regulator (the leader) sets a carbon tax rate $\tau$, in \EUR\ per tonne of CO\textsubscript{2}-equivalent (\CO), within $[\tmin, \tmax] = [0, 200]$; the upper end is about 2.7 times the 2025 EU allowance price \parencite{esma2026carbon}, and we report where it binds. An operator (the follower) then designs and plans a closed-loop supply chain over a horizon of $|\mathcal{T}|$ periods, minimising its cost plus the tax on its emissions. The regulator anticipates that response.
+The study answers three questions: how the two methods compare (Section~\ref{sec:methods-results}), where the optimal tax lies and what a fixed tax achieves instead (Section~\ref{sec:anticipation}), and how the tax acts on a real network (Section~\ref{sec:sens-case}).
 
-The tax is set for one operator, whereas an actual tax applies to all firms alike. We therefore read the optimal tax as the operator's \emph{switching price}: the lowest tax at which this operator moves to the cleanest network the tax range can induce, given the regulator's weight on the tax level. A regulator who faces many firms can use the switching prices of representative operators to see which tax levels change which networks; setting one tax for heterogeneous followers is a different bilevel problem, which we leave to future work.
+\subsection{Instances and settings}\label{sec:instances}
 
-\paragraph{The operator's problem} The network has suppliers, factories, warehouses, retailers, and airport and seaport hubs, connected by truck, air and sea transport. Raw materials are bought from suppliers and turned into final products at factories; products flow through warehouses to retailers; a fraction of what retailers sell returns as recovered products, which are collected and remanufactured at factories. The operator's decisions $y$ are of two kinds.
-\begin{itemize}
-\item Strategic: which suppliers to use, which factories and warehouses to open and their floor areas, which production and remanufacturing technologies to install at each factory, and the truck fleet.
-\item Tactical, per period: raw-material purchases, production and remanufacturing volumes, warehouse inventories, and the forward and reverse flows on each arc and mode.
-\end{itemize}
-The feasible set $Y$ follows \textcite{mota2018sustainable}: flow balances, supplier minimum orders (their eqs.~10--11), facility floor area set by inflows (eq.~16), technology capacities and minimum use, collection of returns between a minimum and a maximum fraction of lagged sales, truck trips that require both endpoints to be installed (eqs.~26--27), and air and sea flows within contracted capacities (eq.~28). One departure is needed: an installed remanufacturing technology must meet its minimum use only in the periods in which it operates, because no returns arrive before the first return lag. Demand is given and must be met, so the tax changes how the operator serves its markets, not how much it sells; pass-through to prices and competition are outside the model. $Y$ does not depend on $\tau$.
+\paragraph{Original instances} Fifteen instances follow the generator of \textcite{tautenhain2021efficient}, with parameter ranges from the dataset of \textcite{tautenhain2021data}. Twelve combine 17 or 25 entities, 4 or 8 items and 3, 6 or 12 periods; three larger ones have 12 or 16 items, or 33 entities. Every instance has 3 suppliers, 3 factories, 4 retailers, 3 to 17 warehouses, 2 to 4 airports, 2 seaports, and three production and three remanufacturing technologies. Two departures from the generator matter: transport emission factors are drawn per mode from the case study's values, so that ships, planes and trucks differ, and the annual interest rate of 10\% is compounded over the period length of 17.33 weeks.
 
-\paragraph{Cost and emissions} Let $c(y)$ be the operator's cost, discounted at the interest rate: raw materials and returns acquired, production, remanufacturing, labour, inventory, transport and hub handling, and the capital of facilities, technologies and vehicles at its rental equivalent over each asset's life. Let $E_t(y)$ be the emissions of period $t$, in kg \CO, from raw materials, production, remanufacturing, transport and the construction of facilities, using the climate-change category of ReCiPe 2008, as \textcite{mota2018sustainable} do. Construction emissions are amortised over the facilities' 20-year life, as their capital is. The regulator counts physical emissions, $E(y)$; the operator is taxed on their present value, $\beta(y)$, with each period weighted by its discount factor \eqref{eq:emissions}.
+\paragraph{Calibrated instances} The generator draws the emission intensity of production, of remanufacturing and of purchased raw materials from one range, the hull of the case study's technology values, caps the return fraction at 15\% and charges a returned unit a fraction of the selling price. On the original instances remanufacturing therefore never exceeds 0.6\% of production. The calibrated instances keep the network, costs, demand and capacities of a generated instance and take from the case study what it determines: production and remanufacturing intensities drawn from its production (375 to 536~kg \CO\ per kg) and remanufacturing (103 to 134) technologies, no emissions on purchased raw materials, a maximum return fraction of 1 and a minimum below 15\%, and \EUR0.15 per returned unit. Two replicates of each of the twelve standard sizes give 24 instances, named \inst{CAL_<size>_r<k>}. They emit 9.5 to 188~kg \CO\ per euro of cost, against 13.5 in the case study; by Proposition~\ref{prop:scale}, this intensity sets the level of the switching prices but not the bill share at which the operator switches.
 
-\paragraph{The regulator's problem} The regulator minimises the emissions it induces plus a weight $\mu$ on the tax level, as in \eqref{P1}. The weight $\mu$, in kg \CO\ per \EUR/t, states how much emission the regulator accepts to lower the tax by \EUR1/t. Its role is to decide among taxes that induce the same emissions: by Proposition~\ref{prop:structure}, emissions are constant between break points, so without the term $\mu\,\tau$ every tax above the last effective break point would be optimal. We set $\mu = \xi\,\Eref$, where $\Eref$ is the dual bound on the least emissions of any network in $Y$ and $\xi = 10^{-4}$; the regulator thus gives up 1\% of the least emissions to avoid \EUR100/t of tax. As $\xi$ tends to zero, the problem becomes lexicographic: first the least emissions that any tax in the range induces, then the lowest tax that induces them. A lower tax for the same abatement limits the transfer from the operator and the incentive to move emissions abroad; \textcite{gugler2023carbon} find that Britain's carbon tax on power generation likely raised emissions abroad through imports. A welfare-maximising regulator, as in \textcite{krass2013environmental} and \textcite{rustico2022environmental}, would weigh damages, abatement costs and revenue instead; we leave that objective to future work and report every tax together with $\xi$. When the operator has several optimal responses, the one with the least emissions is taken (the optimistic convention).
+\paragraph{Case study} The case study of \textcite{mota2018sustainable} is a producer of electronic components in Verona that expands to markets in Europe and Brazil: 3 suppliers, 3 factories and 9 warehouses (one of each already in Verona), 7 markets, 4 airports, 2 seaports, 2 final and 2 recovered products, 4 production and 2 remanufacturing technologies, and 10 yearly periods. We build it from \textcite{mota2018sustainable} and \textcite{tautenhain2021data}, in thousands of units for numerical stability. Its published emission factors put the operator's emissions at about 42~Mt \CO\ without a tax.
 
-The objective of the operator departs from \textcite{mota2018sustainable} in two respects: it minimises cost plus the tax rather than maximising the net present value after profit tax, and it prices only the climate-change category, the one a carbon tax targets.
+\paragraph{Settings}\label{sec:settings} The tax ranges over $[0, 200]$~\EUR/t, about 2.7 times the 2025 EU allowance price of \EUR74/t \parencite{esma2026carbon}, with $\xi = 10^{-4}$. The DBP stops at $\varepsilon = 10^{-4}$, with $\varepsilon' = 10^{-6}$, $\delta_\tau = 0.001$~\EUR/t and $s_{\max} = 10$; enumeration uses the same evaluations. Every subproblem is solved by Gurobi 13.0.1 to a relative MIP gap of $10^{-4}$ (absolute $10^{-10}$) within 600~s, with MIPFocus~2, 4 threads and seed 0; the HPR uses NonConvex~2. Each run has a budget of 1~h. All runs use Python 3.14.4 on a laptop with an Intel Core i7-1185G7 and 15.7~GB of RAM, one at a time.
 
-\paragraph{Structure} For a fixed $\tau$ the operator's problem is a MILP. By Proposition~\ref{prop:structure}, its optimal value is concave and piecewise linear in $\tau$, the optimistic emissions are constant between break points, and an optimal tax lies at $\tmin$ or at a break point, where the operator switches to a cleaner network.
+\subsection{The two methods}\label{sec:methods-results}
 
-\subsection{Notation}\label{sec:notation}
-
-Tables~\ref{tab:sets} and~\ref{tab:variables} list the sets and variables of the implemented model, and Table~S1 of the Supplementary Material lists its parameters with their units. Where \textcite{mota2018sustainable} number an equation, the corresponding constraint follows it.
+Table~\ref{tab:dbp} reports the DBP on the original instances and the case study. It closes the gap to $\varepsilon$ on 11 of the 16 within 1~h, and the other five end with gaps of 0.05\% to 2.3\%. The relaxation takes most of the time on the instances that close; on the two with the most items and on the case study, the follower's solves reach their time limit instead. The bounds leave the tax of an unclosed run open by $(\mathrm{UB} - \mathrm{LB})/\mu$, which is \EUR125/t on the case study.
 
 \begin{table}[!htbp]
 \centering
-\caption{Sets.}\label{tab:sets}
-\small
-\begin{tabularx}{\textwidth}{@{}lL@{}}
-\toprule
-Set & Description \\
-\midrule
-$\mathcal{S}, \mathcal{F}, \mathcal{W}, \mathcal{R}$ & Suppliers, factories, warehouses, retailers (markets) \\
-$\mathcal{H} = \mathcal{H}^A \cup \mathcal{H}^S$ & Hubs: airports and seaports \\
-$\mathcal{N} = \mathcal{S} \cup \mathcal{F} \cup \mathcal{W} \cup \mathcal{R} \cup \mathcal{H}$ & Nodes; $\mathcal{O} = \mathcal{S} \cup \mathcal{F} \cup \mathcal{W} \cup \mathcal{H}$ are those that can be opened \\
-$\mathcal{U}, \mathcal{P}, \mathcal{K}$ & Raw materials, final products, recovered products; $n \in \mathcal{U} \cup \mathcal{P} \cup \mathcal{K}$ is an item \\
-$\mathcal{G}, \mathcal{L}$ & Production and remanufacturing technologies; $\mathcal{G}_p \subseteq \mathcal{G}$ and $\mathcal{L}_p \subseteq \mathcal{L}$ can make product $p$, and $\mathcal{P}_g$ and $\mathcal{P}_l$ are the products of technologies $g$ and $l$ \\
-$\mathcal{M} = \mathcal{M}^T \cup \mathcal{M}^A \cup \mathcal{M}^S$ & Transport modes: trucks, air, sea \\
-$\mathcal{A}_n$ & Arcs $(i, j)$ on which item $n$ may travel; $\mathcal{M}_{ij} \subseteq \mathcal{M}$ are the modes of arc $(i, j)$: air between airports, sea between seaports, trucks otherwise \\
-$\mathcal{T}$ & Periods $t = 1, \dots, |T|$ \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-For an item $n$, node $i$ and period $t$, the inflow and outflow are
-\begin{equation*}
-\Xin_{nit} = \sum_{(j,i) \in \mathcal{A}_n} \sum_{m \in \mathcal{M}_{ji}} x_{njimt}, \qquad \Xout_{nit} = \sum_{(i,j) \in \mathcal{A}_n} \sum_{m \in \mathcal{M}_{ij}} x_{nijmt}.
-\end{equation*}
-
-\begin{table}[!htbp]
-\centering
-\caption{Variables of the operator's problem.}\label{tab:variables}
-\small
-\begin{tabularx}{\textwidth}{@{}llL@{}}
-\toprule
-Variable & Domain & Description \\
-\midrule
-$o_i$ & $\{0, 1\}$ & Node $i \in \mathcal{O}$ is used (supplier) or opened (factory, warehouse, hub) \\
-$u^p_{fg}$, $u^r_{fl}$ & $\{0, 1\}$ & Technology $g$ or $l$ is installed at factory $f$ \\
-$v_{flt}$ & $\{0, 1\}$ & Remanufacturing technology $l$ operates at $f$ in period $t$ \\
-$A_i$ & $\mathbb{R}_+$ & Floor area installed at factory or warehouse $i$ \\
-$q_{pfgt}$ & $\mathbb{R}_+$ & Units of $p$ produced at $f$ with $g$ in $t$ \\
-$r_{pflt}$ & $\mathbb{R}_+$ & Units of $p$ remanufactured at $f$ with $l$ in $t$ \\
-$I_{pwt}$ & $\mathbb{R}_+$ & Stock of $p$ at warehouse $w$ at the end of $t$ \\
-$x_{nijmt}$ & $\mathbb{R}_+$ & Units of item $n$ moved on arc $(i, j)$ by mode $m$ in $t$ \\
-$z_{ijmt}$ & $\mathbb{Z}_+$ & Trips of truck mode $m$ on arc $(i, j)$ in $t$ \\
-$V_{im}$ & $\mathbb{Z}_+$ & Trucks of mode $m$ based at node $i$ \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-The follower's decision is $y = (o, u^p, u^r, v, A, q, r, I, x, z, V)$; the leader's is $\tau$. Retailers are always present; we write $o_i = 1$ for $i \in \mathcal{R}$.
-
-\subsection{Mathematical formulation}\label{sec:formulation}
-
-The bilevel problem is \eqref{P1}: the regulator minimises $E(y) + \mu\,\tau$ over $\tau \in [\tmin, \tmax]$, and the operator minimises $c(y) + \tau\,\beta(y)/1000$ over $Y$, with the cost $c$, the emissions $E$ and the tax base $\beta$ defined below.
-
-\paragraph{Follower's cost} Capital is charged at its rental equivalent ($\varphi^f$, $\varphi^t$, $\varphi^v$), recurring fixed costs over the annuity $\Delta$, and flows at their discounted value:
-\begin{equation}\label{eq:cost}
-\begin{aligned}
-c(y) ={}& \varphi^{f} \sum_{i \in \mathcal{F} \cup \mathcal{W}} c^{a}_i A_i + \varphi^{t} \sum_{f \in \mathcal{F}} \Bigl( \sum_{g} \Phi^{g}_g u^{p}_{fg} + \sum_{l} \Phi^{l}_l u^{r}_{fl} \Bigr) + \varphi^{v} \sum_{i,\, m \in \mathcal{M}^T} \Phi^{m} V_{im} + \Delta \sum_{h \in \mathcal{H}} f_h\, o_h \\
-&+ \Delta\, \Omega \Bigl[ \sum_{i \in \mathcal{F} \cup \mathcal{W}} \pi_i \bigl( \gamma_i o_i + \gamma^{s}_i A_i \bigr) + \sum_{f \in \mathcal{F}} \pi_f \Bigl( \sum_g \gamma_g u^{p}_{fg} + \sum_l \gamma_l u^{r}_{fl} \Bigr) + \sum_{i,\, m \in \mathcal{M}^T} \pi_i \gamma_m V_{im} \Bigr] \\
-&+ \sum_{t \in \mathcal{T}} d_t \Bigl[ \sum_{p,f,g} c^{p}_g q_{pfgt} + \sum_{p,f,l} c^{r}_l r_{pflt} + \sum_{p,w} h_p I_{pwt} \\
-&\qquad + \sum_{s,u} c^{\mathrm{raw}}_{su} \Xout_{ust} + \sum_{r,k} c^{\mathrm{rec}}_{k} \Xout_{krt} \\
-&\qquad + \sum_{n,(i,j),\, m \in \mathcal{M}^A \cup \mathcal{M}^S} c^{s}_m \omega_n \delta_{ij} x_{nijmt} + \sum_{(i,j),\, m \in \mathcal{M}^T} c^{t}_m \lambda_m \delta_{ij} z_{ijmt} \\
-&\qquad + \sum_{n,(i,j),m} c^{h}_m \omega_n \bigl( [i \in \mathcal{H}] + [j \in \mathcal{H}] \bigr) x_{nijmt} \Bigr]
-\end{aligned}
-\end{equation}
-
-\paragraph{Emissions and tax base}
-\begin{equation}\label{eq:emissions}
-\begin{aligned}
-E_t(y) ={}& \sigma \sum_{i \in \mathcal{F} \cup \mathcal{W}} e^{o}_i A_i + \sum_{p,f,g} e^{p}_g \omega_p q_{pfgt} + \sum_{p,f,l} e^{r}_l \omega_p r_{pflt} + \sum_{s,u} e^{\mathrm{raw}}_{su} \omega_u \Xout_{ust} \\
-&+ \sum_{n,(i,j),m} e^{s}_m \lambda^{e}_m \omega_n \delta_{ij} x_{nijmt}, \\
-E(y) ={}& \sum_{t \in \mathcal{T}} E_t(y), \qquad \beta(y) = \sum_{t \in \mathcal{T}} d_t\, E_t(y)
-\end{aligned}
-\end{equation}
-
-Section~S1 of the Supplementary Material states the constraints that define $Y$ in full, with three families of valid inequalities that tighten the linear relaxation without changing the integer solutions.
-
-\subsection{Instances}\label{sec:instances}
-
-The generated instances follow the generator of \textcite{tautenhain2021efficient}, whose parameter ranges are published with the dataset of \textcite{tautenhain2021data}, with four departures. Transport emission factors are drawn per mode from the case-study values of \textcite{mota2018sustainable} (kg \CO\ per kg$\cdot$km: trucks $4.34\cdot10^{-4}$ to $1.80\cdot10^{-3}$, air $1.03\cdot10^{-3}$, sea $1.09\cdot10^{-5}$) instead of one range for all modes, which would erase the modal trade-off a carbon tax acts on. Only the climate-change category is kept. All monetary values are in euros (\EUR). The annual interest rate of 10\% is compounded over the period length of the original generator, 17.33 weeks, rather than applied once per period.
-
-
-The twelve standard instances combine $I \in \{17, 25\}$ entities, $M \in \{4, 8\}$ items and $T \in \{3, 6, 12\}$ periods, as in \textcite{tautenhain2021efficient}: every instance has 3 suppliers, 3 factories and 4 retailers, with 3 warehouses and 2 airports at $I = 17$, 9 warehouses and 4 airports at $I = 25$, 17 warehouses and 4 airports at $I = 33$, and 2 seaports; half of the items are raw materials, a quarter final products and a quarter recovered products. Three larger instances push one dimension each: \inst{STD_I25_M12_T6}, \inst{STD_I25_M16_T6} and \inst{STD_I33_M8_T6}. Every instance has three production and three remanufacturing technologies.
-
-The case study is that of \textcite{mota2018sustainable}: a producer of electronic components in Verona that expands to markets in Europe and Brazil. It has 3 suppliers, 3 factories and 9 warehouses (one of each already installed in Verona), 7 markets, 4 airports and 2 seaports, 4 raw materials, 2 final and 2 recovered products, 4 production and 2 remanufacturing technologies, two truck types, planes and ships, and 10 yearly periods. Up to all of the units sold can return, and at least 15\% must be collected. We build it from the tables of \textcite{mota2018sustainable} and from the dataset of \textcite{tautenhain2021data}, following \textcite{mota2018sustainable} where the two differ; quantities are expressed in thousands of units for numerical stability. The emission factors are the published ones, per kg produced: 375 to 536~kg \CO\ per kg for production and 103 to 134 for remanufacturing \parencite{tautenhain2021data}. With 204 million units demanded over the ten years, they put the operator's emissions at about 42~Mt \CO\ without a tax.
-
-\paragraph{Calibrated instances} The original generator draws the climate-change intensity of production, of remanufacturing and of every purchased raw material from one range, 102.86 to 536.29~kg \CO\ per kg: the hull of the case study's technology values, in which the lower values belong to remanufacturing. It also caps the return fraction at 15\% and charges a returned unit a fraction of the selling price, tens of euros, while remanufacturing a unit takes four to five returned units. On the original instances remanufacturing therefore never exceeds 0.6\% of production, raw materials that cost cents per unit carry most of the emissions, and the operator emits 37 to 202~kg \CO\ per euro of cost. We therefore also build calibrated instances, which keep the network, the costs, the demand and the capacities of a generated instance and take from the case study what it pins down: production intensities drawn from its production technologies (375 to 536~kg \CO\ per kg) and remanufacturing intensities from its remanufacturing technologies (103 to 134); no emissions on purchased raw materials, as in the environmental objective of \textcite{mota2018sustainable}, so that the operator is taxed on its own operations; a maximum return fraction of 1 and a minimum below 15\%; and \EUR0.15 per returned unit. We generate two replicates of each of the twelve standard sizes, 24 instances, the first sharing its network with the original instance. Their emissions per euro of cost, 9.5 to 188~kg against 13.5 in the case study, remain large, as the published factors imply. By Proposition~\ref{prop:scale} this intensity sets the level of the switching prices but not the tax bill as a share of cost, which is what we compare across instances and with the EU allowance price. The original instances test the method; the calibrated instances and the case study answer the policy questions.
-
-% =====================================================================================
-\section{Computational results}\label{sec:results}
-
-We first compare the DBP with enumeration of the switching prices on the original instances and the case study (Sections~\ref{sec:performance} and~\ref{sec:methods}), then study the switching prices and a fixed tax on the calibrated instances (Section~\ref{sec:anticipation}) and the case study (Section~\ref{sec:sens-case}), and finally check the results' robustness (Section~\ref{sec:robustness}). The Supplementary Material reports the policy and sensitivity analyses on the original instances.
-
-\paragraph{Instances} The original instances are the 15 generated instances of Section~\ref{sec:instances}, with 17 to 33 entities, 4 to 16 items and 3 to 12 periods; the four smallest (\inst{STD_I17_M4_T3}, \inst{STD_I17_M8_T3}, \inst{STD_I25_M4_T3} and \inst{STD_I17_M4_T6}) close their gap in under a minute. The calibrated instances are the 24 of Section~\ref{sec:instances}, named \inst{CAL_<size>_r<k>} for replicate $k$.
-
-\paragraph{Settings} The DBP stops when the relative gap between its bounds is at most $\varepsilon = 10^{-4}$. Every MILP subproblem, the HPR included, is solved to a relative MIP gap of $10^{-4}$ within 600~s, and the follower's tie-break tolerance is $\varepsilon' = 10^{-6}$ relative to its objective; Proposition~\ref{prop:certificate} states what these tolerances certify. The tax ranges over $[0, 200]$~\EUR/t, and the regulator's weight is $\mu = \xi\,\Eref$ with $\xi = 10^{-4}$. The HPR carries the value-function cuts only, as in the basic DBP of \textcite{soares2021deterministic}. Enumeration (Algorithm~\ref{alg:enum}) uses the same follower solves and tolerances, with $\delta_\tau = 0.001$~\EUR/t. Each run has a budget of 1~h unless stated otherwise.
-
-\paragraph{Computing environment} All runs use Gurobi 13.0.1 with 4 threads and seed 0 (seeds 0--4 on the four small instances, Section~\ref{sec:robustness}), called from Python 3.14.4, on a laptop with an Intel Core i7-1185G7 (4 cores, 8 threads) and 15.7~GB of RAM under Windows 11. Runs are executed one at a time.
-
-\subsection{Performance of the solution method}\label{sec:performance}
-
-Within 1~h, the DBP closes the gap to $\varepsilon$ on 11 of the 16 instances: 7 are optimal and 4 are $\varepsilon$-optimal (Table~\ref{tab:main}). Every instance with at most 8 items and 6 periods closes, except \inst{STD_I25_M8_T6}. The other five end with bounds, with gaps from 0.05\% to 2.3\%.
-
-\begin{table}[!htbp]
-\centering
-\caption{Results of the DBP within 1~h. Tax: the optimal tax of the runs that close. For runs that end with bounds the tax is not determined: their bounds leave it open by $(\mathrm{UB} - \mathrm{LB})/\mu$, which is \EUR4.7--238/t on the generated instances and \EUR125/t on the case study. Gap: $(\mathrm{UB} - \mathrm{LB})/\max(1, |\mathrm{UB}|)$; the gaps of $-3.6\cdot10^{-9}$ on \inst{STD_I25_M4_T12} and $-2.0\cdot10^{-9}$ on \inst{STD_I25_M8_T3} print as 0.000 (Proposition~\ref{prop:certificate}). Runs can exceed 1~h because the budget is checked between subproblems.}\label{tab:main}
-\small
+\caption{The DBP within 1~h on the original instances and the case study. Tax: the optimal tax of runs that close (\EUR/t). Gap: $(\mathrm{UB} - \mathrm{LB})/\max(1, |\mathrm{UB}|)$, negative round-off shown as 0. Relaxation: share of the time spent in \eqref{P2} and \eqref{P5}.}\label{tab:dbp}
+\footnotesize
 \begin{tabularx}{\textwidth}{@{}ll*{5}{>{\raggedleft\arraybackslash}X}@{}}
 \toprule
-Instance & Result & Iterations & Tax (\EUR/t) & Gap (\%) & Time (s) & HPR share of time (\%) \\
+Instance & Result & Iter. & Tax (\EUR/t) & Gap (\%) & Time (s) & Relaxation (\%) \\
 \midrule
+%% BEGIN table dbp_original
 \inst{STD_I17_M4_T3} & Optimal & 3 & 33.9 & 0.000 & 28 & 71 \\
 \inst{STD_I17_M4_T6} & Optimal & 5 & 7.2 & 0.002 & 30 & 36 \\
 \inst{STD_I17_M4_T12} & Optimal & 4 & 1.0 & 0.000 & 815 & 97 \\
@@ -510,128 +528,118 @@ Instance & Result & Iterations & Tax (\EUR/t) & Gap (\%) & Time (s) & HPR share 
 \inst{STD_I25_M16_T6} & Bounds\tr{a} & 4 & -- & 2.300 & 3,699 & 11 \\
 \inst{STD_I33_M8_T6} & $\varepsilon$-optimal & 4 & 129.4 & 0.009 & 2,021 & 96 \\
 Case study & Bounds & 3 & -- & 1.199 & 3,602 & 56 \\
+%% END table dbp_original
 \bottomrule
 \end{tabularx}
 
 \smallskip
-\raggedright\footnotesize \tr{a} UB not certified: a follower solve behind it stopped on its time limit.
+\raggedright\footnotesize \tr{a} Upper bound not certified: a follower solve behind it stopped on its time limit.
 \end{table}
 
-The HPR takes most of the time on the instances that close: 50--97\% on 10 of the 11. Its bilinear term $\tau\,\beta(y)$ is a product of two continuous variables, solved by spatial branch-and-bound; \textcite{soares2021deterministic} face no such term, because their prices multiply binary variables. On the two instances with the most items (12 and 16) and on the case study, the follower becomes the bottleneck instead. Its solves reach their 600~s limit, and on \inst{STD_I25_M12_T6} and \inst{STD_I25_M16_T6} the upper bound loses its certificate. On \inst{STD_I25_M12_T6}, the last follower solve, cut off by the budget, took a further 1,803~s that the HPR share does not count, so the follower takes over half of that run.
-
-The optimal taxes of the closed instances range from \EUR1.0 to \EUR129.4/t. All are positive, so by Proposition~\ref{prop:structure} each is a break point, the tax at which the operator switches to a cleaner network. The DBP needs 3 to 6 iterations, so its cost lies in each iteration rather than in their number.
-
-\subsection{Enumeration against bounding}\label{sec:methods}
-
-Where the follower solves exactly, enumeration is the faster exact method (Table~\ref{tab:methods}). On the four small original instances it returns the DBP's tax to within \EUR0.05/t in 7 to 14 follower solves and 7 to 14~s, against 22 to 47~s for the DBP. On \inst{STD_I25_M4_T3}, where the DBP ends $\varepsilon$-optimal at \EUR57.48/t, enumeration finds the break point at \EUR57.43/t, whose leader value is lower by 97~kg. The grid of taxes \EUR1/t apart needs 201 follower solves and 147 to 279~s, and returns a tax up to \EUR1/t above the break point, as its step implies. Where switching prices are many, the comparison turns. On the eight small calibrated instances, with 1 to 28 switching prices, the DBP takes 2 to 527~s and enumeration 3 to 751~s, and the DBP is faster on five, by up to a factor of 2.5. The taxes agree to within \EUR0.7/t and the leader values to within $\varepsilon$, except on \inst{CAL_I17_M4_T3_r0}. There the follower's solve at the DBP's tax, \EUR131.16/t, stopped within its MIP gap at a response \EUR360 (0.007\%) above the operator's optimum but with lower emissions, so the DBP's value lies 0.023\% below the one enumeration finds with the operator's optimal response at the same tax: the effect of the follower's gap that Proposition~\ref{prop:certificate}(ii) allows, which enumeration exposes.
+Table~\ref{tab:methods} compares the two methods on the small instances, original and calibrated. Where switching prices are few, enumeration is faster: on the four original instances, with 3 to 6 switching prices, it returns the DBP's tax to within \EUR0.05/t in 7 to 14~s against 22 to 47~s. A grid of taxes \EUR1/t apart needs 201 follower solves and 147 to 279~s, and lands up to \EUR1/t above the switching price. Where switching prices are many, the DBP is faster: on the eight calibrated instances, with 1 to 28 switching prices, it is faster on five, by up to a factor of 2.5. The taxes agree to within \EUR0.7/t. On \inst{CAL_I17_M4_T3_r0}, the follower's solve at the DBP's tax stopped within its MIP gap at a response \EUR360 above the operator's optimum but with lower emissions, so the DBP's value lies 0.023\% below the one enumeration finds there with the operator's optimal response; Proposition~\ref{prop:certificate}(ii) allows this, and enumeration exposes it.
 
 \begin{table}[!htbp]
 \centering
-\caption{The DBP, enumeration of the switching prices (Algorithm~\ref{alg:enum}) and a grid of taxes \EUR1/t apart on the four small original instances. Tax in \EUR/t; time in seconds, including the relaxation that sets $\Eref$. SP: switching prices, the break points the enumeration certifies.}\label{tab:methods}
+\caption{The DBP and enumeration on the small instances. SP: switching prices certified by enumeration. Tax in \EUR/t, time in seconds including the relaxation that sets $\Eref$; the faster method in bold.}\label{tab:methods}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{1.6cm}*{9}{>{\raggedleft\arraybackslash}X}@{}}
+\begin{tabularx}{\textwidth}{@{}l*{8}{>{\raggedleft\arraybackslash}X}@{}}
 \toprule
-& \multicolumn{4}{c}{DBP} & \multicolumn{4}{c}{Enumeration} & \multicolumn{2}{c}{Grid} \\
-\cmidrule(lr){2-5}\cmidrule(lr){6-9}\cmidrule(l){10-11}
-Instance & Result & Tax & Iter. & Time & Tax & Solves & SP & Time & Tax & Time \\
+& & \multicolumn{4}{c}{DBP} & \multicolumn{3}{c}{Enumeration} \\
+\cmidrule(lr){3-6}\cmidrule(l){7-9}
+Instance & SP & Result & Tax & Iter. & Time & Tax & Solves & Time \\
 \midrule
-%% BEGIN table methods_small
-\inst{STD_I17_M4_T3} & Optimal & 33.93 & 3 & 28 & 33.96 & 14 & 6 & 14 & 34 & 162 \\
-\inst{STD_I17_M4_T6} & Optimal & 7.17 & 5 & 30 & 7.17 & 10 & 4 & 14 & 8 & 147 \\
-\inst{STD_I17_M8_T3} & Optimal & 16.48 & 5 & 47 & 16.48 & 11 & 5 & 7 & 17 & 166 \\
-\inst{STD_I25_M4_T3} & $\varepsilon$-optimal & 57.48 & 3 & 22 & 57.43 & 7 & 3 & 8 & 58 & 279 \\
-%% END table methods_small
+%% BEGIN table methods
+\inst{STD_I17_M4_T3} & 6 & Optimal & 33.93 & 3 & 28 & 33.96 & 14 & \textbf{14} \\
+\inst{STD_I17_M4_T6} & 4 & Optimal & 7.17 & 5 & 30 & 7.17 & 10 & \textbf{14} \\
+\inst{STD_I17_M8_T3} & 5 & Optimal & 16.48 & 5 & 47 & 16.48 & 11 & \textbf{7} \\
+\inst{STD_I25_M4_T3} & 3 & $\varepsilon$-optimal & 57.48 & 3 & 22 & 57.43 & 7 & \textbf{8} \\
+\midrule
+\inst{CAL_I17_M4_T3_r0} & 9 & Optimal & 131.16 & 4 & 33 & 130.49 & 41 & \textbf{22} \\
+\inst{CAL_I17_M4_T6_r0} & 17 & Optimal & 61.90 & 6 & \textbf{82} & 61.93 & 59 & 203 \\
+\inst{CAL_I17_M8_T3_r0} & 4 & Optimal & 18.72 & 4 & \textbf{17} & 18.72 & 9 & 19 \\
+\inst{CAL_I25_M4_T3_r0} & 1 & Optimal & 0.00 & 1 & \textbf{2} & 0.00 & 3 & 3 \\
+\inst{CAL_I17_M4_T3_r1} & 20 & Optimal & 97.46 & 6 & \textbf{55} & 97.46 & 56 & 84 \\
+\inst{CAL_I17_M4_T6_r1} & 17 & $\varepsilon$-optimal & 89.36 & 7 & 118 & 88.98 & 55 & \textbf{114} \\
+\inst{CAL_I17_M8_T3_r1} & 28 & $\varepsilon$-optimal & 65.21 & 6 & \textbf{527} & 64.73 & 93 & 751 \\
+\inst{CAL_I25_M4_T3_r1} & 9 & Optimal & 196.22 & 4 & 364 & 196.22 & 26 & \textbf{340} \\
+%% END table methods
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Where the follower does not solve exactly, the DBP is the method that still certifies something. On the case study, enumeration evaluated seven taxes within 1~h; six of the follower solves stopped on their 600~s limit, so no line was proven optimal and no break point certified, and the best tax it evaluated has a leader value 0.85\% above the DBP's upper bound. The DBP, in the same hour, bounds the optimum to within 1.2\% (Table~\ref{tab:main}). On the calibrated instances, which have many more switching prices, enumeration is exact on 16 of the 24 (Table~\ref{tab:calibrated}), in 3~s to 34~min; on four it completes but some follower solves stopped on their time limit, and on four it runs out of its 1~h budget, with up to 118 follower solves. The two methods therefore divide the work: enumeration when the switching prices are few and the follower solves to its gap, the DBP when they are many or the follower does not solve, and for a vector of taxes.
+Where the follower cannot be solved exactly, only the DBP certifies a result. On the case study, enumeration evaluated seven taxes in 1~h, six of them with the follower stopped at its 600~s limit, and certified no switching price; its best tax has a leader value 0.85\% above the DBP's upper bound. On the 24 calibrated instances, enumeration is exact on 16, completes without a certificate on 4 and runs out of its budget on 4 (Table~S4 of the Supplementary Material).
 
-\subsection{Switching prices and a fixed tax}\label{sec:anticipation}
+\subsection{Switching prices and the value of anticipation}\label{sec:anticipation}
 
-On the calibrated instances, Table~\ref{tab:calibrated} compares the operator's response without a tax, at the regulator's optimal tax $\tau^*$, and at a fixed tax of \EUR74/t, the annual average price of EU emission allowances in 2025 \parencite{esma2026carbon}. An allowance price is a market price, not a tax; we use its level as the benchmark for a tax that does not anticipate the operator's response.
+Figure~\ref{fig:staircase} shows the emission reduction each tax induces on two calibrated instances. Emissions fall in steps: between two switching prices a higher tax changes nothing. On \inst{CAL_I25_M4_T6_r0} the optimal tax, \EUR39.2/t, already reaches the last large step, and \EUR74/t buys the same reduction at a higher bill. On \inst{CAL_I17_M4_T3_r0} the optimal tax is \EUR130.5/t, and \EUR74/t stops short of the last two steps. A regulator who knows the staircase sets the tax at the step it wants; one who does not cannot tell on which side a given tax falls.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/staircase.pdf}
+\caption{Emission reduction relative to the network without a tax, as a function of the tax, on two calibrated instances; each step is a switching price found by Algorithm~\ref{alg:enum}. Dot: the regulator's optimal tax $\tau^*$; square: a fixed tax of \EUR74/t.}\label{fig:staircase}
+\end{figure}
+
+Table~\ref{tab:policy} extends the comparison to the 16 calibrated instances on which enumeration is exact. It supports three findings.
 
 \begin{table}[!htbp]
 \centering
-\caption{Calibrated instances: enumeration within 1~h, and the response at the optimal tax $\tau^*$ and at \EUR74/t on the instances where enumeration is exact. Solves: follower solves; SP: switching prices certified (complete or exact runs) or found (others); time in seconds. Reductions are relative to the emissions without a tax; at $\Eref$, the bound on the least emissions of any network. Bill: the tax paid at $\tau^*$ as a share of the operator's cost (Proposition~\ref{prop:scale}). Remanufacturing: as a share of production, without a tax and at $\tau^*$.}\label{tab:calibrated}
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{1.45cm}*{10}{>{\raggedleft\arraybackslash}X}@{}}
+\caption{Calibrated instances solved exactly by enumeration. SP: switching prices. Reductions relative to the emissions without a tax; at $\Eref$, the bound on the least emissions of any network. Bill share: tax paid over cost (Corollary~\ref{cor:bill}). Remanufacturing as a share of production. Bold: the optimal tax abates more than \EUR74/t.}\label{tab:policy}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabularx}{\textwidth}{@{}l*{9}{>{\raggedleft\arraybackslash}X}@{}}
 \toprule
-& & & & & & \multicolumn{3}{c}{Reduction (\%)} & & \multicolumn{2}{c}{Reman. (\%)} \\
-\cmidrule(lr){7-9}\cmidrule(l){11-12}
-Instance & Result & Solves & SP & Time & $\tau^*$ (\EUR/t) & At $\tau^*$ & At \EUR74/t & At $\Eref$ & Bill & No tax & At $\tau^*$ \\
+& & & \multicolumn{3}{c}{Reduction (\%)} & \multicolumn{2}{c}{Bill share} & \multicolumn{2}{c}{Reman. (\%)} \\
+\cmidrule(lr){4-6}\cmidrule(lr){7-8}\cmidrule(l){9-10}
+Instance & SP & $\tau^*$ (\EUR/t) & At $\tau^*$ & At \EUR74/t & At $\Eref$ & At $\tau^*$ & At \EUR74/t & No tax & At $\tau^*$ \\
 \midrule
-%% BEGIN table calibrated
-\inst{CAL_I17_M4_T3_r0} & Exact & 41 & 9 & 22 & 130.5 & 10.0 & 8.5 & 10.1 & 2.30 & 1.7 & 14.7 \\
-\inst{CAL_I17_M4_T6_r0} & Exact & 59 & 17 & 203 & 61.9 & 9.4 & 9.4 & 9.8 & 3.31 & 0.8 & 14.0 \\
-\inst{CAL_I17_M4_T12_r0} & Exact & 65 & 10 & 269 & 113.9 & 10.9 & 9.7 & 11.7 & 1.85 & 1.4 & 18.1 \\
-\inst{CAL_I17_M8_T3_r0} & Exact & 9 & 4 & 19 & 18.7 & 2.8 & 2.8 & 3.0 & 1.55 & 0.0 & 0.0 \\
-\inst{CAL_I17_M8_T6_r0} & Budget\tr{b} & 118 & 26 & 3,613 & -- & -- & -- & -- & -- & -- & -- \\
-\inst{CAL_I17_M8_T12_r0} & Complete\tr{a} & 35 & 7 & 1,611 & -- & -- & -- & -- & -- & -- & -- \\
-\inst{CAL_I25_M4_T3_r0} & Exact & 3 & 1 & 3 & 0.0 & 0.0 & 0.1 & 0.5 & 0.00 & 0.0 & 0.0 \\
-\inst{CAL_I25_M4_T6_r0} & Exact & 49 & 13 & 175 & 39.2 & 14.7 & 14.7 & 17.4 & 1.43 & 0.8 & 9.9 \\
-\inst{CAL_I25_M4_T12_r0} & Complete\tr{a} & 73 & 10 & 2,730 & -- & -- & -- & -- & -- & -- & -- \\
-\inst{CAL_I25_M8_T3_r0} & Exact & 55 & 11 & 231 & 38.7 & 11.7 & 11.7 & 11.8 & 3.58 & 0.5 & 6.6 \\
-\inst{CAL_I25_M8_T6_r0} & Complete\tr{a} & 55 & 15 & 1,996 & -- & -- & -- & -- & -- & -- & -- \\
-\inst{CAL_I25_M8_T12_r0} & Exact & 105 & 14 & 2,053 & 75.4 & 13.6 & 13.6 & 14.9 & 5.39 & 1.2 & 16.0 \\
-\midrule
-\inst{CAL_I17_M4_T3_r1} & Exact & 56 & 20 & 84 & 97.5 & 11.4 & 9.6 & 11.6 & 2.16 & 1.7 & 16.7 \\
-\inst{CAL_I17_M4_T6_r1} & Exact & 55 & 17 & 114 & 89.0 & 7.0 & 5.5 & 8.1 & 1.74 & 0.7 & 11.2 \\
-\inst{CAL_I17_M4_T12_r1} & Exact & 69 & 13 & 788 & 160.4 & 35.2 & 33.9 & 35.5 & 3.48 & 1.2 & 17.1 \\
-\inst{CAL_I17_M8_T3_r1} & Exact & 93 & 28 & 751 & 64.7 & 8.5 & 8.5 & 8.9 & 4.27 & 0.6 & 9.6 \\
-\inst{CAL_I17_M8_T6_r1} & Exact & 75 & 11 & 155 & 137.8 & 20.3 & 18.9 & 20.3 & 6.18 & 0.7 & 11.8 \\
-\inst{CAL_I17_M8_T12_r1} & Complete\tr{a} & 3 & 1 & 1,017 & -- & -- & -- & -- & -- & -- & -- \\
-\inst{CAL_I25_M4_T3_r1} & Exact & 26 & 9 & 340 & 196.2 & 22.9 & 6.2 & 22.9 & 2.30 & 5.2 & 6.0 \\
-\inst{CAL_I25_M4_T6_r1} & Exact & 49 & 11 & 971 & 72.9 & 10.9 & 10.9 & 11.0 & 1.59 & 1.1 & 15.3 \\
-\inst{CAL_I25_M4_T12_r1} & Budget\tr{b} & 33 & 3 & 3,625 & -- & -- & -- & -- & -- & -- & -- \\
-\inst{CAL_I25_M8_T3_r1} & Budget\tr{b} & 40 & 4 & 3,620 & -- & -- & -- & -- & -- & -- & -- \\
-\inst{CAL_I25_M8_T6_r1} & Exact & 73 & 7 & 1,532 & 100.5 & 8.8 & 8.2 & 9.8 & 4.23 & 1.0 & 15.1 \\
-\inst{CAL_I25_M8_T12_r1} & Budget\tr{b} & 37 & 7 & 3,631 & -- & -- & -- & -- & -- & -- & -- \\
-%% END table calibrated
+%% BEGIN table policy
+\inst{CAL_I17_M4_T3_r0} & 9 & 130.5 & \textbf{10.0} & 8.5 & 10.1 & 2.30 & 1.38 & 1.7 & 14.7 \\
+\inst{CAL_I17_M4_T6_r0} & 17 & 61.9 & 9.4 & 9.4 & 9.8 & 3.31 & 3.95 & 0.8 & 14.0 \\
+\inst{CAL_I17_M4_T12_r0} & 10 & 113.9 & \textbf{10.9} & 9.7 & 11.7 & 1.85 & 1.25 & 1.4 & 18.1 \\
+\inst{CAL_I17_M8_T3_r0} & 4 & 18.7 & 2.8 & 2.8 & 3.0 & 1.55 & 6.14 & 0.0 & 0.0 \\
+\inst{CAL_I25_M4_T3_r0} & 1 & 0.0 & 0.0 & 0.1 & 0.5 & 0.00 & 1.85 & 0.0 & 0.0 \\
+\inst{CAL_I25_M4_T6_r0} & 13 & 39.2 & 14.7 & 14.7 & 17.4 & 1.43 & 2.68 & 0.8 & 9.9 \\
+\inst{CAL_I25_M8_T3_r0} & 11 & 38.7 & 11.7 & 11.7 & 11.8 & 3.58 & 6.85 & 0.5 & 6.6 \\
+\inst{CAL_I25_M8_T12_r0} & 14 & 75.4 & 13.6 & 13.6 & 14.9 & 5.39 & 5.27 & 1.2 & 16.0 \\
+\inst{CAL_I17_M4_T3_r1} & 20 & 97.5 & \textbf{11.4} & 9.6 & 11.6 & 2.16 & 1.74 & 1.7 & 16.7 \\
+\inst{CAL_I17_M4_T6_r1} & 17 & 89.0 & \textbf{7.0} & 5.5 & 8.1 & 1.74 & 1.51 & 0.7 & 11.2 \\
+\inst{CAL_I17_M4_T12_r1} & 13 & 160.4 & \textbf{35.2} & 33.9 & 35.5 & 3.48 & 1.73 & 1.2 & 17.1 \\
+\inst{CAL_I17_M8_T3_r1} & 28 & 64.7 & 8.5 & 8.5 & 8.9 & 4.27 & 4.88 & 0.6 & 9.6 \\
+\inst{CAL_I17_M8_T6_r1} & 11 & 137.8 & \textbf{20.3} & 18.9 & 20.3 & 6.18 & 3.65 & 0.7 & 11.8 \\
+\inst{CAL_I25_M4_T3_r1} & 9 & 196.2 & \textbf{22.9} & 6.2 & 22.9 & 2.30 & 2.10 & 5.2 & 6.0 \\
+\inst{CAL_I25_M4_T6_r1} & 11 & 72.9 & 10.9 & 10.9 & 11.0 & 1.59 & 1.61 & 1.1 & 15.3 \\
+\inst{CAL_I25_M8_T6_r1} & 7 & 100.5 & \textbf{8.8} & 8.2 & 9.8 & 4.23 & 3.22 & 1.0 & 15.1 \\
+%% END table policy
 \bottomrule
 \end{tabularx}
-
-\smallskip
-\raggedright\footnotesize \tr{a} Complete, but a follower solve stopped on its time limit: not certified. \tr{b} Stopped by the 1~h budget.
 \end{table}
 
-Four findings follow, each on the 16 instances where enumeration is exact.
+\paragraph{The optimal tax captures nearly all attainable abatement} Operators have a median of 11 switching prices, from 1 to 28, and the optimal tax ranges from \EUR0 to \EUR196.2/t. The reduction at $\tau^*$ lies within 0.4 percentage points of the bound at $\Eref$ on 10 instances and within 2.7 points on all: the steps beyond $\tau^*$ abate little for a large increase in tax.
 
-First, the operator has many switching prices: a median of 11, from 1 to 28, spread over the tax range. Each is a tax at which the network changes; between two of them, a higher tax changes nothing. The optimal tax is one of them and ranges from \EUR0 to \EUR196.2/t. On \inst{CAL_I25_M4_T3_r0} no switch is worth its tax to the regulator, and the optimal tax is zero.
+\paragraph{A fixed tax overpays or falls short} On the seven instances whose optimal tax lies at or below \EUR74/t, the fixed tax achieves the same reduction, to within 0.09 percentage points, with a bill up to 3.95 times larger. On eight of the nine whose optimal tax lies above, it abates less, by 0.6 to 16.7 percentage points. Only a regulator who knows the switching prices knows which case applies.
 
-Second, a fixed tax at \EUR74/t matches the optimal one only by coincidence. On the seven instances whose optimal tax lies at or below \EUR74/t, it achieves the same reduction, to within 0.09 percentage points, with a tax bill 1.01 to 3.95 times larger; on \inst{CAL_I25_M4_T3_r0} it collects 1.85 times the operator's cost for a reduction of 0.1 points. On eight of the nine instances whose optimal tax lies above \EUR74/t, it abates less, by 0.6 to 16.7 percentage points: on \inst{CAL_I25_M4_T3_r1} it cuts emissions by 6.2\% instead of 22.9\%. Only a regulator who knows the operator's switching prices knows on which side the fixed tax falls.
+\paragraph{Switches are costly relative to the emissions they avoid} At $\tau^*$, the tax bill is 1.4 to 6.2 times the operator's cost. By Corollary~\ref{cor:bill}, the last switch raises the operator's cost by a larger fraction than it lowers its taxed emissions. This share does not depend on the scale of the emission factors, and it makes switching prices comparable across operators of different emission intensity.
 
-Third, at a switching price the extra cost of the cleaner network equals the tax on the discounted emissions it avoids. The tax bill as a share of cost is therefore the relative cost increase of the switch divided by its relative reduction of the tax base, a ratio that does not depend on the scale of the emission factors (Proposition~\ref{prop:scale}). At $\tau^*$ it is 1.4 to 6.2 on these instances: the last switch raises the operator's cost by a larger fraction than it lowers its taxed emissions. Measured this way, a switching price is comparable across operators of different emission intensity, whereas its level in euros per tonne is not.
-
-Fourth, the tax acts through the closed loop and through production technology, as on the case study (Section~\ref{sec:sens-case}). Remanufacturing rises from at most 5.2\% of production without a tax to 6.0--18.1\% at $\tau^*$ on the 14 instances whose returns arrive within the horizon; the production technology changes on 10 of the 16 and the factories on 3, while transport stays below 2\% of emissions. The reduction at $\tau^*$ lies within 0.4 percentage points of the bound at $\Eref$ on 10 instances and within 2.7 points on all, so the optimal tax captures nearly all the abatement any network allows. That remanufacturing responds to a tax where it carries an environmental advantage is consistent with \textcite{yenipazarli2016managing} and \textcite{li2024optimal}; that emissions fall in steps agrees with the inflection points of \textcite{zakeri2015carbon}.
+\paragraph{The mechanism} The tax acts through the closed loop and production technology. Remanufacturing rises from at most 5.2\% of production without a tax to 6.0--18.1\% at $\tau^*$ on the 14 instances whose returns arrive within the horizon; the production technology changes on 10 of the 16 instances and the factories on 3, while transport stays below 2\% of emissions. This agrees with \textcite{yenipazarli2016managing} and \textcite{li2024optimal}, for whom a tax encourages remanufacturing where it carries an environmental advantage.
 
 \subsection{The case study}\label{sec:sens-case}
 
-On the case study, solved by the DBP, the tax works through cleaner production technology and remanufacturing. The reduction ranges from 8.2\% to 30.5\% across the scenarios, and the widest swing, from the cost of the cleaner technology, comes from the network without a tax. With that cost halved, at its base value and doubled, the incumbents emit 31.95, 31.87 and 31.88~Mt \CO, while the networks without a tax emit 34.8, 41.6 and 45.9~Mt: a cheaper clean technology is adopted without a tax, which leaves the tax less to do, but the network the tax induces is the same. No run closes its gap within 1~h; the gaps are 0.2--2.4\%. The case study has no raw-material emissions, and production makes up 94\% of its emissions at the base-case incumbent. Without a tax, the operator installs the higher-emission technology for one of its two products at both factories. At the incumbent it installs the lower-emission alternative for both products and remanufactures 16.0\% of production, against 4.2\% without a tax.
-
-Table~S5 of the Supplementary Material reports the response at the incumbent of each 1~h run under the six parameters of the sensitivity analysis, each at a low and a high level. No run closes its gap within 1~h; the gaps are 0.2--2.4\%. The weight is $\mu = 3.08\cdot10^{6}$~kg per \EUR/t, so the base case's gap of 1.2\% leaves the tax open by about \EUR125/t, and the incumbents' taxes are not reported. The emissions are better determined: with $\tau^* \in [0, 200]$~\EUR/t and $E^* \ge \Eref$, the bounds give $E^* \in [\max(\Eref, \mathrm{LB} - 200\,\mu), \mathrm{UB}]$, a reduction between 22.6\% and 25.0\% in the base case. In every scenario the operator opens the same two factories and installs the lower-emission production technology for both products; the scenarios change volumes and the remanufacturing share, which is 16.0\% of production at the base-case incumbent against 4.2\% without a tax. Neither returns nor capacity bind: the operator collects 78\% of what could return and uses at most 47\% of the remanufacturing capacity in any period, so the volume remanufactured is an economic choice.
+On the case study, the DBP's incumbent cuts emissions by 23.4\%, and the bounds place the reduction at the optimum between 22.6\% and 25.0\%; the tax itself is not determined within the gap. The operator installs the lower-emission production technology for both products and remanufactures 16.0\% of production, against 4.2\% without a tax, as on the calibrated instances. Across six parameters at two levels each (Table~S3 of the Supplementary Material), the network at the incumbent is robust: the same two factories and production technologies in every scenario. The cost of the cleaner technology moves the network without a tax, not the one the tax induces: with that cost halved, at its base value and doubled, the incumbents emit 31.95, 31.87 and 31.88~Mt \CO, while the networks without a tax emit 34.8, 41.6 and 45.9~Mt. A cheaper clean technology is adopted without a tax and leaves the tax less to do.
 
 \subsection{Robustness}\label{sec:robustness}
 
-On the four small original instances, the DBP's results do not depend on the solver's tolerance or seed. Re-solved at a MIP gap of $10^{-6}$, 51 of the 52 runs of the sensitivity analysis return the same optimal tax to within \EUR0.05/t and the same reduction to within 0.1 percentage points; with five solver seeds, 19 of 20 runs return the same tax. The two exceptions move the tax along a plateau or to the other side of a break point, within the resolution of Proposition~\ref{prop:certificate}, with the same emissions. Giving the case study 3~h instead of 1~h narrows its gap from 1.2\% to 0.8\%; the incumbent's tax moves by \EUR36/t while its emissions change by 0.07\%. Section~S4 of the Supplementary Material gives the details.
+On the small original instances, re-solving at a MIP gap of $10^{-6}$ returns the same tax to within \EUR0.05/t in 51 of 52 runs, and five solver seeds return the same tax in 19 of 20 runs; the two exceptions change the tax where the operator is indifferent between two networks at a switching price, with emissions within 0.1 percentage points. A 3~h run of the case study changes its incumbent's emissions by 0.07\%. Section~S3 of the Supplementary Material gives the details, and Section~S1 the policy and sensitivity analyses on the original instances.
 
 % =====================================================================================
 \section{Conclusions}\label{sec:conclusions}
 
-A regulator who anticipates how an operator redesigns its closed-loop supply chain can set the lowest tax that induces the operator's cleanest attainable network. We modelled this as a bilevel problem in which the regulator sets one carbon tax and the operator solves the network design model of \textcite{mota2018sustainable}. An optimal tax exists and lies at one of the operator's switching prices, the taxes at which it moves to another network. Their level scales inversely with the operator's emission intensity, while the tax bill as a share of cost at each of them does not.
+A regulator who anticipates how an operator redesigns its closed-loop supply chain can set the lowest tax that induces the operator's cleanest attainable network. We modelled this choice as a bilevel program with a continuous tax and a mixed-integer CLSC design follower, and proved that an optimal tax exists at one of the operator's switching prices. The level of these prices scales inversely with the operator's emission intensity, while the tax bill as a share of cost at each of them does not.
 
-Two exact methods solve the problem, and they divide the work. Enumeration of the switching prices is the faster one when they are few: on the small original instances it finds the DBP's tax in 15 to 50\% of the time. Where they are many, as on the calibrated instances, the DBP is faster on five of eight, and enumeration serves to verify its taxes. The DBP, adapted to a relaxation in which the tax multiplies a continuous emission aggregate, still certifies a result when the operator's problem stops on its time limit: on the case study it bounds the optimum within 1.2\% in an hour, while enumeration certifies no switching price.
+Two exact methods solve the problem and divide the work. Enumeration of the switching prices is faster when they are few, and returns the whole staircase of emissions against the tax. The deterministic bounding procedure, adapted to a relaxation in which the tax multiplies a continuous emission aggregate, is faster when they are many and still bounds the optimum when the operator's problem cannot be solved to optimality.
 
-Three findings matter for policy, each on the instances named.
-\begin{enumerate}
-\item An operator has many switching prices, a median of 11 on the calibrated instances, and the optimal tax is one of them, from \EUR0 to \EUR196/t. Between two switching prices a higher tax changes nothing.
-\item A fixed tax at the 2025 EU allowance price, \EUR74/t, overpays where the optimal tax lies below it, with a bill up to four times larger for the same reduction, and falls short where it lies above, by up to 16.7 percentage points of reduction. Only a regulator who knows the operator's switching prices knows which.
-\item The tax acts through remanufacturing and cleaner production technology where these carry an environmental advantage, as on the case study, and captures nearly all the abatement any network allows. The cost of clean technology changes what the operator does without a tax, not the network the tax induces.
-\end{enumerate}
+For policy, the optimal tax captures nearly all the abatement any network allows, mainly through remanufacturing and cleaner production technology. A fixed tax at the EU allowance price pays more for the same abatement where the switching price lies below it, and abates less where it lies above. The cost of clean technology changes what the operator does without a tax, not the network the tax induces.
 
-The study has limits that point to further work. On the method: the cost of enumeration grows with the number of switching prices, and it fails when follower solves stall; the DBP's relaxation dominates its time, and discretisation schemes such as multiparametric disaggregation \parencite{kolodziej2013global} could tighten it; and we have not tested the DBP on a vector of taxes, one per emission source or per period, the case enumeration no longer covers. On the model: the tax is set for one operator, whereas an actual tax applies to all firms alike; a regulator facing heterogeneous operators solves a different bilevel problem, for which the switching prices of representative operators are a first input. The regulator does not maximise welfare \parencite{krass2013environmental,rustico2022environmental}, and the operator does not compete; under competition, emissions may even rise with the tax \parencite{krass2025competitive}. The model is deterministic, while demand, returns and the price of carbon are uncertain \parencite{haddadsisakht2018closed,beck2023survey}. On the data: the published emission factors make every instance emission-intensive, 9.5 to 188~kg \CO\ per euro of cost. Proposition~\ref{prop:scale} shows that this sets the level of the switching prices but not the bill share at which the operator switches; more replicates and larger instances would show how the number of switching prices grows with the network.
+The study sets the tax for one operator; a uniform tax for heterogeneous operators, a welfare-maximising regulator \parencite{krass2013environmental,rustico2022environmental}, competition among operators \parencite{krass2025competitive} and uncertain demand, returns and carbon prices \parencite{haddadsisakht2018closed,beck2023survey} are natural extensions. The DBP extends in principle to a vector of taxes, where enumeration no longer applies, and discretisation schemes such as multiparametric disaggregation \parencite{kolodziej2013global} could speed up its relaxation.
 
 % =====================================================================================
 %% Declarations required by the EJOR Guide for Authors (single-anonymized review: they stay in the manuscript).
