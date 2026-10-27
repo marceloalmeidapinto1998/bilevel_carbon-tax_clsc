@@ -52,7 +52,7 @@ Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 Febr
 
 ## To fill in before submission (`TODO` in the files)
 
-- Authors, affiliations, postal address, corresponding e-mail and ORCID iDs (`main.tex`, `cover_letter.tex`).
+- ORCID iDs of the authors (`main.tex`). Authors, affiliations and the corresponding author (Samuel Moniz) are those of Pinto et al. (2024); the cover letter is signed by the corresponding author.
 - CRediT roles of every author.
 - FCT grant reference, or the no-funding sentence.
 - Repository URL and archived DOI for the data statement.
