@@ -255,7 +255,7 @@ Construction emissions are amortised over the facilities' 20-year life, as their
 & \Xin_{nht} = \Xout_{nht}, \quad \Xin_{kwt} = \Xout_{kwt} && \forall n, h, k, w, t \label{eq:transit}
 \end{align}
 
-\paragraph{Supply, bills of materials and returns} A selected supplier ships between its minimum order and its capacity \parencite[eqs.~10--11]{mota2018sustainable}; retailers return between a minimum and a maximum fraction of lagged sales, with $D_{rp,t'} = 0$ for $t' \le 0$:
+\paragraph{Supply, bills of materials and returns} A selected supplier ships between its minimum order and its capacity; retailers return between a minimum and a maximum fraction of lagged sales, with $D_{rp,t'} = 0$ for $t' \le 0$:
 \begin{align}
 & \underline{S}_{su}\, o_s \le \Xout_{ust} \le \overline{S}_{su}\, o_s && \forall s, u, t \label{eq:supply}\\
 & \textstyle\sum_{p} \sum_{g \in \mathcal{G}_p} a_{upg}\, q_{pfgt} = \Xin_{uft} && \forall u, f, t \label{eq:bom}\\
@@ -271,14 +271,14 @@ Construction emissions are amortised over the facilities' 20-year life, as their
 & \underline{R}_l\, v_{flt} \le \textstyle\sum_{p \in \mathcal{P}_l} r_{pflt} \le \overline{R}_l\, v_{flt} && \forall f, l, t \label{eq:rem-cap}
 \end{align}
 
-\paragraph{Facilities} Stock and floor area are bounded at open facilities, and the floor area covers the items entering the facility, at their area per unit over the stock rotation, plus the stock held \parencite[eq.~16]{mota2018sustainable}:
+\paragraph{Facilities} Stock and floor area are bounded at open facilities, and the floor area covers the items entering the facility, at their area per unit over the stock rotation, plus the stock held:
 \begin{align}
 & \underline{I}_{pw}\, o_w \le I_{pwt} \le \overline{I}_{pw}\, o_w && \forall p, w, t \label{eq:stock}\\
 & \underline{A}_i\, o_i \le A_i \le \overline{A}_i\, o_i && \forall i \in \mathcal{F} \cup \mathcal{W} \label{eq:area}\\
 & \textstyle\sum_{n} \frac{\alpha_n}{\kappa} \Xin_{nit} + [i \in \mathcal{W}] \sum_{p} \alpha_p I_{pit} \le A_i && \forall i \in \mathcal{F} \cup \mathcal{W}, t \label{eq:area-use}
 \end{align}
 
-\paragraph{Transport} A truck mode carries what its integer trips allow, and trips require both endpoints to be open \parencite[eqs.~24--27]{mota2018sustainable}; air and sea carry at most the contracted capacity (eq.~28); goods change between road and air or sea only at hubs of that mode:
+\paragraph{Transport} A truck mode carries what its integer trips allow, and trips require both endpoints to be open; air and sea carry at most the contracted capacity; goods change between road and air or sea only at hubs of that mode:
 \begin{align}
 & \underline{X}_m\, z_{ijmt} \le \textstyle\sum_n \omega_n x_{nijmt} \le \overline{X}_m\, z_{ijmt}, \notag\\
 & z_{ijmt} \le B_{ijm}\, o_i, \quad z_{ijmt} \le B_{ijm}\, o_j && \forall (i,j),\, m \in \mathcal{M}_{ij} \cap \mathcal{M}^T,\, t \label{eq:trucks}\\
