@@ -53,7 +53,7 @@ Source: EJOR Guide for Authors, read from the Wayback Machine capture of 10 Febr
 ## To fill in before submission (`TODO` in the files)
 
 - ORCID iDs of the authors (`main.tex`). Authors and affiliation follow Pinto et al. (2024); the corresponding author is Marcelo Pinto, who also signs the cover letter.
-- CRediT roles of every author.
+- Confirm the CRediT roles of every author (filled in from the author's list).
 - FCT grant reference, or the no-funding sentence.
 - Repository URL and archived DOI for the data statement.
 - The generative AI declaration: say what the tool was used for.
