@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "clsc"
 version = "0.1.0"
-description = "Bilevel optimization of a Closed-Loop Supply Chain under a carbon tax (DBP solver)."
+description = "Deterministic bounding procedure for setting a carbon tax when an operator redesigns its closed-loop supply chain: a bilevel mixed-integer program. Python, Gurobi, with instances, case study and experiments."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
